@@ -2,7 +2,8 @@
  * Tabellen, die alle Bereiche brauchen: Benutzer, Anmeldung, Partien und
  * Einstellungen. Fachbereiche bauen darauf auf, nicht umgekehrt.
  */
-import { index, integer, sqliteTable, text } from 'drizzle-orm/sqlite-core';
+import { index, integer, primaryKey, sqliteTable, text } from 'drizzle-orm/sqlite-core';
+import { ROLES } from '$lib/permissions';
 import { createdAt } from './common';
 
 /** Person oder Gruppe (Partie), an die Material ausgegeben wird */
@@ -22,7 +23,7 @@ export const users = sqliteTable('users', {
 	firstName: text('first_name').notNull().default(''),
 	lastName: text('last_name').notNull().default(''),
 	passwordHash: text('password_hash').notNull(),
-	role: text('role', { enum: ['admin', 'bauleiter', 'partiefuehrer', 'arbeiter', 'viewer'] }).notNull(),
+	role: text('role', { enum: ROLES }).notNull(),
 	/** Partie des Benutzers (Pflicht für Partieführer und Arbeiter) – beim Buchen vorausgewählt */
 	partyId: integer('party_id').references(() => parties.id, { onDelete: 'set null' }),
 	active: integer('active', { mode: 'boolean' }).notNull().default(true),
@@ -64,6 +65,21 @@ export const settings = sqliteTable('settings', {
 	key: text('key').primaryKey(),
 	value: text('value').notNull()
 });
+
+/**
+ * Rechte je Rolle, vom Admin unter Benutzer → Berechtigungen gepflegt.
+ * Fehlende Paare werden beim Start aus den Standardrechten im Code ergänzt.
+ */
+export const rolePermissions = sqliteTable(
+	'role_permissions',
+	{
+		role: text('role', { enum: ROLES }).notNull(),
+		permission: text('permission').notNull(),
+		allowed: integer('allowed', { mode: 'boolean' }).notNull().default(false),
+		updatedAt: integer('updated_at', { mode: 'timestamp_ms' })
+	},
+	(t) => [primaryKey({ columns: [t.role, t.permission] })]
+);
 
 export type User = typeof users.$inferSelect;
 export type Party = typeof parties.$inferSelect;

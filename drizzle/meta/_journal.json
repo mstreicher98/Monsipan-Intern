@@ -50,6 +50,20 @@
       "when": 1790112211196,
       "tag": "0006_geteilte_codes",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "6",
+      "when": 1790896124358,
+      "tag": "0007_rechte_matrix",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1790896628941,
+      "tag": "0008_stundenzettel",
+      "breakpoints": true
     }
   ]
 }

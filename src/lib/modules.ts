@@ -21,6 +21,7 @@ import ChartPie from '@lucide/svelte/icons/chart-pie';
 import ShoppingCart from '@lucide/svelte/icons/shopping-cart';
 import FolderOpen from '@lucide/svelte/icons/folder-open';
 import UserCog from '@lucide/svelte/icons/user-cog';
+import ShieldCheck from '@lucide/svelte/icons/shield-check';
 import Settings from '@lucide/svelte/icons/settings';
 import Database from '@lucide/svelte/icons/database';
 import type { Component } from 'svelte';
@@ -57,7 +58,16 @@ export const MODULES: AppModule[] = [
 	{ key: 'auftraege', label: 'Aufträge', icon: HardHat, href: '/auftraege', group: 'betrieb', status: 'geplant', items: [] },
 	{ key: 'planung', label: 'Planung', icon: CalendarDays, href: '/planung', group: 'betrieb', status: 'geplant', items: [] },
 	{ key: 'partien', label: 'Partien', icon: Users, href: '/partien', group: 'betrieb', status: 'geplant', items: [] },
-	{ key: 'stunden', label: 'Stundenzettel', icon: Clock, href: '/stundenzettel', group: 'betrieb', status: 'geplant', items: [] },
+	{
+		key: 'stunden',
+		label: 'Stundenzettel',
+		icon: Clock,
+		href: '/stundenzettel',
+		group: 'betrieb',
+		status: 'aktiv',
+		hint: 'Lohnwoche je Mitarbeiter',
+		items: []
+	},
 	{ key: 'tagesberichte', label: 'Tagesberichte', icon: NotebookPen, href: '/tagesberichte', group: 'betrieb', status: 'geplant', items: [] },
 	{
 		key: 'lager',
@@ -85,9 +95,11 @@ export const MODULES: AppModule[] = [
 		href: '/verwaltung/benutzer',
 		group: 'verwaltung',
 		status: 'aktiv',
-		permission: 'verwaltung.users.manage',
-		hint: 'Zugänge, Rollen und Partien',
-		items: []
+		hint: 'Zugänge, Gruppen und Rechte',
+		items: [
+			{ href: '/verwaltung/benutzer', label: 'Benutzer', icon: UserCog, permission: 'verwaltung.users.manage' },
+			{ href: '/verwaltung/berechtigungen', label: 'Berechtigungen', icon: ShieldCheck, permission: 'verwaltung.permissions.manage' }
+		]
 	},
 	{
 		key: 'administration',

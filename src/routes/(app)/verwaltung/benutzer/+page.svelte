@@ -72,6 +72,7 @@
 	const roleTone: Record<Role, string> = {
 		admin: 'badge-brand',
 		bauleiter: 'badge-info',
+		buchhaltung: 'badge-info',
 		partiefuehrer: '',
 		arbeiter: '',
 		viewer: ''

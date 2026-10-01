@@ -2,9 +2,11 @@ import { json, redirect, type Handle, type HandleServerError, type ServerInit } 
 import { clearSessionCookie, SESSION_COOKIE, validateSession } from '$lib/server/auth';
 import { scheduleMaintenance } from '$lib/server/backup';
 import { ensureDatabase } from '$lib/server/db';
+import { ensurePermissions } from '$lib/server/permissions';
 
 export const init: ServerInit = async () => {
 	await ensureDatabase();
+	await ensurePermissions();
 	scheduleMaintenance();
 };
 
@@ -38,6 +40,7 @@ function movedTarget(path: string): string | null {
 
 export const handle: Handle = async ({ event, resolve }) => {
 	await ensureDatabase();
+	await ensurePermissions();
 
 	const moved = movedTarget(event.url.pathname);
 	if (moved) redirect(308, moved + event.url.search);

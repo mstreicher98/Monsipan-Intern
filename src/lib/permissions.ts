@@ -1,22 +1,28 @@
 /**
- * Rollen und Rechte an einer Stelle. Wer eine Rolle anders zuschneiden will,
- * ändert nur die Tabelle PERMISSIONS.
+ * Rollen und Rechte.
+ *
+ * Im Code stehen die Standardrechte (DEFAULT_PERMISSIONS). Was tatsächlich gilt,
+ * verwaltet der Admin unter Benutzer → Berechtigungen; diese Matrix liegt in der
+ * Datenbank und wird beim Start in `current` geladen – auf dem Server wie im
+ * Browser. `can()` bleibt dadurch eine einfache, synchrone Abfrage.
  */
-export const ROLES = ['admin', 'bauleiter', 'partiefuehrer', 'arbeiter', 'viewer'] as const;
+export const ROLES = ['admin', 'bauleiter', 'buchhaltung', 'partiefuehrer', 'arbeiter', 'viewer'] as const;
 export type Role = (typeof ROLES)[number];
 
 export const ROLE_LABELS: Record<Role, string> = {
 	admin: 'Admin',
 	bauleiter: 'Bauleiter',
+	buchhaltung: 'Buchhaltung/Sekretariat',
 	partiefuehrer: 'Partieführer',
 	arbeiter: 'Arbeiter',
 	viewer: 'Nur ansehen'
 };
 
 export const ROLE_DESCRIPTIONS: Record<Role, string> = {
-	admin: 'Alles, inklusive Benutzer und Einstellungen',
-	bauleiter: 'Buchen, Inventur, Korrekturen, Artikel und Stammdaten pflegen, Berichte',
-	partiefuehrer: 'Bestand und Bewegungen ansehen, ein- und ausbuchen, umlagern',
+	admin: 'Alles, inklusive Benutzer, Berechtigungen und Einstellungen',
+	bauleiter: 'Buchen, Inventur, Korrekturen, Artikel und Stammdaten pflegen, Berichte, Stunden und Tagesberichte',
+	buchhaltung: 'Stundenzettel prüfen, Tagesberichte und Auswertungen einsehen, Stammdaten pflegen – ohne Lagerbuchungen',
+	partiefuehrer: 'Bestand und Bewegungen ansehen, buchen, Stundenzettel und Tagesberichte der eigenen Partie',
 	arbeiter: 'Bestand ansehen, ein- und ausbuchen, umlagern – ohne Einblick in Bewegungen',
 	viewer: 'Alles ansehen außer Stammdaten, Benutzer und Einstellungen – ohne Änderungen'
 };
@@ -29,28 +35,119 @@ export function needsParty(role: Role | undefined | null): boolean {
 }
 
 /**
- * Ein Block je Bereich. Ein neuer Bereich bringt seinen eigenen Block mit,
- * die Schlüssel beginnen immer mit dem Kürzel des Bereichs.
+ * Standardrechte je Bereich. Ein neuer Bereich ergänzt nur seinen eigenen Block;
+ * fehlende Einträge werden beim Start aus dieser Tabelle in die Datenbank übernommen.
  */
-const PERMISSIONS = {
+export const DEFAULT_PERMISSIONS = {
 	// Lager
 	'lager.stock.book': ['admin', 'bauleiter', 'partiefuehrer', 'arbeiter'],
 	'lager.stock.inventory': ['admin', 'bauleiter'],
-	'lager.movements.view': ['admin', 'bauleiter', 'partiefuehrer', 'viewer'],
+	'lager.movements.view': ['admin', 'bauleiter', 'buchhaltung', 'partiefuehrer', 'viewer'],
 	'lager.movements.correct': ['admin', 'bauleiter'],
 	'lager.products.manage': ['admin', 'bauleiter'],
-	'lager.reports.view': ['admin', 'bauleiter', 'viewer'],
-	'lager.alerts.view': ['admin', 'bauleiter', 'viewer'],
+	'lager.reports.view': ['admin', 'bauleiter', 'buchhaltung', 'viewer'],
+	'lager.alerts.view': ['admin', 'bauleiter', 'buchhaltung', 'viewer'],
+
+	// Stundenzettel
+	'stunden.erfassen': ['admin', 'bauleiter', 'partiefuehrer'],
+	'stunden.freigeben': ['admin', 'bauleiter', 'partiefuehrer'],
+	'stunden.pruefen': ['admin', 'bauleiter', 'buchhaltung'],
+	'stunden.alle.sehen': ['admin', 'bauleiter', 'buchhaltung'],
+
+	// Tagesberichte
+	'tagesberichte.erfassen': ['admin', 'bauleiter', 'partiefuehrer'],
+	'tagesberichte.abschliessen': ['admin', 'bauleiter'],
+	'tagesberichte.alle.sehen': ['admin', 'bauleiter', 'buchhaltung', 'viewer'],
 
 	// Verwaltung
-	'verwaltung.masterdata.manage': ['admin', 'bauleiter'],
+	'verwaltung.masterdata.manage': ['admin', 'bauleiter', 'buchhaltung'],
 	'verwaltung.users.manage': ['admin'],
+	'verwaltung.permissions.manage': ['admin'],
 	'verwaltung.settings.manage': ['admin']
 } as const satisfies Record<string, readonly Role[]>;
 
-export type Permission = keyof typeof PERMISSIONS;
+export type Permission = keyof typeof DEFAULT_PERMISSIONS;
+
+export const PERMISSIONS = Object.keys(DEFAULT_PERMISSIONS) as Permission[];
+
+/** Beschriftung in der Rechteverwaltung, nach Bereichen gruppiert */
+export const PERMISSION_GROUPS: { title: string; items: { key: Permission; label: string; hint?: string }[] }[] = [
+	{
+		title: 'Lager',
+		items: [
+			{ key: 'lager.stock.book', label: 'Buchen', hint: 'Ein-, Aus- und Umbuchen, Rückgaben' },
+			{ key: 'lager.stock.inventory', label: 'Inventur' },
+			{ key: 'lager.movements.view', label: 'Bewegungen ansehen' },
+			{ key: 'lager.movements.correct', label: 'Buchungen korrigieren', hint: 'Stornieren und neu buchen' },
+			{ key: 'lager.products.manage', label: 'Artikel pflegen', hint: 'Anlegen, ändern, Codes und PDFs' },
+			{ key: 'lager.reports.view', label: 'Berichte und Bestellliste' },
+			{ key: 'lager.alerts.view', label: 'Warnungen sehen', hint: 'Hinweis auf Mindestbestand' }
+		]
+	},
+	{
+		title: 'Stundenzettel',
+		items: [
+			{ key: 'stunden.erfassen', label: 'Erfassen', hint: 'Wochen der eigenen Partie ausfüllen' },
+			{ key: 'stunden.freigeben', label: 'Freigeben', hint: 'Woche abschließen und einreichen' },
+			{ key: 'stunden.pruefen', label: 'Prüfen', hint: 'Geprüft-Haken setzen, Auslöse bestätigen' },
+			{ key: 'stunden.alle.sehen', label: 'Alle sehen', hint: 'Auch Partien, zu denen man nicht gehört' }
+		]
+	},
+	{
+		title: 'Tagesberichte',
+		items: [
+			{ key: 'tagesberichte.erfassen', label: 'Erfassen' },
+			{ key: 'tagesberichte.abschliessen', label: 'Abschließen', hint: 'Bericht festschreiben' },
+			{ key: 'tagesberichte.alle.sehen', label: 'Alle sehen' }
+		]
+	},
+	{
+		title: 'Verwaltung',
+		items: [
+			{ key: 'verwaltung.masterdata.manage', label: 'Stammdaten pflegen' },
+			{ key: 'verwaltung.users.manage', label: 'Benutzer verwalten' },
+			{ key: 'verwaltung.permissions.manage', label: 'Berechtigungen ändern' },
+			{ key: 'verwaltung.settings.manage', label: 'Einstellungen' }
+		]
+	}
+];
+
+/**
+ * Rechte, die dem Admin nicht genommen werden können – sonst sperrt sich die
+ * Firma aus der Benutzer- und Rechteverwaltung aus.
+ */
+export const LOCKED: { role: Role; permission: Permission }[] = [
+	{ role: 'admin', permission: 'verwaltung.users.manage' },
+	{ role: 'admin', permission: 'verwaltung.permissions.manage' },
+	{ role: 'admin', permission: 'verwaltung.settings.manage' }
+];
+
+export function isLocked(role: Role, permission: Permission): boolean {
+	return LOCKED.some((l) => l.role === role && l.permission === permission);
+}
+
+export type PermissionMatrix = Record<string, Role[]>;
+
+function defaults(): PermissionMatrix {
+	return Object.fromEntries(Object.entries(DEFAULT_PERMISSIONS).map(([k, v]) => [k, [...v]]));
+}
+
+let current: PermissionMatrix = defaults();
+
+/** Gültige Matrix setzen (Server beim Start, Browser beim Laden der Seite) */
+export function setPermissionMatrix(matrix: PermissionMatrix | null | undefined) {
+	current = matrix && Object.keys(matrix).length ? matrix : defaults();
+	for (const { role, permission } of LOCKED) {
+		const roles = current[permission] ?? (current[permission] = []);
+		if (!roles.includes(role)) roles.push(role);
+	}
+}
+
+export function permissionMatrix(): PermissionMatrix {
+	return current;
+}
 
 export function can(role: Role | undefined | null, permission: Permission): boolean {
 	if (!role) return false;
-	return (PERMISSIONS[permission] as readonly Role[]).includes(role);
+	return (current[permission] ?? []).includes(role);
 }
