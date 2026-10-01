@@ -14,6 +14,7 @@ import { pipeline } from 'node:stream/promises';
 import { createClient, type Client } from '@libsql/client';
 import { drizzle } from 'drizzle-orm/libsql';
 import { migrate } from 'drizzle-orm/libsql/migrator';
+import { APP_NAME } from '$lib/app';
 import { BACKUP_DIR, BACKUP_FILE_RE, createBackup, pauseSweep, sweepTempFiles } from './backup';
 import { client, DATA_DIR, migrationsPath } from './db';
 import { broadcast } from './events';
@@ -83,7 +84,7 @@ export async function inspectBackup(file: string): Promise<BackupContents> {
 		if (String(check.rows[0]?.[0] ?? '') !== 'ok') throw new RestoreError('Die Datei ist beschädigt.');
 		const names = new Set(await tableNames(c));
 		for (const t of NEEDED_TABLES) {
-			if (!names.has(t)) throw new RestoreError('Diese Datei ist keine Sicherung vom Monsipan Lagermanagement.');
+			if (!names.has(t)) throw new RestoreError(`Diese Datei ist keine Sicherung von ${APP_NAME}.`);
 		}
 		const count = async (table: string) => Number((await c.execute(`select count(*) as n from "${table}"`)).rows[0].n ?? 0);
 		const stat = fs.statSync(file);

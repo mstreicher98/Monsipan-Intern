@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { pageTitle } from '$lib/app';
 	import { enhance } from '$app/forms';
 	import ScanBarcode from '@lucide/svelte/icons/scan-barcode';
 	import MonitorSmartphone from '@lucide/svelte/icons/monitor-smartphone';
@@ -18,7 +19,7 @@
 		};
 </script>
 
-<svelte:head><title>Mein Konto – Monsipan Lagermanagement</title></svelte:head>
+<svelte:head><title>{pageTitle('Mein Konto')}</title></svelte:head>
 
 <div class="pt-2 pb-5">
 	<h1 class="text-[2rem] leading-tight">Mein Konto</h1>
@@ -79,6 +80,6 @@
 	<section class="card p-4 lg:p-6" aria-labelledby="h-scan">
 		<h2 id="h-scan" class="flex items-center gap-2 text-xl"><ScanBarcode size={20} aria-hidden="true" />Scanner</h2>
 		<p class="mt-1 text-sm text-ink-2">Prüfe, ob Handscanner oder Kamera Codes richtig lesen – inklusive Tastaturlayout.</p>
-		<a href="/scanner-test" class="btn btn-secondary mt-4">Scanner testen</a>
+		<a href="/lager/scanner-test" class="btn btn-secondary mt-4">Scanner testen</a>
 	</section>
 </div>

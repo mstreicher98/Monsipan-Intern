@@ -4,9 +4,9 @@
 	import Search from '@lucide/svelte/icons/search';
 	import ScanBarcode from '@lucide/svelte/icons/scan-barcode';
 	import Logo from './Logo.svelte';
-	import ProductSearch from './ProductSearch.svelte';
+	import ProductSearch from '$lib/modules/lager/components/ProductSearch.svelte';
 	import Dialog from './Dialog.svelte';
-	import type { ProductSummary } from '$lib/types';
+	import type { ProductSummary } from '$lib/modules/lager/types';
 
 	interface Props {
 		showAlerts: boolean;
@@ -18,7 +18,7 @@
 
 	function openProduct(p: ProductSummary) {
 		searchOpen = false;
-		goto(`/artikel/${p.id}`);
+		goto(`/lager/artikel/${p.id}`);
 	}
 </script>
 
@@ -40,7 +40,7 @@
 			</button>
 			{#if showAlerts}
 				<a
-					href="/bestellliste"
+					href="/lager/bestellliste"
 					class="btn btn-ghost btn-icon relative"
 					aria-label={lowStockCount > 0 ? `${lowStockCount} Artikel unter Mindestbestand` : 'Keine Warnungen'}
 				>

@@ -1,4 +1,24 @@
-# Monsipan Lagermanagement
+# Monsipan Intern
+
+Die interne Anwendung von Monsipan Bautenschutz: alle Bereiche des Betriebs in einer
+Oberfläche, auf dem Handy wie am PC. Fertig ist bisher das **Lager**; die übrigen
+Bereiche kommen nach und nach dazu.
+
+| Bereich | Stand |
+|---|---|
+| Übersicht | fertig – Einstieg in alle Bereiche, Kennzahlen aus dem Lager |
+| Lager | fertig – Bestand, Buchen, Bewegungen, Bestellliste, Berichte, Artikel |
+| Benutzer | fertig – Zugänge, Rollen, Partien |
+| Administration | fertig – Stammdaten, Einstellungen, Sicherungen |
+| Aufträge, Planung, Partien, Stundenzettel, Tagesberichte | geplant |
+| Bestellungen, Dokumente, Auswertungen | geplant |
+
+Welche Bereiche es gibt und welche davon freigeschaltet sind, steht an einer Stelle:
+[`src/lib/modules.ts`](src/lib/modules.ts). Ein neuer Bereich bekommt dort einen Eintrag,
+seine Seiten unter `src/routes/(app)/<bereich>/` und seinen Code unter
+`src/lib/modules/<bereich>/`.
+
+## Lager
 
 Lagerverwaltung für die Bodenmarkierung: Bestand je Lagerort, Ein-/Ausbuchen per Scan,
 Umlagern, Rückgaben, Inventur, Bestellliste mit Warn-Mails und Auswertungen.
@@ -14,6 +34,7 @@ Umlagern, Rückgaben, Inventur, Bestellliste mit Warn-Mails und Auswertungen.
 
 ## Inhalt
 
+0. [Bereiche und Adressen](#bereiche-und-adressen)
 1. [Rollen](#rollen)
 2. [Lokale Entwicklung](#lokale-entwicklung)
 3. [Betrieb auf dem Server](#betrieb-auf-dem-server)
@@ -26,6 +47,23 @@ Umlagern, Rückgaben, Inventur, Bestellliste mit Warn-Mails und Auswertungen.
 10. [Technik und Projektstruktur](#technik-und-projektstruktur)
 
 ---
+
+## Bereiche und Adressen
+
+Jeder Bereich hat seinen eigenen Pfad. Das Lager liegt unter `/lager/…`, Benutzer und
+Administration unter `/verwaltung/…`:
+
+| Seite | Adresse |
+|---|---|
+| Übersicht | `/` |
+| Bestand, Buchen, Bewegungen, Bestellliste, Berichte | `/lager/bestand` usw. |
+| Artikel | `/lager/artikel/<id>` |
+| Scanner testen | `/lager/scanner-test` |
+| Stammdaten, Benutzer, Einstellungen | `/verwaltung/…` |
+
+Die alten Adressen (`/bestand`, `/buchen`, `/artikel/5`, `/benutzer` …) leiten dauerhaft
+auf die neuen weiter – gespeicherte Lesezeichen und Verknüpfungen am Handy funktionieren
+weiter. Die Weiterleitung steht in [`src/hooks.server.ts`](src/hooks.server.ts).
 
 ## Rollen
 
@@ -104,7 +142,7 @@ Bei jedem Push auf `main` baut GitHub Actions
 Tests, dann das Image für `linux/amd64` und `linux/arm64`:
 
 ```
-ghcr.io/mstreicher98/monsipan-lager:latest
+ghcr.io/mstreicher98/monsipan-intern:latest
 ```
 
 Dazu gibt es Tags mit dem Commit (`sha-…`) und, bei einem Git-Tag wie `v1.0.1`, mit der
@@ -113,7 +151,7 @@ Compose path `portainer-stack.yml`. Die Datei ist kommentiert; nötig ist nur:
 
 | Variable | Wert |
 |---|---|
-| `ORIGIN` | `https://lager.monsipan.at` – muss exakt der öffentlichen Adresse entsprechen, sonst lehnt die App alle Formulare ab |
+| `ORIGIN` | `https://intern.monsipan.at` – muss exakt der öffentlichen Adresse entsprechen, sonst lehnt die App alle Formulare ab |
 | `INITIAL_ADMIN_PASSWORD` | Passwort des ersten Admins (leer lassen: die App erzeugt eines und zeigt es im Log) |
 | `SMTP_*`, `MAIL_FROM` | nur falls E-Mail gewünscht |
 
@@ -129,15 +167,24 @@ GitHub unter **Packages → Package settings** auf privat gestellt, in Portainer
 
 **Update:** Änderungen pushen, Actions abwarten, in Portainer **Pull and redeploy**.
 Die Datenbank liegt im Volume `lager-data` und bleibt dabei erhalten; Migrationen laufen
-beim Start automatisch.
+beim Start automatisch. Volume und Dateiname heißen weiterhin „lager“ – beim Umbenennen
+der Anwendung wurden sie bewusst nicht angefasst, damit keine Daten verloren gehen.
+
+**Umzug von `lager.monsipan.at` auf `intern.monsipan.at`:** Im Cloudflare-Tunnel die neue
+Hostname-Route auf denselben Container legen und `ORIGIN` auf die neue Adresse setzen.
+Für die alte Adresse in Cloudflare unter **Rules → Redirect Rules** eine Weiterleitung
+auf `intern.monsipan.at` anlegen (Pfad und Query übernehmen). Das muss in Cloudflare
+passieren, nicht in der App: Mit gesetztem `ORIGIN` sieht die Anwendung den alten
+Hostnamen gar nicht mehr. Innerhalb der Anwendung leiten die alten Pfade von selbst
+weiter (siehe [Bereiche und Adressen](#bereiche-und-adressen)).
 
 ### Selbst bauen mit Docker Compose und Caddy
 
 Benötigt: ein Linux-Server mit Docker, Ports 80 und 443 offen, und ein DNS-Eintrag
-(A-Record) von `lager.monsipan.at` auf die Server-IP.
+(A-Record) von `intern.monsipan.at` auf die Server-IP.
 
 ```bash
-git clone <repo> monsipan-lager && cd monsipan-lager
+git clone <repo> monsipan-intern && cd monsipan-intern
 cp .env.example .env        # Domain, SMTP und ersten Admin eintragen
 docker compose up -d --build
 docker compose logs app     # zeigt das Passwort des ersten Admins, falls keines gesetzt wurde
@@ -252,10 +299,17 @@ Download-Knopf erscheint ausschließlich am Handy und nur angemeldet.
 
 **Android:** echte App (Capacitor), die die laufende Webseite anzeigt. Beim ersten Mal
 fragt Android, ob Apps aus dieser Quelle installiert werden dürfen, weil die Datei nicht
-aus dem Play Store kommt. Fester Download-Link:
+aus dem Play Store kommt.
+
+> **Einmalig beim Umstieg auf Monsipan Intern:** Die App hat eine neue Kennung
+> (`at.monsipan.intern` statt `at.monsipan.lager`). Android hält sie deshalb für eine
+> andere App – die neue muss installiert und die alte „Lagermanagement" danach
+> deinstalliert werden. Ein Update über die alte Installation ist nicht möglich.
+
+Fester Download-Link:
 
 ```
-https://github.com/mstreicher98/Monsipan-Lager/releases/download/app/monsipan-lager.apk
+https://github.com/mstreicher98/Monsipan-Intern/releases/download/app/monsipan-intern.apk
 ```
 
 **iPhone und iPad:** Apple erlaubt kein Installieren per Datei. Safari legt das Lager
@@ -355,17 +409,28 @@ Die Artikelsuche findet Artikel auch über die RAL-Nummer.
 ```
 src/
   lib/
-    scan/          Scan-Parser, Tastaturlayouts, Handscanner- und Kamera-Anbindung
-    server/        Datenbank, Anmeldung, Buchungslogik, Warnungen, Mail, Sicherungen
-    components/    Oberflächen-Bausteine
-    permissions.ts Rollen und Rechte
+    modules.ts     Alle Bereiche: Beschriftung, Symbol, Pfad, Recht, aktiv oder geplant
+    permissions.ts Rollen und Rechte, ein Block je Bereich (lager.*, verwaltung.*)
+    app.ts         Name der Anwendung und Seitentitel
+    nav.ts         Navigation, gefiltert nach Rolle
+    components/    Geteilte Bausteine (Dialog, Tabelle, Diagramm, PDF-Ansicht, Navigation)
+    server/        Geteilt: Datenbank, Anmeldung, Mail, Sicherungen, Dokumente, Ereignisse
+    server/db/schema/   core.ts (Benutzer, Partien, Einstellungen) + je Bereich eine Datei
+    modules/
+      lager/       Alles zum Lager: server/ (Bestand, Buchungen, Warnungen),
+                   components/, scan/ (Parser, Tastaturlayouts, Handscanner, Kamera)
   routes/
     (auth)/        Anmelden, Passwort vergessen/zurücksetzen
-    (app)/         Übersicht, Bestand, Buchen, Bewegungen, Bestellliste, Berichte,
-                   Artikel, Stammdaten, Benutzer, Einstellungen, Konto, Scanner-Test
+    (app)/         Übersicht, lager/…, verwaltung/…, Konto, App fürs Handy
     api/           Code-Suche, Artikelsuche, Live-Ereignisse
     export/        CSV-Exporte (Excel-kompatibel) und Backup-Download
 ```
+
+**Ein neuer Bereich** braucht: einen Eintrag in `modules.ts` (zunächst `status: 'geplant'`),
+seinen Rechte-Block in `permissions.ts`, seine Tabellen in `server/db/schema/<bereich>.ts`,
+seinen Code unter `lib/modules/<bereich>/` und seine Seiten unter `routes/(app)/<bereich>/`.
+Sobald er läuft, wird aus `'geplant'` ein `'aktiv'` – dann erscheint er in der Navigation
+und auf der Übersicht.
 
 **Buchungslogik:** Jede Buchung ist eine unveränderliche Bewegung. Korrekturen stornieren
 die alte Bewegung und legen eine neue an – der Bestand je Lagerort wird in derselben

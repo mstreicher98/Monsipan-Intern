@@ -1,5 +1,5 @@
 import { error, json } from '@sveltejs/kit';
-import { productWithLocations } from '$lib/server/products';
+import { productWithLocations } from '$lib/modules/lager/server/products';
 import type { RequestHandler } from './$types';
 
 /** Artikel mit Bestand je Lagerort – für Buchungszeilen nach einer Suche */

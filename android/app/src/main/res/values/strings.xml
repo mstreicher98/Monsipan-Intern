@@ -1,8 +1,8 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
     <!-- Beschriftung unter dem App-Symbol: kurz, sonst kürzt Android sie ab -->
-    <string name="app_name">Lagermanagement</string>
-    <string name="title_activity_main">Monsipan Lagermanagement</string>
-    <string name="package_name">at.monsipan.lager</string>
-    <string name="custom_url_scheme">at.monsipan.lager</string>
+    <string name="app_name">Monsipan Intern</string>
+    <string name="title_activity_main">Monsipan Intern</string>
+    <string name="package_name">at.monsipan.intern</string>
+    <string name="custom_url_scheme">at.monsipan.intern</string>
 </resources>

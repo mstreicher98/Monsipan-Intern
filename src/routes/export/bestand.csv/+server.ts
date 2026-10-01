@@ -1,8 +1,8 @@
 import { csvResponse, today, toCsv } from '$lib/server/csv';
 import { requireUser } from '$lib/server/guard';
 import { locationOptions } from '$lib/server/options';
-import { stockByLocation } from '$lib/server/products';
-import { listStock, parseStockFilter } from '$lib/server/stock-list';
+import { stockByLocation } from '$lib/modules/lager/server/products';
+import { listStock, parseStockFilter } from '$lib/modules/lager/server/stock-list';
 import { unitLabel } from '$lib/format';
 import type { RequestHandler } from './$types';
 

@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { pageTitle } from '$lib/app';
 	import Smartphone from '@lucide/svelte/icons/smartphone';
 	import Download from '@lucide/svelte/icons/download';
 	import Share from '@lucide/svelte/icons/share';
@@ -26,12 +27,12 @@
 	}
 </script>
 
-<svelte:head><title>App fürs Handy – Monsipan Lagermanagement</title></svelte:head>
+<svelte:head><title>{pageTitle('App fürs Handy')}</title></svelte:head>
 
 <div class="pt-2 pb-5">
 	<h1 class="flex items-center gap-2 text-[2rem] leading-tight"><Smartphone size={26} aria-hidden="true" />App fürs Handy</h1>
 	<p class="max-w-2xl text-ink-2">
-		Das Lager als App am Startbildschirm: eigenes Symbol, Vollbild ohne Browserleiste, Scannen mit der Kamera wie gewohnt. Die Daten kommen
+		Monsipan Intern als App am Startbildschirm: eigenes Symbol, Vollbild ohne Browserleiste, Scannen mit der Kamera wie gewohnt. Die Daten kommen
 		weiterhin vom Server, angemeldet bleibst du wie im Browser.
 	</p>
 </div>
@@ -40,12 +41,12 @@
 	{#if install.standalone}
 		<section class="card p-4 lg:col-span-2 lg:p-6">
 			<h2 class="flex items-center gap-2 text-xl text-ok"><CircleCheck size={20} aria-hidden="true" />Läuft bereits als App</h2>
-			<p class="mt-1 text-ink-2">Du hast das Lager schon am Startbildschirm. Es gibt nichts zu tun – Updates kommen automatisch vom Server.</p>
+			<p class="mt-1 text-ink-2">Du hast die App schon am Startbildschirm. Es gibt nichts zu tun – Updates kommen automatisch vom Server.</p>
 		</section>
 	{:else if install.platform === 'android'}
 		<section class="card p-4 lg:p-6">
 			<h2 class="text-xl">Android-App herunterladen</h2>
-			<p class="mt-1 text-ink-2">Die Datei installiert das Lager als richtige App.</p>
+			<p class="mt-1 text-ink-2">Die Datei installiert Monsipan Intern als richtige App.</p>
 			<a href={data.apkUrl} class="btn btn-primary mt-4 w-full" download rel="noopener">
 				<Download size={18} aria-hidden="true" />App herunterladen
 			</a>
@@ -54,9 +55,11 @@
 				<li>Die heruntergeladene Datei öffnen (Benachrichtigung oder Downloads-Ordner).</li>
 				<li>Android fragt einmalig, ob Apps aus dieser Quelle installiert werden dürfen – erlauben.</li>
 				<li>Installieren, öffnen, anmelden. Fertig.</li>
+				<li>Die alte App „Lagermanagement“ danach deinstallieren – sie wird nicht mehr gebraucht.</li>
 			</ol>
 			<p class="mt-3 text-sm text-ink-3">
-				Die Nachfrage kommt, weil die App nicht aus dem Play Store stammt, sondern direkt von uns.
+				Die Nachfrage kommt, weil die App nicht aus dem Play Store stammt, sondern direkt von uns. Die neue App ersetzt die alte nicht
+				automatisch: Sie hat eine eigene Kennung und wird deshalb daneben installiert.
 			</p>
 		</section>
 
@@ -77,7 +80,7 @@
 		<section class="card p-4 lg:col-span-2 lg:p-6">
 			<h2 class="text-xl">Auf dem iPhone einrichten</h2>
 			<p class="mt-1 text-ink-2">
-				Für iPhones gibt es keine Datei zum Herunterladen – Apple erlaubt das nicht. Stattdessen legt Safari das Lager in drei Schritten als
+				Für iPhones gibt es keine Datei zum Herunterladen – Apple erlaubt das nicht. Stattdessen legt Safari die App in drei Schritten als
 				App auf den Startbildschirm. Das Ergebnis ist dasselbe: eigenes Symbol, Vollbild, Kamera-Scan.
 			</p>
 			<ol class="mt-4 space-y-3">

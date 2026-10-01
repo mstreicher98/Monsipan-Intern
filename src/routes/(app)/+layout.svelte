@@ -7,16 +7,16 @@
 	import MoreSheet from '$lib/components/MoreSheet.svelte';
 	import Toaster from '$lib/components/Toaster.svelte';
 	import NavProgress from '$lib/components/NavProgress.svelte';
-	import ScanResultDialog from '$lib/components/ScanResultDialog.svelte';
-	import CameraScanner from '$lib/components/CameraScanner.svelte';
+	import ScanResultDialog from '$lib/modules/lager/components/ScanResultDialog.svelte';
+	import CameraScanner from '$lib/modules/lager/components/CameraScanner.svelte';
 	import { can } from '$lib/permissions';
-	import { installWedgeListener, onScan, SCAN_PRIORITY } from '$lib/scan/wedge';
+	import { installWedgeListener, onScan, SCAN_PRIORITY } from '$lib/modules/lager/scan/wedge';
 	import { install } from '$lib/install.svelte';
-	import { lookupScan } from '$lib/scan/lookup';
-	import { feedbackError, feedbackSuccess } from '$lib/scan/feedback';
-	import { scanner } from '$lib/scan/scanner.svelte';
+	import { lookupScan } from '$lib/modules/lager/scan/lookup';
+	import { feedbackError, feedbackSuccess } from '$lib/modules/lager/scan/feedback';
+	import { scanner } from '$lib/modules/lager/scan/scanner.svelte';
 	import { toast } from '$lib/stores/toast.svelte';
-	import type { LookupResult } from '$lib/types';
+	import type { LookupResult } from '$lib/modules/lager/types';
 
 	let { data, children } = $props();
 
@@ -24,7 +24,7 @@
 	let resultOpen = $state(false);
 	let result = $state<LookupResult | null>(null);
 
-	const showAlerts = $derived(can(data.user.role, 'alerts.view'));
+	const showAlerts = $derived(can(data.user.role, 'lager.alerts.view'));
 
 	onMount(() => {
 		const uninstall = installWedgeListener();
@@ -94,8 +94,8 @@
 <ScanResultDialog
 	bind:open={resultOpen}
 	{result}
-	canBook={can(data.user.role, 'stock.book')}
-	canManage={can(data.user.role, 'products.manage')}
+	canBook={can(data.user.role, 'lager.stock.book')}
+	canManage={can(data.user.role, 'lager.products.manage')}
 />
 
 {#if scanner.open}

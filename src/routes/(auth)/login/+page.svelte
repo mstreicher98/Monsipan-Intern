@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { pageTitle } from '$lib/app';
 	import { enhance } from '$app/forms';
 	import { fly } from 'svelte/transition';
 	import CircleAlert from '@lucide/svelte/icons/circle-alert';
@@ -9,7 +10,7 @@
 	let busy = $state(false);
 </script>
 
-<svelte:head><title>Anmelden – Monsipan Lagermanagement</title></svelte:head>
+<svelte:head><title>{pageTitle('Anmelden')}</title></svelte:head>
 
 <h1 class="text-3xl">Anmelden</h1>
 <p class="mt-1 text-ink-2">Mit Benutzername oder E-Mail-Adresse.</p>

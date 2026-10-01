@@ -1,7 +1,7 @@
 import { error, json } from '@sveltejs/kit';
 import { z } from 'zod';
 import { requirePermission } from '$lib/server/guard';
-import { addCode, CodeConflictError } from '$lib/server/products';
+import { addCode, CodeConflictError } from '$lib/modules/lager/server/products';
 import type { RequestHandler } from './$types';
 
 const Body = z.object({
@@ -14,7 +14,7 @@ const Body = z.object({
 
 /** Code einem bestehenden Artikel zuordnen (z. B. neuer Lieferanten-Barcode) */
 export const POST: RequestHandler = async ({ request, locals }) => {
-	requirePermission(locals, 'products.manage');
+	requirePermission(locals, 'lager.products.manage');
 	const parsed = Body.safeParse(await request.json().catch(() => null));
 	if (!parsed.success) error(400, 'Ungültige Angaben');
 	try {

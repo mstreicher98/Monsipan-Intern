@@ -8,7 +8,7 @@ import type { RequestHandler } from './$types';
 
 /** Sicherung herunterladen (nur Admin) */
 export const GET: RequestHandler = async ({ params, locals }) => {
-	requirePermission(locals, 'settings.manage');
+	requirePermission(locals, 'verwaltung.settings.manage');
 	if (!BACKUP_FILE_RE.test(params.file)) error(404, 'Nicht gefunden');
 	const file = path.join(BACKUP_DIR, params.file);
 	if (!fs.existsSync(file)) error(404, 'Nicht gefunden');

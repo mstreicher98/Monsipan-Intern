@@ -1,7 +1,7 @@
 import { error, json } from '@sveltejs/kit';
-import { allCandidates, pickBestParse } from '$lib/scan/parse';
-import { lookupByCandidates, productWithLocations } from '$lib/server/products';
-import type { LookupResult } from '$lib/types';
+import { allCandidates, pickBestParse } from '$lib/modules/lager/scan/parse';
+import { lookupByCandidates, productWithLocations } from '$lib/modules/lager/server/products';
+import type { LookupResult } from '$lib/modules/lager/types';
 import type { RequestHandler } from './$types';
 
 /** GET /api/lookup?v=<Lesart 1>&v=<Lesart 2> → Artikel zum gescannten Code */

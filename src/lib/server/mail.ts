@@ -1,5 +1,6 @@
 import nodemailer, { type Transporter } from 'nodemailer';
 import { env } from '$env/dynamic/private';
+import { APP_NAME } from '$lib/app';
 
 let transporter: Transporter | null = null;
 
@@ -66,7 +67,7 @@ function layout(title: string, body: string): string {
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="padding:24px 12px"><tr><td align="center">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;background:#ffffff;border-radius:14px;overflow:hidden;border:1px solid #e3e5e8">
 <tr><td style="height:6px;background:repeating-linear-gradient(90deg,#f8f000 0 28px,transparent 28px 44px);background-color:#1d2127"></td></tr>
-<tr><td style="padding:28px 28px 8px"><div style="font-size:13px;color:#5c626b">Monsipan Lagermanagement</div>
+<tr><td style="padding:28px 28px 8px"><div style="font-size:13px;color:#5c626b">${esc(APP_NAME)}</div>
 <h1 style="margin:6px 0 0;font-size:22px;line-height:1.3">${esc(title)}</h1></td></tr>
 <tr><td style="padding:12px 28px 28px;font-size:15px;line-height:1.6">${body}</td></tr>
 </table></td></tr></table></body></html>`;
@@ -79,7 +80,7 @@ function button(href: string, label: string): string {
 export function passwordResetMail(to: string, name: string, link: string): Mail {
 	return {
 		to,
-		subject: 'Passwort zurücksetzen – Monsipan Lagermanagement',
+		subject: `Passwort zurücksetzen – ${APP_NAME}`,
 		text: `Hallo ${name},\n\nüber diesen Link legst du ein neues Passwort fest (gültig 60 Minuten):\n${link}\n\nWenn du das nicht angefordert hast, kannst du diese Mail ignorieren.`,
 		html: layout(
 			'Neues Passwort festlegen',
@@ -91,11 +92,11 @@ export function passwordResetMail(to: string, name: string, link: string): Mail 
 export function inviteMail(to: string, name: string, username: string, link: string): Mail {
 	return {
 		to,
-		subject: 'Dein Zugang zum Monsipan Lagermanagement',
+		subject: `Dein Zugang zu ${APP_NAME}`,
 		text: `Hallo ${name},\n\nfür dich wurde ein Zugang angelegt. Benutzername: ${username}\nLege über diesen Link dein Passwort fest (gültig 7 Tage):\n${link}`,
 		html: layout(
 			'Dein Zugang ist bereit',
-			`<p>Hallo ${esc(name)},</p><p>für dich wurde ein Zugang zum Lagersystem angelegt. Dein Benutzername ist <strong>${esc(username)}</strong>.</p>${button(link, 'Passwort festlegen')}<p style="color:#5c626b;font-size:13px">Der Link ist 7 Tage gültig.</p>`
+			`<p>Hallo ${esc(name)},</p><p>für dich wurde ein Zugang angelegt. Dein Benutzername ist <strong>${esc(username)}</strong>.</p>${button(link, 'Passwort festlegen')}<p style="color:#5c626b;font-size:13px">Der Link ist 7 Tage gültig.</p>`
 		)
 	};
 }
@@ -133,7 +134,7 @@ export function lowStockMail(to: string[], items: LowStockItem[], link: string):
 export function testMail(to: string): Mail {
 	return {
 		to,
-		subject: 'Test-Mail – Monsipan Lagermanagement',
+		subject: `Test-Mail – ${APP_NAME}`,
 		text: 'Der E-Mail-Versand funktioniert.',
 		html: layout('Der E-Mail-Versand funktioniert', '<p>Warnungen und Passwort-Links werden ab jetzt zugestellt.</p>')
 	};

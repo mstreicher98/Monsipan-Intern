@@ -1,7 +1,7 @@
 # Stack für Portainer – nimmt das fertige Image aus der GitHub Registry (GHCR).
 #
 # Portainer → Stacks → Add stack → Repository:
-#   Repository URL:      https://github.com/mstreicher98/Monsipan-Lager
+#   Repository URL:      https://github.com/mstreicher98/Monsipan-Intern
 #   Compose path:        portainer-stack.yml
 #   Environment variables: siehe unten (mindestens ORIGIN setzen)
 #
@@ -11,12 +11,12 @@
 
 services:
   app:
-    image: ghcr.io/mstreicher98/monsipan-lager:latest
+    image: ghcr.io/mstreicher98/monsipan-intern:latest
     restart: unless-stopped
     environment:
       # Pflicht: die öffentliche Adresse hinter dem Cloudflare Tunnel.
       # Ohne passende ORIGIN lehnt SvelteKit alle Formulare ab („Cross-site POST“).
-      ORIGIN: ${ORIGIN:-https://lager.monsipan.at}
+      ORIGIN: ${ORIGIN:-https://intern.monsipan.at}
       # Echte Besucher-IP hinter dem Tunnel (für die Sperre bei falschen Passwörtern)
       ADDRESS_HEADER: Cf-Connecting-Ip
       TZ: Europe/Vienna
@@ -36,7 +36,7 @@ services:
       SMTP_SECURE: ${SMTP_SECURE:-false}
       SMTP_USER: ${SMTP_USER:-}
       SMTP_PASS: ${SMTP_PASS:-}
-      MAIL_FROM: '${MAIL_FROM:-Monsipan Lagermanagement <lager@monsipan.at>}'
+      MAIL_FROM: '${MAIL_FROM:-Monsipan Intern <lager@monsipan.at>}'
 
       # Beispieldaten beim allerersten Start (im Echtbetrieb false lassen)
       DEMO_DATA: ${DEMO_DATA:-false}

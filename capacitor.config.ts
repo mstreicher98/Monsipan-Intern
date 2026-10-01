@@ -8,12 +8,12 @@ import type { CapacitorConfig } from '@capacitor/cli';
  * Die Adresse lässt sich beim Bauen über APP_URL setzen (siehe Workflow).
  */
 const config: CapacitorConfig = {
-	appId: 'at.monsipan.lager',
-	appName: 'Monsipan Lagermanagement',
+	appId: 'at.monsipan.intern',
+	appName: 'Monsipan Intern',
 	// Nur die Offline-Ersatzseite; die eigentliche App kommt vom Server
 	webDir: 'capacitor/www',
 	server: {
-		url: process.env.APP_URL || 'https://lager.monsipan.at',
+		url: process.env.APP_URL || 'https://intern.monsipan.at',
 		// Nur HTTPS, damit Kamera und Anmeldung funktionieren
 		cleartext: false
 	},

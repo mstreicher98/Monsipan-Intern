@@ -1,47 +1,47 @@
-import LayoutDashboard from '@lucide/svelte/icons/layout-dashboard';
-import Boxes from '@lucide/svelte/icons/boxes';
-import ScanLine from '@lucide/svelte/icons/scan-line';
-import ArrowLeftRight from '@lucide/svelte/icons/arrow-left-right';
-import ClipboardList from '@lucide/svelte/icons/clipboard-list';
-import ChartColumn from '@lucide/svelte/icons/chart-column';
-import Database from '@lucide/svelte/icons/database';
-import Users from '@lucide/svelte/icons/users';
-import Settings from '@lucide/svelte/icons/settings';
-import type { Component } from 'svelte';
-import { can, type Permission, type Role } from './permissions';
+/**
+ * Navigation aus der Bereichs-Registry: Seitenleiste, Handy-Leiste und „Mehr".
+ * Welche Bereiche es gibt, steht in modules.ts – hier steht nur, wie sie je
+ * nach Rolle gefiltert werden.
+ */
+import { MODULES, type AppModule, type NavItem } from './modules';
+import { can, type Role } from './permissions';
 
-export interface NavItem {
-	href: string;
-	label: string;
-	icon: Component;
-	permission?: Permission;
-	badge?: 'lowStock';
+export type { NavItem, AppModule };
+
+export function visible(items: NavItem[], role: Role): NavItem[] {
+	return items.filter((i) => !i.permission || can(role, i.permission));
 }
 
-export const MAIN_NAV: NavItem[] = [
-	{ href: '/', label: 'Übersicht', icon: LayoutDashboard },
-	{ href: '/bestand', label: 'Bestand', icon: Boxes },
-	{ href: '/buchen', label: 'Buchen', icon: ScanLine, permission: 'stock.book' },
-	{ href: '/bewegungen', label: 'Bewegungen', icon: ArrowLeftRight, permission: 'movements.view' },
-	{ href: '/bestellliste', label: 'Bestellliste', icon: ClipboardList, permission: 'reports.view', badge: 'lowStock' },
-	{ href: '/berichte', label: 'Berichte', icon: ChartColumn, permission: 'reports.view' }
-];
+/** Gebaute und für diese Rolle erlaubte Bereiche, Unterseiten schon gefiltert */
+export function visibleModules(role: Role): AppModule[] {
+	const out: AppModule[] = [];
+	for (const m of MODULES) {
+		if (m.status !== 'aktiv') continue;
+		if (m.permission && !can(role, m.permission)) continue;
+		const items = visible(m.items, role);
+		// Ein Bereich mit Unterseiten verschwindet, wenn davon nichts erlaubt ist
+		if (m.items.length && !items.length) continue;
+		out.push({ ...m, items });
+	}
+	return out;
+}
 
-export const ADMIN_NAV: NavItem[] = [
-	{ href: '/stammdaten', label: 'Stammdaten', icon: Database, permission: 'masterdata.manage' },
-	{ href: '/benutzer', label: 'Benutzer', icon: Users, permission: 'users.manage' },
-	{ href: '/einstellungen', label: 'Einstellungen', icon: Settings, permission: 'settings.manage' }
-];
+/** Alle erreichbaren Einträge am Stück – für das Menü „Mehr" am Handy */
+export function allNavItems(role: Role): NavItem[] {
+	const out: NavItem[] = [];
+	for (const m of visibleModules(role)) {
+		if (m.items.length) out.push(...m.items);
+		else out.push({ href: m.href, label: m.label, icon: m.icon });
+	}
+	return out;
+}
 
 /** Rechter Reiter der Handy-Leiste: Bewegungen, ohne Einblick in Bewegungen stattdessen Buchen */
 export function bottomRightTab(role: Role): NavItem | null {
-	if (can(role, 'movements.view')) return MAIN_NAV.find((n) => n.href === '/bewegungen')!;
-	if (can(role, 'stock.book')) return MAIN_NAV.find((n) => n.href === '/buchen')!;
+	const lager = MODULES.find((m) => m.key === 'lager')!;
+	if (can(role, 'lager.movements.view')) return lager.items.find((i) => i.href === '/lager/bewegungen')!;
+	if (can(role, 'lager.stock.book')) return lager.items.find((i) => i.href === '/lager/buchen')!;
 	return null;
-}
-
-export function visible(items: NavItem[], role: Role) {
-	return items.filter((i) => !i.permission || can(role, i.permission));
 }
 
 export function isActive(href: string, pathname: string) {

@@ -1,10 +1,10 @@
 apply plugin: 'com.android.application'
 
 android {
-    namespace = "at.monsipan.lager"
+    namespace = "at.monsipan.intern"
     compileSdk = rootProject.ext.compileSdkVersion
     defaultConfig {
-        applicationId "at.monsipan.lager"
+        applicationId "at.monsipan.intern"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         // Versionen kommen beim Bauen aus der Umgebung (siehe .github/workflows/android.yml)

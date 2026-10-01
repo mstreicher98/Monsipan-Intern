@@ -1,7 +1,7 @@
 {
-	"name": "Monsipan Lagermanagement",
-	"short_name": "Lagermanagement",
-	"description": "Lagerbestand scannen, buchen und nachbestellen",
+	"name": "Monsipan Intern",
+	"short_name": "Monsipan",
+	"description": "Interne Anwendung: Lager, Aufträge und Verwaltung",
 	"lang": "de-AT",
 	"start_url": "/",
 	"scope": "/",
@@ -16,7 +16,7 @@
 		{ "src": "/favicon.svg", "sizes": "any", "type": "image/svg+xml" }
 	],
 	"shortcuts": [
-		{ "name": "Buchen", "url": "/buchen", "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }] },
-		{ "name": "Bestand", "url": "/bestand", "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }] }
+		{ "name": "Buchen", "url": "/lager/buchen", "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }] },
+		{ "name": "Bestand", "url": "/lager/bestand", "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }] }
 	]
 }

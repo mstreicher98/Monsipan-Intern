@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { pageTitle } from '$lib/app';
 	import { page } from '$app/state';
 	import Logo from '$lib/components/Logo.svelte';
 
@@ -14,7 +15,7 @@
 	);
 </script>
 
-<svelte:head><title>{title} – Monsipan Lagermanagement</title></svelte:head>
+<svelte:head><title>{pageTitle(title)}</title></svelte:head>
 
 <main class="grid min-h-dvh place-items-center px-6">
 	<div class="max-w-md text-center">

@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { pageTitle } from '$lib/app';
 	import { enhance } from '$app/forms';
 	import { fade } from 'svelte/transition';
 	import MailCheck from '@lucide/svelte/icons/mail-check';
@@ -8,7 +9,7 @@
 	let busy = $state(false);
 </script>
 
-<svelte:head><title>Passwort vergessen – Monsipan Lagermanagement</title></svelte:head>
+<svelte:head><title>{pageTitle('Passwort vergessen')}</title></svelte:head>
 
 {#if form?.sent}
 	<div in:fade={{ duration: 200 }}>

@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { pageTitle } from '$lib/app';
 	import { enhance } from '$app/forms';
 	import KeyRound from '@lucide/svelte/icons/key-round';
 	import NewPasswordFields from '$lib/components/NewPasswordFields.svelte';
@@ -7,7 +8,7 @@
 	let busy = $state(false);
 </script>
 
-<svelte:head><title>Passwort festlegen – Monsipan Lagermanagement</title></svelte:head>
+<svelte:head><title>{pageTitle('Passwort festlegen')}</title></svelte:head>
 
 <span class="grid size-12 place-items-center rounded-2xl bg-brand-soft text-ink"><KeyRound size={24} aria-hidden="true" /></span>
 <h1 class="mt-5 text-3xl">Eigenes Passwort festlegen</h1>

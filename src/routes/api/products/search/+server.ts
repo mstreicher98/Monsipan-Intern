@@ -1,5 +1,5 @@
 import { json } from '@sveltejs/kit';
-import { quickSearch } from '$lib/server/products';
+import { quickSearch } from '$lib/modules/lager/server/products';
 import type { RequestHandler } from './$types';
 
 export const GET: RequestHandler = async ({ url }) => {

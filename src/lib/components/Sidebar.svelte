@@ -2,7 +2,7 @@
 	import { page } from '$app/state';
 	import Logo from './Logo.svelte';
 	import UserMenu from './UserMenu.svelte';
-	import { ADMIN_NAV, MAIN_NAV, isActive, visible, type NavItem } from '$lib/nav';
+	import { isActive, visibleModules, type NavItem } from '$lib/nav';
 	import type { Role } from '$lib/permissions';
 	import type { Theme } from '$lib/theme';
 
@@ -13,8 +13,7 @@
 	}
 	let { user, lowStockCount, theme }: Props = $props();
 
-	const main = $derived(visible(MAIN_NAV, user.role));
-	const admin = $derived(visible(ADMIN_NAV, user.role));
+	const modules = $derived(visibleModules(user.role));
 </script>
 
 {#snippet item(n: NavItem)}
@@ -45,16 +44,19 @@
 	<div class="px-5 pt-5 pb-6">
 		<a href="/" aria-label="Zur Übersicht" class="inline-block rounded-lg"><Logo /></a>
 	</div>
-	<nav aria-label="Hauptnavigation" class="flex-1 overflow-y-auto px-3">
-		<ul class="space-y-0.5">
-			{#each main as n (n.href)}{@render item(n)}{/each}
-		</ul>
-		{#if admin.length}
-			<p class="mt-6 mb-1.5 px-3 text-[0.8125rem] text-ink-3">Verwaltung</p>
-			<ul class="space-y-0.5">
-				{#each admin as n (n.href)}{@render item(n)}{/each}
-			</ul>
-		{/if}
+	<nav aria-label="Hauptnavigation" class="flex-1 overflow-y-auto px-3 pb-3">
+		{#each modules as m, i (m.key)}
+			{#if m.items.length}
+				<p class="{i === 0 ? '' : 'mt-6'} mb-1.5 px-3 text-[0.8125rem] text-ink-3">{m.label}</p>
+				<ul class="space-y-0.5">
+					{#each m.items as n (n.href)}{@render item(n)}{/each}
+				</ul>
+			{:else}
+				<ul class="space-y-0.5 {i === 0 ? '' : 'mt-6'}">
+					{@render item({ href: m.href, label: m.label, icon: m.icon })}
+				</ul>
+			{/if}
+		{/each}
 	</nav>
 	<div class="border-t border-line p-3">
 		<UserMenu {user} {theme} />

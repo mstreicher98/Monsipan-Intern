@@ -11,8 +11,36 @@ export const init: ServerInit = async () => {
 const PUBLIC_PATHS = ['/login', '/passwort-vergessen', '/passwort-zuruecksetzen', '/healthz'];
 const isPublic = (path: string) => PUBLIC_PATHS.some((p) => path === p || path.startsWith(`${p}/`));
 
+/**
+ * Seit dem Umbau zur Plattform liegen die Seiten in Bereichen. Alte Lesezeichen,
+ * Verknüpfungen am Handy und Links in älteren Mails bleiben damit gültig.
+ */
+const MOVED: Record<string, string> = {
+	'/bestand': '/lager/bestand',
+	'/buchen': '/lager/buchen',
+	'/bewegungen': '/lager/bewegungen',
+	'/bestellliste': '/lager/bestellliste',
+	'/berichte': '/lager/berichte',
+	'/artikel': '/lager/artikel',
+	'/scanner-test': '/lager/scanner-test',
+	'/stammdaten': '/verwaltung/stammdaten',
+	'/benutzer': '/verwaltung/benutzer',
+	'/einstellungen': '/verwaltung/einstellungen'
+};
+
+function movedTarget(path: string): string | null {
+	for (const [alt, neu] of Object.entries(MOVED)) {
+		if (path === alt) return neu;
+		if (path.startsWith(`${alt}/`)) return neu + path.slice(alt.length);
+	}
+	return null;
+}
+
 export const handle: Handle = async ({ event, resolve }) => {
 	await ensureDatabase();
+
+	const moved = movedTarget(event.url.pathname);
+	if (moved) redirect(308, moved + event.url.search);
 
 	event.locals.user = null;
 	event.locals.sessionToken = null;
@@ -45,7 +73,7 @@ export const handle: Handle = async ({ event, resolve }) => {
 
 	const response = await resolve(event, {
 		transformPageChunk: ({ html }) =>
-			html.replace('%lager.theme%', event.locals.theme === 'system' ? '' : event.locals.theme),
+			html.replace('%app.theme%', event.locals.theme === 'system' ? '' : event.locals.theme),
 		preload: ({ type, path }) =>
 			type === 'js' || type === 'css' || (type === 'font' && /barlow-latin-(400|600)-normal.*\.woff2$/.test(path))
 	});

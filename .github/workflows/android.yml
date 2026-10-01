@@ -13,7 +13,7 @@ on:
     inputs:
       url:
         description: 'Adresse, die die App öffnet'
-        default: 'https://lager.monsipan.at'
+        default: 'https://intern.monsipan.at'
         required: false
 
 permissions:
@@ -43,7 +43,7 @@ jobs:
       # Adresse und Web-Teil ins Android-Projekt übernehmen
       - name: Projekt vorbereiten
         env:
-          APP_URL: ${{ inputs.url || vars.APP_URL || 'https://lager.monsipan.at' }}
+          APP_URL: ${{ inputs.url || vars.APP_URL || 'https://intern.monsipan.at' }}
         run: |
           npx cap sync android
           echo "Adresse: $APP_URL"
@@ -72,21 +72,21 @@ jobs:
           ./gradlew --no-daemon assembleRelease
 
       - name: APK benennen
-        run: cp android/app/build/outputs/apk/release/app-release*.apk monsipan-lager.apk
+        run: cp android/app/build/outputs/apk/release/app-release*.apk monsipan-intern.apk
 
       - uses: actions/upload-artifact@v4
         with:
-          name: monsipan-lager-apk
-          path: monsipan-lager.apk
+          name: monsipan-intern-apk
+          path: monsipan-intern.apk
 
       # Fester Download-Link für den Knopf in der App:
-      # https://github.com/<repo>/releases/download/app/monsipan-lager.apk
+      # https://github.com/<repo>/releases/download/app/monsipan-intern.apk
       - name: Veröffentlichen
         if: github.event_name != 'pull_request'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: app
-          name: Monsipan Lagermanagement – Android-App
+          name: Monsipan Intern – Android-App
           make_latest: false
           body: |
             Android-App zum Seitenladen (Version 1.0.${{ github.run_number }}).
@@ -96,4 +96,4 @@ jobs:
 
             Installation am Handy: Datei öffnen und die Installation aus dieser
             Quelle erlauben.
-          files: monsipan-lager.apk
+          files: monsipan-intern.apk

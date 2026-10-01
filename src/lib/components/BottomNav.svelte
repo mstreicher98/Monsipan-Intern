@@ -17,7 +17,7 @@
 
 	const tabs: NavItem[] = [
 		{ href: '/', label: 'Übersicht', icon: LayoutDashboard },
-		{ href: '/bestand', label: 'Bestand', icon: Boxes }
+		{ href: '/lager/bestand', label: 'Bestand', icon: Boxes }
 	];
 	const right = $derived(bottomRightTab(role));
 </script>

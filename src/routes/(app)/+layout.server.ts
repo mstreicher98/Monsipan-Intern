@@ -1,4 +1,4 @@
-import { lowStockCount } from '$lib/server/alerts';
+import { lowStockCount } from '$lib/modules/lager/server/alerts';
 import { requireUser } from '$lib/server/guard';
 import { can } from '$lib/permissions';
 import type { LayoutServerLoad } from './$types';
@@ -9,6 +9,6 @@ export const load: LayoutServerLoad = async ({ locals, depends }) => {
 	return {
 		user,
 		theme: locals.theme,
-		lowStockCount: can(user.role, 'alerts.view') || can(user.role, 'reports.view') ? await lowStockCount() : 0
+		lowStockCount: can(user.role, 'lager.alerts.view') || can(user.role, 'lager.reports.view') ? await lowStockCount() : 0
 	};
 };

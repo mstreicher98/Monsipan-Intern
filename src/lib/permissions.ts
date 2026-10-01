@@ -28,17 +28,24 @@ export function needsParty(role: Role | undefined | null): boolean {
 	return !!role && PARTY_ROLES.includes(role);
 }
 
+/**
+ * Ein Block je Bereich. Ein neuer Bereich bringt seinen eigenen Block mit,
+ * die Schlüssel beginnen immer mit dem Kürzel des Bereichs.
+ */
 const PERMISSIONS = {
-	'stock.book': ['admin', 'bauleiter', 'partiefuehrer', 'arbeiter'],
-	'stock.inventory': ['admin', 'bauleiter'],
-	'movements.view': ['admin', 'bauleiter', 'partiefuehrer', 'viewer'],
-	'movements.correct': ['admin', 'bauleiter'],
-	'products.manage': ['admin', 'bauleiter'],
-	'masterdata.manage': ['admin', 'bauleiter'],
-	'reports.view': ['admin', 'bauleiter', 'viewer'],
-	'alerts.view': ['admin', 'bauleiter', 'viewer'],
-	'users.manage': ['admin'],
-	'settings.manage': ['admin']
+	// Lager
+	'lager.stock.book': ['admin', 'bauleiter', 'partiefuehrer', 'arbeiter'],
+	'lager.stock.inventory': ['admin', 'bauleiter'],
+	'lager.movements.view': ['admin', 'bauleiter', 'partiefuehrer', 'viewer'],
+	'lager.movements.correct': ['admin', 'bauleiter'],
+	'lager.products.manage': ['admin', 'bauleiter'],
+	'lager.reports.view': ['admin', 'bauleiter', 'viewer'],
+	'lager.alerts.view': ['admin', 'bauleiter', 'viewer'],
+
+	// Verwaltung
+	'verwaltung.masterdata.manage': ['admin', 'bauleiter'],
+	'verwaltung.users.manage': ['admin'],
+	'verwaltung.settings.manage': ['admin']
 } as const satisfies Record<string, readonly Role[]>;
 
 export type Permission = keyof typeof PERMISSIONS;

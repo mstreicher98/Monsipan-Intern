@@ -1,13 +1,13 @@
 import { csvResponse, today, toCsv } from '$lib/server/csv';
 import { requirePermission } from '$lib/server/guard';
-import { readMovementQuery, toMovementFilter } from '$lib/server/movement-filter';
-import { listMovements } from '$lib/server/movements';
+import { readMovementQuery, toMovementFilter } from '$lib/modules/lager/server/movement-filter';
+import { listMovements } from '$lib/modules/lager/server/movements';
 import { MOVEMENT_NOUNS, fullName, unitLabel } from '$lib/format';
-import { counterpart } from '$lib/movement-view';
+import { counterpart } from '$lib/modules/lager/movement-view';
 import type { RequestHandler } from './$types';
 
 export const GET: RequestHandler = async ({ url, locals }) => {
-	requirePermission(locals, 'movements.view');
+	requirePermission(locals, 'lager.movements.view');
 	const filter = await toMovementFilter(readMovementQuery(url));
 	const rows = await listMovements(filter, 100_000, 0);
 	const header = [

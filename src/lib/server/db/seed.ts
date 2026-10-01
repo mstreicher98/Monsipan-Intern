@@ -4,7 +4,7 @@ import { dev } from '$app/environment';
 import { env } from '$env/dynamic/private';
 import { findRal } from '$lib/ral';
 import { generatePassword, hashPassword } from '../auth';
-import { refreshAllSearchTexts, refreshSearchText, syncCodes } from '../products';
+import { refreshAllSearchTexts, refreshSearchText, syncCodes } from '$lib/modules/lager/server/products';
 import { db } from './index';
 import { categories, colors, locations, movements, parties, products, settings, stock, users } from './schema';
 

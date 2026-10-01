@@ -2,7 +2,7 @@ import { json } from '@sveltejs/kit';
 import { and, eq, gt } from 'drizzle-orm';
 import { db } from '$lib/server/db';
 import { products, stock } from '$lib/server/db/schema';
-import { productWithLocations } from '$lib/server/products';
+import { productWithLocations } from '$lib/modules/lager/server/products';
 import type { RequestHandler } from './$types';
 
 /** Alle Artikel mit Bestand an einem Lagerort – Startliste für die Inventur */

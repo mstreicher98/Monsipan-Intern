@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { pageTitle } from '$lib/app';
 	import { enhance } from '$app/forms';
 	import NewPasswordFields from '$lib/components/NewPasswordFields.svelte';
 
@@ -6,7 +7,7 @@
 	let busy = $state(false);
 </script>
 
-<svelte:head><title>Neues Passwort – Monsipan Lagermanagement</title></svelte:head>
+<svelte:head><title>{pageTitle('Neues Passwort')}</title></svelte:head>
 
 {#if data.valid}
 	<h1 class="text-3xl">Neues Passwort</h1>

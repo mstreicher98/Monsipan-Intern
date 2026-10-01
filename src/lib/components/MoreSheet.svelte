@@ -8,7 +8,7 @@
 	import ChevronRight from '@lucide/svelte/icons/chevron-right';
 	import Smartphone from '@lucide/svelte/icons/smartphone';
 	import Dialog from './Dialog.svelte';
-	import { ADMIN_NAV, bottomRightTab, MAIN_NAV, visible } from '$lib/nav';
+	import { allNavItems, bottomRightTab } from '$lib/nav';
 	import { fullName, initials } from '$lib/format';
 	import { ROLE_LABELS, type Role } from '$lib/permissions';
 	import { install } from '$lib/install.svelte';
@@ -22,8 +22,8 @@
 	}
 	let { open = $bindable(), user, lowStockCount, theme }: Props = $props();
 
-	const inBottomBar = $derived(['/', '/bestand', bottomRightTab(user.role)?.href]);
-	const items = $derived([...visible(MAIN_NAV, user.role), ...visible(ADMIN_NAV, user.role)].filter((i) => !inBottomBar.includes(i.href)));
+	const inBottomBar = $derived(['/', '/lager/bestand', bottomRightTab(user.role)?.href]);
+	const items = $derived(allNavItems(user.role).filter((i) => !inBottomBar.includes(i.href)));
 
 	const themes: { value: Theme; label: string; icon: typeof Sun }[] = [
 		{ value: 'light', label: 'Hell', icon: Sun },

@@ -1,12 +1,12 @@
 import { csvResponse, today, toCsv } from '$lib/server/csv';
 import { requirePermission } from '$lib/server/guard';
-import { orderList } from '$lib/server/order-list';
+import { orderList } from '$lib/modules/lager/server/order-list';
 import { unitLabel } from '$lib/format';
 import type { RequestHandler } from './$types';
 
 /** ?m=<id>:<menge> je Zeile übernimmt die auf der Seite angepassten Mengen */
 export const GET: RequestHandler = async ({ url, locals }) => {
-	requirePermission(locals, 'reports.view');
+	requirePermission(locals, 'lager.reports.view');
 	const chosen = new Map<number, number>();
 	for (const m of url.searchParams.getAll('m')) {
 		const [id, q] = m.split(':').map(Number);
