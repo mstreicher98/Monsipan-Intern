@@ -64,6 +64,13 @@
       "when": 1790896628941,
       "tag": "0008_stundenzettel",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "6",
+      "when": 1790897033331,
+      "tag": "0009_tagesberichte",
+      "breakpoints": true
     }
   ]
 }

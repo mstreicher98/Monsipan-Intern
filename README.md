@@ -1,16 +1,17 @@
 # Monsipan Intern
 
 Die interne Anwendung von Monsipan Bautenschutz: alle Bereiche des Betriebs in einer
-Oberfläche, auf dem Handy wie am PC. Fertig ist bisher das **Lager**; die übrigen
-Bereiche kommen nach und nach dazu.
+Oberfläche, auf dem Handy wie am PC. Die übrigen Bereiche kommen nach und nach dazu.
 
 | Bereich | Stand |
 |---|---|
 | Übersicht | fertig – Einstieg in alle Bereiche, Kennzahlen aus dem Lager |
+| Stundenzettel | fertig – Lohnwoche je Mitarbeiter, Freigabe und Prüfung |
+| Tagesberichte | fertig – Leistung je Tag und Baustelle, zum Unterschreiben |
 | Lager | fertig – Bestand, Buchen, Bewegungen, Bestellliste, Berichte, Artikel |
-| Benutzer | fertig – Zugänge, Rollen, Partien |
+| Benutzer | fertig – Zugänge, Gruppen, Berechtigungen |
 | Administration | fertig – Stammdaten, Einstellungen, Sicherungen |
-| Aufträge, Planung, Partien, Stundenzettel, Tagesberichte | geplant |
+| Aufträge, Planung, Partien | geplant |
 | Bestellungen, Dokumente, Auswertungen | geplant |
 
 Welche Bereiche es gibt und welche davon freigeschaltet sind, steht an einer Stelle:
@@ -36,7 +37,9 @@ Umlagern, Rückgaben, Inventur, Bestellliste mit Warn-Mails und Auswertungen.
 
 0. [Bereiche und Adressen](#bereiche-und-adressen)
 1. [Rollen](#rollen)
-2. [Lokale Entwicklung](#lokale-entwicklung)
+2. [Stundenzettel](#stundenzettel)
+3. [Tagesberichte](#tagesberichte)
+4. [Lokale Entwicklung](#lokale-entwicklung)
 3. [Betrieb auf dem Server](#betrieb-auf-dem-server)
 4. [Datensicherung](#datensicherung)
 5. [Alles zurücksetzen](#alles-zurücksetzen)
@@ -56,6 +59,8 @@ Administration unter `/verwaltung/…`:
 | Seite | Adresse |
 |---|---|
 | Übersicht | `/` |
+| Stundenzettel | `/stundenzettel` |
+| Tagesberichte | `/tagesberichte` |
 | Bestand, Buchen, Bewegungen, Bestellliste, Berichte | `/lager/bestand` usw. |
 | Artikel | `/lager/artikel/<id>` |
 | Scanner testen | `/lager/scanner-test` |
@@ -69,9 +74,10 @@ weiter. Die Weiterleitung steht in [`src/hooks.server.ts`](src/hooks.server.ts).
 
 | Rolle | Darf |
 |---|---|
-| Admin | alles, zusätzlich Benutzer und Einstellungen |
-| Bauleiter | buchen, Inventur, Buchungen korrigieren/stornieren, Artikel und Stammdaten pflegen, Berichte und Bestellliste |
-| Partieführer | Bestand und Bewegungen ansehen, ein-/ausbuchen, umlagern, Rückgaben |
+| Admin | alles, zusätzlich Benutzer, Berechtigungen und Einstellungen |
+| Bauleiter | buchen, Inventur, Korrekturen, Artikel und Stammdaten pflegen, Berichte, Stunden und Tagesberichte |
+| Buchhaltung/Sekretariat | Stundenzettel prüfen, Tagesberichte und Berichte einsehen, Stammdaten pflegen – ohne Lagerbuchungen |
+| Partieführer | Bestand und Bewegungen ansehen, buchen, Stundenzettel und Tagesberichte der eigenen Partie |
 | Arbeiter | wie Partieführer, sieht aber keine Bewegungen (weder Liste noch Verlauf am Artikel) |
 | Nur ansehen | alles ansehen außer Stammdaten, Benutzer und Einstellungen – keine Änderungen |
 
@@ -94,7 +100,49 @@ lässt sich die Inhaberschaft mit Passwortbestätigung an einen anderen aktiven 
 Inhaber-Konto immer erhalten. Die Regeln stehen in
 [`src/lib/user-rules.ts`](src/lib/user-rules.ts).
 
-Die Rechte stehen an einer Stelle: [`src/lib/permissions.ts`](src/lib/permissions.ts).
+**Berechtigungen:** Was eine Gruppe darf, steht unter **Benutzer → Berechtigungen** – eine
+Tabelle mit allen Rechten je Gruppe, zum Anhaken. Änderungen gelten sofort, auch für bereits
+angemeldete Geräte. Die ausgelieferten Standardrechte stehen in
+[`src/lib/permissions.ts`](src/lib/permissions.ts); ein neuer Bereich bringt seine Rechte dort
+mit und sie werden beim Start automatisch ergänzt. Mit **Auf Standard zurücksetzen** geht es
+jederzeit zurück. Drei Haken sind fest: Benutzer, Berechtigungen und Einstellungen bleiben beim
+Admin, damit sich niemand aussperrt.
+
+## Stundenzettel
+
+Eine Woche je Mitarbeiter, aufgebaut wie der Lohnzettel auf Papier: Montag bis Sonntag mit
+Kostenstelle, Baustelle/Tätigkeit, Zeit von/bis und den Stundenarten Norm, Überstunden 50 %
+und 100 %, Urlaub, Feiertag, Regen und Efzg (Entgeltfortzahlung). Dazu Auslöse (Tage und
+Betrag) und VAZ. Die Summen je Spalte und die Gesamtstunden rechnet die Seite mit, während
+getippt wird.
+
+Stunden werden als Zahl eingetragen, nicht als Uhrzeit: `8,5` sind acht Stunden dreißig.
+`8:30` versteht die Eingabe ebenfalls.
+
+**Ablauf:** In Arbeit → freigegeben → geprüft.
+
+- Der **Partieführer** erfasst die Woche für sich und seine Partie und gibt sie frei.
+- **Buchhaltung und Bauleitung** prüfen und setzen den Haken; danach ist die Woche zu.
+- **Wieder öffnen** macht sie erneut änderbar.
+- Jeder sieht den eigenen Zettel, auch ohne Erfassungsrecht.
+
+**Drucken** gibt das Blatt im Formularlayout aus, inklusive der Zeilen für Unterschrift
+Vorarbeiter und überprüft.
+
+## Tagesberichte
+
+Ein Bericht je Tag und Baustelle, wie der Block im Auto: Nummer, Datum, Bundesstraße,
+Baustelle und Kostenstelle im Kopf, darunter bis zu acht LB-Positionen mit Einheit und
+beliebig vielen Zeilen „Ortsbezeichnungen und Markierungsarten" mit den Mengen je Position.
+Die Einheitssumme je Spalte wird mitgerechnet. Dazu der Materialblock (gelb, weiß,
+Reflexkörper mit Kenn-Nr. und Filmdicke), Tagesleistung und LV-Position Nr.
+
+Die Nummer schlägt die App als nächste freie vor, bleibt aber frei änderbar – so passt sie
+zum Papierblock. Berichte lassen sich abschließen (nur Bauleitung und Admin) und wieder
+öffnen. **Drucken** gibt den Bericht mit beiden Unterschriftszeilen aus.
+
+Wer kein Recht auf „alle sehen" hat, sieht die Berichte der eigenen Partie und die selbst
+angelegten.
 
 ## Lokale Entwicklung
 
@@ -419,6 +467,8 @@ src/
     modules/
       lager/       Alles zum Lager: server/ (Bestand, Buchungen, Warnungen),
                    components/, scan/ (Parser, Tastaturlayouts, Handscanner, Kamera)
+      stunden/     Lohnwoche: Wochenrechnung und server/ (Zettel, Freigabe, Prüfung)
+      tagesberichte/ server/ (Berichte, Positionen, Zeilen, Material)
   routes/
     (auth)/        Anmelden, Passwort vergessen/zurücksetzen
     (app)/         Übersicht, lager/…, verwaltung/…, Konto, App fürs Handy

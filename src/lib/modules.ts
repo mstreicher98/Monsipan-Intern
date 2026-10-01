@@ -68,7 +68,16 @@ export const MODULES: AppModule[] = [
 		hint: 'Lohnwoche je Mitarbeiter',
 		items: []
 	},
-	{ key: 'tagesberichte', label: 'Tagesberichte', icon: NotebookPen, href: '/tagesberichte', group: 'betrieb', status: 'geplant', items: [] },
+	{
+		key: 'tagesberichte',
+		label: 'Tagesberichte',
+		icon: NotebookPen,
+		href: '/tagesberichte',
+		group: 'betrieb',
+		status: 'aktiv',
+		hint: 'Leistung je Tag und Baustelle',
+		items: []
+	},
 	{
 		key: 'lager',
 		label: 'Lager',
