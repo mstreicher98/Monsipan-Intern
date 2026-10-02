@@ -343,7 +343,7 @@ eingestellten Filter und eignet sich zum Weiterschicken oder Ablegen:
 **Lohnzettel:** Druckansicht und PDF sind dem Vordruck nachgebaut – Briefkopf mit
 Lohnwoche, das Raster mit je einer Zeile pro Tag und einer schmalen für Zeit von/bis,
 Gesamtstunden, VAZ, Auslöse und die beiden Unterschriftszeilen mit dem KV-Satz dazwischen.
-Mit  lässt sich eine Druckansicht ohne Druckfenster anschauen.
+Mit `?nodruck=1` lässt sich eine Druckansicht ohne Druckfenster anschauen.
 
 Jede Seite hat Kopf (Titel, Filter) und Fuß (Anwendung, Ausdruckzeitpunkt, Seite x von y);
 der Tabellenkopf wiederholt sich beim Seitenumbruch. Lohnzettel und Tagesbericht bringen
