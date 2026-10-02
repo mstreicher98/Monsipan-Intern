@@ -167,7 +167,7 @@ export const actions: Actions = {
 		}
 		const week = sheet.weekStart;
 		await deleteSheet(sheet.id);
-		redirect(303, `/stundenzettel?woche=${week}`);
+		redirect(303, `/stundenzettel?woche=${week}&monat=${sheet.month}`);
 	},
 
 	/** Übernommene Woche an die eigene Partie des Mitarbeiters zurückgeben */
@@ -177,6 +177,6 @@ export const actions: Actions = {
 		if (!mayRecordFor(user, sheet)) return fail(403, { message: 'Zurückgeben kann nur, wer die Woche übernommen hat.' });
 		const problem = await handBackWeek(sheet.userId, sheet.weekStart);
 		if (problem) return fail(400, { message: problem });
-		redirect(303, `/stundenzettel?woche=${sheet.weekStart}`);
+		redirect(303, `/stundenzettel?woche=${sheet.weekStart}&monat=${sheet.month}`);
 	}
 };

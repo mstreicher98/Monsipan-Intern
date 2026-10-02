@@ -9,6 +9,7 @@
 	import Dialog from '$lib/components/Dialog.svelte';
 	import { addDays, hoursLabel, mondayOf, monthLabel, monthsOfWeek, segmentLabel, today, weekLabel } from '$lib/modules/stunden/week';
 	import { fullName } from '$lib/format';
+	import { page } from '$app/state';
 
 	let { data, form } = $props();
 	let borrowOpen = $state(false);
@@ -54,6 +55,18 @@
 	const groups = $derived(
 		monthsOfWeek(data.weekStart).map((month) => ({ month, parties: byParty(data.rows.filter((r) => r.month === month)) }))
 	);
+	/**
+	 * Über den Monatswechsel je Monat ein Tab. Gewählt ist der Monat aus der
+	 * Adresse, sonst der laufende (falls er in der Woche liegt), sonst der erste.
+	 */
+	const activeMonth = $derived.by(() => {
+		const months = groups.map((g) => g.month);
+		const wanted = page.url.searchParams.get('monat');
+		if (wanted && months.includes(wanted)) return wanted;
+		const current = today().slice(0, 7);
+		return months.includes(current) ? current : months[0];
+	});
+	const shown = $derived(groups.filter((g) => g.month === activeMonth));
 
 	const STATUS: Record<string, { label: string; tone: string }> = {
 		entwurf: { label: 'In Arbeit', tone: '' },
@@ -111,17 +124,32 @@
 {/snippet}
 
 <!--
-	Über den Monatswechsel: je Monat ein eigener Block, weil der Lohn monatlich
-	abgerechnet wird. Darin je Partie eine eigene Liste.
+	Über den Monatswechsel: je Monat ein Tab, weil der Lohn monatlich abgerechnet
+	wird. Darin je Partie eine eigene Liste.
 -->
-{#each groups as group (group.month)}
-	<section class="mb-6">
-		{#if split}
-			<h2 class="mb-3 flex flex-wrap items-baseline gap-x-2 text-lg">
-				{monthLabel(group.month)}
-				<span class="num text-sm font-normal text-ink-3">{segmentLabel(data.weekStart, group.month)}</span>
-			</h2>
-		{/if}
+{#if split}
+	<div class="mb-4 inline-flex max-w-full gap-1 overflow-x-auto rounded-2xl border border-line bg-surface p-1" role="tablist" aria-label="Monat">
+		{#each groups as group (group.month)}
+			{@const active = group.month === activeMonth}
+			<a
+				role="tab"
+				aria-selected={active}
+				href="/stundenzettel?woche={data.weekStart}&monat={group.month}"
+				data-sveltekit-noscroll
+				data-sveltekit-replacestate
+				class="flex flex-col rounded-xl px-4 py-1.5 whitespace-nowrap transition-colors {active
+					? 'bg-ink text-surface'
+					: 'text-ink-2 hover:bg-surface-3 hover:text-ink'}"
+			>
+				<span class="text-[0.9375rem] font-medium">{monthLabel(group.month)}</span>
+				<span class="num text-[0.75rem] {active ? 'opacity-75' : 'text-ink-3'}">{segmentLabel(data.weekStart, group.month)}</span>
+			</a>
+		{/each}
+	</div>
+{/if}
+
+{#each shown as group (group.month)}
+	<section class="mb-6" role={split ? 'tabpanel' : undefined} aria-label={split ? monthLabel(group.month) : undefined}>
 		{#each group.parties as party (party.id)}
 			<div class="mb-4">
 				<h3 class="mb-1.5 flex items-baseline gap-2 px-1 text-[0.9375rem] font-semibold">

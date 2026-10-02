@@ -144,8 +144,9 @@ wird die Schrift kleiner.
 **Monatlich getrennt:** Der Lohn wird monatsweise abgerechnet, deshalb endet ein
 Stundenzettel immer am Monatsende. Geht eine Woche über den Monatswechsel, gibt es zwei
 Zettel – einen je Monat, jeder mit den Tagen, die in diesen Monat fallen. Die
-Wochenübersicht zeigt dann zwei Blöcke, einen je Monat, und im Zettel führt ein Link zum
-anderen Teil. Ausdruck und PDF zeigen trotzdem alle sieben Tageszeilen wie der Vordruck;
+Wochenübersicht zeigt dann je Monat einen Tab – gewählt ist der laufende Monat, sonst der
+erste; der Tab steht in der Adresse (`&monat=JJJJ-MM`), der Weg zurück aus dem Zettel
+landet also wieder im richtigen. Im Zettel führt ein Link zum anderen Teil. Ausdruck und PDF zeigen trotzdem alle sieben Tageszeilen wie der Vordruck;
 die Tage des anderen Monats bleiben leer.
 
 **Wer was sieht:** Ein Partieführer sieht und bearbeitet standardmäßig nur die Zettel

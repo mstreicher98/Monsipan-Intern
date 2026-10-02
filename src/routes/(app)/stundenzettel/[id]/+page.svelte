@@ -149,7 +149,7 @@
 
 <svelte:head><title>{pageTitle(`${fullName(sheet)} – ${weekLabel(sheet.weekStart)}`)}</title></svelte:head>
 
-<a href="/stundenzettel?woche={sheet.weekStart}" class="mt-1 inline-flex items-center gap-1.5 text-sm font-medium text-ink-2 hover:text-ink">
+<a href="/stundenzettel?woche={sheet.weekStart}&monat={sheet.month}" class="mt-1 inline-flex items-center gap-1.5 text-sm font-medium text-ink-2 hover:text-ink">
 	<ArrowLeft size={16} aria-hidden="true" />Stundenzettel
 </a>
 
