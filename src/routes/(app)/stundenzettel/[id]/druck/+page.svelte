@@ -3,12 +3,16 @@
 	import { pageTitle } from '$lib/app';
 	import PrintSheet from '$lib/components/PrintSheet.svelte';
 	import { fullName } from '$lib/format';
-	import { hoursLabel, isoWeek, WEEKDAY_LABELS } from '$lib/modules/stunden/week';
+	import { hoursLabel, isoWeek, monthLabel, monthsOfWeek, WEEKDAY_LABELS, weekdayIndex, weekDays } from '$lib/modules/stunden/week';
 
 	let { data } = $props();
 	const sheet = $derived(data.sheet);
 	const t = $derived(data.totals);
 	const week = $derived(isoWeek(sheet.weekStart));
+	/** Das Raster zeigt immer alle sieben Tage; Tage des anderen Monats bleiben leer */
+	const split = $derived(monthsOfWeek(sheet.weekStart).length > 1);
+	const byDate = $derived(new Map(sheet.days.map((d) => [d.date, d])));
+	const alleTage = $derived(weekDays(sheet.weekStart));
 
 	const HOURS = [
 		{ key: 'normalHours', total: 'normal' },
@@ -37,8 +41,8 @@
 		</header>
 
 		<div class="woche">
-			<span class="feld"><span class="klein">Lohnwoche</span><span class="wert">KW {week.week} / {week.year}</span></span>
-			<span class="feld"><span class="klein">von</span><span class="wert">{date(sheet.weekStart)}</span></span>
+			<span class="feld"><span class="klein">Lohnwoche</span><span class="wert">{split ? `KW ${week.week} · ${monthLabel(sheet.month)}` : `KW ${week.week} / ${week.year}`}</span></span>
+			<span class="feld"><span class="klein">von</span><span class="wert">{date(sheet.days[0]?.date ?? sheet.weekStart)}</span></span>
 			<span class="feld"><span class="klein">bis</span><span class="wert">{date(sheet.days.at(-1)?.date ?? sheet.weekStart)}</span></span>
 		</div>
 
@@ -62,20 +66,21 @@
 				</tr>
 			</thead>
 			<tbody>
-				{#each sheet.days as day, i (day.date)}
+				{#each alleTage as datum (datum)}
+					{@const day = byDate.get(datum)}
 					<tr class="tag">
-						<th scope="row" class="c-tag">{WEEKDAY_LABELS[i]}</th>
-						<td class="c-kst num">{day.costCenter}</td>
-						<td class="c-site">{day.site}</td>
+						<th scope="row" class="c-tag">{WEEKDAY_LABELS[weekdayIndex(datum)]}</th>
+						<td class="c-kst num">{day?.costCenter ?? ''}</td>
+						<td class="c-site">{day?.site ?? ''}</td>
 						{#each HOURS as h (h.key)}
-							<td rowspan="2" class="c-std num zahl">{hoursLabel(day[h.key])}</td>
+							<td rowspan="2" class="c-std num zahl">{day ? hoursLabel(day[h.key]) : ''}</td>
 						{/each}
 						<td rowspan="2" class="c-rest"></td>
 					</tr>
 					<tr class="zeit">
 						<th scope="row" class="c-tag"><span class="sub">Zeit<br />von/bis</span></th>
 						<td colspan="2" class="num">
-							{day.fromTime && day.toTime ? `${day.fromTime} – ${day.toTime}` : (day.fromTime ?? '')}
+							{day?.fromTime && day.toTime ? `${day.fromTime} – ${day.toTime}` : (day?.fromTime ?? '')}
 						</td>
 					</tr>
 				{/each}

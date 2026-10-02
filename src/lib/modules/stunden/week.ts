@@ -35,9 +35,56 @@ export function today(): string {
 	return isoDate(new Date());
 }
 
+/** Wochentag eines Datums: Montag = 0 … Sonntag = 6 */
+export function weekdayIndex(iso: string): number {
+	return (toUtc(iso).getUTCDay() + 6) % 7;
+}
+
 /** Die sieben Tage einer Woche, beginnend beim Montag */
 export function weekDays(weekStart: string): string[] {
 	return Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
+}
+
+/* ------------------------------------------------------------ Monatsschnitt */
+
+/** Monat eines Tages als "JJJJ-MM" */
+export function monthOf(iso: string): string {
+	return iso.slice(0, 7);
+}
+
+/**
+ * Die Monate, in die eine Woche fällt – meist einer, über den Monatswechsel zwei.
+ * Für jeden Monat gibt es einen eigenen Stundenzettel, weil der Lohn monatlich
+ * abgerechnet wird.
+ */
+export function monthsOfWeek(weekStart: string): string[] {
+	const out: string[] = [];
+	for (const d of weekDays(weekStart)) {
+		const m = monthOf(d);
+		if (!out.includes(m)) out.push(m);
+	}
+	return out;
+}
+
+/** Die Tage einer Woche, die in diesen Monat fallen */
+export function weekDaysInMonth(weekStart: string, month: string): string[] {
+	return weekDays(weekStart).filter((d) => monthOf(d) === month);
+}
+
+const monthFmt = new Intl.DateTimeFormat('de-AT', { month: 'long', year: 'numeric', timeZone: 'UTC' });
+
+/** "September 2026" */
+export function monthLabel(month: string): string {
+	return monthFmt.format(toUtc(`${month}-01`));
+}
+
+/** Zeitraum eines Monatsteils: "28.09.–30.09.2026" */
+export function segmentLabel(weekStart: string, month: string): string {
+	const days = weekDaysInMonth(weekStart, month);
+	if (!days.length) return '';
+	const first = days[0];
+	const last = days.at(-1)!;
+	return first === last ? fmtFull.format(toUtc(first)) : `${fmt.format(toUtc(first))}–${fmtFull.format(toUtc(last))}`;
 }
 
 /** Kalenderwoche nach ISO 8601 */

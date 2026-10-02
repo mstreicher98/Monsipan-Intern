@@ -1,5 +1,18 @@
 import { describe, expect, it } from 'vitest';
-import { addDays, hoursLabel, isoWeek, mondayOf, parseHours, parseTime, weekDays, weekLabel } from './week';
+import {
+	addDays,
+	hoursLabel,
+	isoWeek,
+	mondayOf,
+	monthLabel,
+	monthsOfWeek,
+	parseHours,
+	parseTime,
+	segmentLabel,
+	weekDays,
+	weekDaysInMonth,
+	weekLabel
+} from './week';
 
 describe('Lohnwoche', () => {
 	it('findet den Montag der Woche', () => {
@@ -22,6 +35,26 @@ describe('Lohnwoche', () => {
 
 	it('beschriftet die Woche für den Kopf des Zettels', () => {
 		expect(weekLabel('2026-09-28')).toBe('KW 40 · 28.09.–04.10.2026');
+	});
+
+	it('erkennt Wochen über den Monatswechsel', () => {
+		// KW 40 2026 läuft von Montag 28.09. bis Sonntag 04.10.
+		expect(monthsOfWeek('2026-09-28')).toEqual(['2026-09', '2026-10']);
+		expect(weekDaysInMonth('2026-09-28', '2026-09')).toEqual(['2026-09-28', '2026-09-29', '2026-09-30']);
+		expect(weekDaysInMonth('2026-09-28', '2026-10')).toEqual(['2026-10-01', '2026-10-02', '2026-10-03', '2026-10-04']);
+	});
+
+	it('lässt Wochen innerhalb eines Monats ungeteilt', () => {
+		expect(monthsOfWeek('2026-10-05')).toEqual(['2026-10']);
+		expect(weekDaysInMonth('2026-10-05', '2026-10')).toHaveLength(7);
+	});
+
+	it('beschriftet Monat und Monatsteil', () => {
+		expect(monthLabel('2026-09')).toBe('September 2026');
+		expect(segmentLabel('2026-09-28', '2026-09')).toBe('28.09.–30.09.2026');
+		expect(segmentLabel('2026-09-28', '2026-10')).toBe('01.10.–04.10.2026');
+		// Ein einzelner Tag braucht keinen Bindestrich
+		expect(segmentLabel('2026-11-30', '2026-11')).toBe('30.11.2026');
 	});
 
 	it('liest Stunden deutsch und als Uhrzeit', () => {

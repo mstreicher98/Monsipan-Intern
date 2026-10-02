@@ -24,14 +24,15 @@ export const actions: Actions = {
 		const form = await request.formData();
 		const userId = Number(form.get('userId'));
 		const weekStart = String(form.get('weekStart') ?? '');
+		const month = String(form.get('monat') ?? '');
 		if (!Number.isInteger(userId) || !isValidIsoDate(weekStart)) error(400, 'Ungültige Angaben');
 
 		const allowed = await weekOverview(user, weekStart);
-		const row = allowed.find((r) => r.user.id === userId);
+		const row = allowed.find((r) => r.user.id === userId && r.month === month);
 		if (!row) error(403, 'Für diese Person darfst du keine Stunden erfassen.');
 		if (!row.sheetId && !can(user.role, 'stunden.erfassen')) error(403, 'Dafür fehlt dir die Berechtigung.');
 
-		const id = row.sheetId ?? (await openSheet(userId, weekStart, user.id));
+		const id = row.sheetId ?? (await openSheet(userId, weekStart, month, user.id));
 		redirect(303, `/stundenzettel/${id}`);
 	}
 };

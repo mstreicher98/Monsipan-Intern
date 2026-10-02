@@ -11,7 +11,7 @@ import { db, type Tx } from '$lib/server/db';
 import { col } from '$lib/server/db/sql';
 import { parties, timesheetDays, timesheets, users } from '$lib/server/db/schema';
 import type { SessionUser } from '$lib/server/auth';
-import { mondayOf, parseHours, parseTime, weekDays, type WEEKDAY_LABELS } from '../week';
+import { mondayOf, monthsOfWeek, parseHours, parseTime, weekDaysInMonth, type WEEKDAY_LABELS } from '../week';
 
 export type { WEEKDAY_LABELS };
 
@@ -54,13 +54,15 @@ export async function staffFor(user: SessionUser): Promise<Staff[]> {
 
 export interface WeekRow {
 	user: Staff;
+	/** Monat dieses Teils als "JJJJ-MM" – über den Monatswechsel gibt es zwei Zeilen */
+	month: string;
 	sheetId: number | null;
 	status: 'entwurf' | 'freigegeben' | 'geprueft' | null;
 	total: number;
 	allowanceDays: number | null;
 }
 
-/** Übersicht einer Woche für die erlaubten Mitarbeiter */
+/** Übersicht einer Woche: je Mitarbeiter ein Eintrag pro Monat, in den die Woche fällt */
 export async function weekOverview(user: SessionUser, weekStart: string): Promise<WeekRow[]> {
 	const staff = await staffFor(user);
 	if (!staff.length) return [];
@@ -69,6 +71,7 @@ export async function weekOverview(user: SessionUser, weekStart: string): Promis
 		.select({
 			id: timesheets.id,
 			userId: timesheets.userId,
+			month: timesheets.month,
 			status: timesheets.status,
 			allowanceDays: timesheets.allowanceDays,
 			// Spalten mit Tabellennamen: in der Unterabfrage zeigt ein nacktes "id" sonst auf timesheet_days
@@ -82,41 +85,49 @@ export async function weekOverview(user: SessionUser, weekStart: string): Promis
 		.where(and(eq(timesheets.weekStart, weekStart), inArray(timesheets.userId, ids)))
 		.all();
 
-	return staff.map((s) => {
-		const sheet = sheets.find((x) => x.userId === s.id);
-		return {
-			user: s,
-			sheetId: sheet?.id ?? null,
-			status: sheet?.status ?? null,
-			total: Number(sheet?.total ?? 0),
-			allowanceDays: sheet?.allowanceDays ?? null
-		};
-	});
+	const rows: WeekRow[] = [];
+	for (const s of staff) {
+		for (const month of monthsOfWeek(weekStart)) {
+			const sheet = sheets.find((x) => x.userId === s.id && x.month === month);
+			rows.push({
+				user: s,
+				month,
+				sheetId: sheet?.id ?? null,
+				status: sheet?.status ?? null,
+				total: Number(sheet?.total ?? 0),
+				allowanceDays: sheet?.allowanceDays ?? null
+			});
+		}
+	}
+	return rows;
 }
 
-/** Zettel samt Tagen; legt ihn an, wenn er noch nicht existiert */
-export async function openSheet(userId: number, weekStart: string, createdBy: number): Promise<number> {
+/**
+ * Zettel eines Monatsteils samt Tagen; legt ihn an, wenn es ihn noch nicht gibt.
+ * Angelegt werden nur die Tage der Woche, die in diesen Monat fallen.
+ */
+export async function openSheet(userId: number, weekStart: string, month: string, createdBy: number): Promise<number> {
 	const monday = mondayOf(weekStart);
 	const existing = await db
 		.select({ id: timesheets.id })
 		.from(timesheets)
-		.where(and(eq(timesheets.userId, userId), eq(timesheets.weekStart, monday)))
+		.where(and(eq(timesheets.userId, userId), eq(timesheets.weekStart, monday), eq(timesheets.month, month)))
 		.get();
 	if (existing) return existing.id;
 
 	return db.transaction(async (tx) => {
 		const row = await tx
 			.insert(timesheets)
-			.values({ userId, weekStart: monday, createdBy, updatedAt: new Date() })
+			.values({ userId, weekStart: monday, month, createdBy, updatedAt: new Date() })
 			.returning({ id: timesheets.id })
 			.get();
-		await createDays(tx, row.id, monday);
+		await createDays(tx, row.id, monday, month);
 		return row.id;
 	});
 }
 
-async function createDays(tx: Tx, timesheetId: number, weekStart: string) {
-	for (const date of weekDays(weekStart)) {
+async function createDays(tx: Tx, timesheetId: number, weekStart: string, month: string) {
+	for (const date of weekDaysInMonth(weekStart, month)) {
 		await tx.insert(timesheetDays).values({ timesheetId, date }).onConflictDoNothing();
 	}
 }
@@ -127,6 +138,7 @@ export async function sheetDetail(id: number) {
 			id: timesheets.id,
 			userId: timesheets.userId,
 			weekStart: timesheets.weekStart,
+			month: timesheets.month,
 			status: timesheets.status,
 			allowanceDays: timesheets.allowanceDays,
 			allowanceAmount: timesheets.allowanceAmount,
@@ -149,12 +161,19 @@ export async function sheetDetail(id: number) {
 	if (!sheet) return null;
 
 	const days = await db.select().from(timesheetDays).where(eq(timesheetDays.timesheetId, id)).orderBy(asc(timesheetDays.date)).all();
-	// Falls eine Woche älter ist als eine Änderung am Aufbau: fehlende Tage ergänzen
-	if (days.length < 7) {
-		await db.transaction((tx) => createDays(tx, id, sheet.weekStart));
+	// Fehlende Tage ergänzen, etwa nach einer Änderung am Aufbau
+	const expected = weekDaysInMonth(sheet.weekStart, sheet.month);
+	if (days.length < expected.length) {
+		await db.transaction((tx) => createDays(tx, id, sheet.weekStart, sheet.month));
 		return sheetDetail(id);
 	}
-	return { ...sheet, days };
+	/** Die anderen Monatsteile derselben Woche – für den Wechsel zwischen den Zetteln */
+	const siblings = await db
+		.select({ id: timesheets.id, month: timesheets.month })
+		.from(timesheets)
+		.where(and(eq(timesheets.userId, sheet.userId), eq(timesheets.weekStart, sheet.weekStart)))
+		.all();
+	return { ...sheet, days, siblings: siblings.filter((s) => s.id !== id) };
 }
 
 export type SheetDetail = NonNullable<Awaited<ReturnType<typeof sheetDetail>>>;

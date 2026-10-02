@@ -8,7 +8,7 @@
  */
 import { bufferResponse, startPdf } from '$lib/server/pdf';
 import { fullName } from '$lib/format';
-import { hoursLabel, isoWeek, WEEKDAY_LABELS } from '../week';
+import { hoursLabel, isoWeek, monthLabel, monthsOfWeek, WEEKDAY_LABELS, weekdayIndex, weekDays } from '../week';
 import type { SheetDetail } from './timesheets';
 import { totals } from './timesheets';
 
@@ -80,7 +80,13 @@ export async function lohnzettelPdf(sheet: SheetDetail): Promise<Response> {
 		doc.font('Helvetica').fontSize(labelSize).fillColor('#1d2127').text(label, x, y + 4, { lineBreak: false });
 		const start = x + doc.widthOfString(label) + 4;
 		line(start, y + 13, lineTo, y + 13, 0.8);
-		if (value) doc.font('Helvetica').fontSize(10).text(value, start + 4, y + 2, { lineBreak: false });
+		// Der Wert bleibt in seinem Feld, sonst rutscht er in die nächste Beschriftung
+		if (value) {
+			doc
+				.font('Helvetica')
+				.fontSize(10)
+				.text(value, start + 4, y + 2, { width: Math.max(20, lineTo - start - 8), lineBreak: false, ellipsis: true });
+		}
 	};
 
 	/* ------------------------------------------------------------- Kopf */
@@ -88,9 +94,13 @@ export async function lohnzettelPdf(sheet: SheetDetail): Promise<Response> {
 	doc.font('Helvetica-Bold').fontSize(13).text('LOHNZETTEL', left + 180, 44, { characterSpacing: 2.5, lineBreak: false });
 	filledLine('für', fullName(sheet), left + 290, 44, right);
 
-	filledLine('Lohnwoche', `KW ${week} / ${year}`, left + 180, 72, left + 300, 6.5);
-	filledLine('von', date(sheet.weekStart), left + 310, 72, left + 400, 6.5);
-	filledLine('bis', date(sheet.days.at(-1)?.date ?? sheet.weekStart), left + 410, 72, right, 6.5);
+	// Geht die Woche über den Monatswechsel, steht hier der Monat dieses Teils
+	const split = monthsOfWeek(sheet.weekStart).length > 1;
+	const first = sheet.days[0]?.date ?? sheet.weekStart;
+	const last = sheet.days.at(-1)?.date ?? sheet.weekStart;
+	filledLine('Lohnwoche', split ? `KW ${week} · ${monthLabel(sheet.month)}` : `KW ${week} / ${year}`, left + 150, 72, left + 320, 6.5);
+	filledLine('von', date(first), left + 330, 72, left + 415, 6.5);
+	filledLine('bis', date(last), left + 425, 72, right, 6.5);
 
 	/* ----------------------------------------------------------- Raster */
 	const top = 104;
@@ -121,27 +131,32 @@ export async function lohnzettelPdf(sheet: SheetDetail): Promise<Response> {
 	line(left, y, right, y);
 
 	/* -------------------------------------------------------- Tageszeilen */
-	for (let i = 0; i < sheet.days.length; i++) {
-		const d = sheet.days[i];
+	// Das Raster zeigt immer alle sieben Tage; Tage des anderen Monats bleiben leer
+	const byDate = new Map(sheet.days.map((d) => [d.date, d]));
+	for (const date of weekDays(sheet.weekStart)) {
+		const d = byDate.get(date);
+		const i = weekdayIndex(date);
 		const blockTop = y;
 
 		doc.font('Helvetica').fontSize(11).text(WEEKDAY_LABELS[i], colX(0), y + DAY_H / 2 - 6, { width: colW(0), align: 'center' });
-		doc.fontSize(9).text(d.costCenter, colX(1) + 3, y + DAY_H / 2 - 5, { width: colW(1) - 6, lineBreak: false, ellipsis: true });
-		doc.fontSize(9.5).text(d.site, colX(2) + 5, y + DAY_H / 2 - 6, { width: colW(2) - 10, lineBreak: false, ellipsis: true });
+		if (d) {
+			doc.fontSize(9).text(d.costCenter, colX(1) + 3, y + DAY_H / 2 - 5, { width: colW(1) - 6, lineBreak: false, ellipsis: true });
+			doc.fontSize(9.5).text(d.site, colX(2) + 5, y + DAY_H / 2 - 6, { width: colW(2) - 10, lineBreak: false, ellipsis: true });
 
-		for (const h of HOURS) {
-			const idx = COLUMNS.findIndex((c) => c.key === h.key);
-			doc
-				.font('Helvetica')
-				.fontSize(10)
-				.text(hoursLabel(d[h.key]), colX(idx), y + (DAY_H + TIME_H) / 2 - 7, { width: colW(idx), align: 'center' });
+			for (const h of HOURS) {
+				const idx = COLUMNS.findIndex((c) => c.key === h.key);
+				doc
+					.font('Helvetica')
+					.fontSize(10)
+					.text(hoursLabel(d[h.key]), colX(idx), y + (DAY_H + TIME_H) / 2 - 7, { width: colW(idx), align: 'center' });
+			}
 		}
 
 		// Zeile "Zeit von/bis": nur links, die Stundenspalten bleiben eine hohe Zelle
 		const timeTop = y + DAY_H;
 		line(left, timeTop, xs[3], timeTop, 0.6);
 		doc.font('Helvetica').fontSize(6.5).text('Zeit\nvon/bis', colX(0) + 3, timeTop + 2, { width: colW(0) - 6, lineGap: -1 });
-		const times = d.fromTime && d.toTime ? `${d.fromTime} – ${d.toTime}` : (d.fromTime ?? '');
+		const times = d?.fromTime && d.toTime ? `${d.fromTime} – ${d.toTime}` : (d?.fromTime ?? '');
 		if (times) doc.font('Helvetica').fontSize(9.5).text(times, colX(1) + 4, timeTop + 4, { lineBreak: false });
 
 		y = timeTop + TIME_H;
@@ -209,5 +224,6 @@ export async function lohnzettelPdf(sheet: SheetDetail): Promise<Response> {
 	}
 
 	const buffer = await finish();
-	return bufferResponse(`lohnzettel-${sheet.username}-${year}-kw${String(week).padStart(2, '0')}.pdf`, buffer);
+	const name = `lohnzettel-${sheet.username}-${year}-kw${String(week).padStart(2, '0')}${split ? `-${sheet.month}` : ''}.pdf`;
+	return bufferResponse(name, buffer);
 }

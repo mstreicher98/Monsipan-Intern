@@ -10,7 +10,7 @@
 	import Trash from '@lucide/svelte/icons/trash';
 	import Dialog from '$lib/components/Dialog.svelte';
 	import { fullName } from '$lib/format';
-	import { hoursLabel, parseHours, WEEKDAY_LABELS, weekLabel } from '$lib/modules/stunden/week';
+	import { hoursLabel, monthLabel, parseHours, segmentLabel, WEEKDAY_LABELS, weekdayIndex, weekLabel } from '$lib/modules/stunden/week';
 	import { toast } from '$lib/stores/toast.svelte';
 
 	let { data, form } = $props();
@@ -101,6 +101,16 @@
 		<p class="text-ink-2">
 			{weekLabel(sheet.weekStart)}{sheet.partyName ? ` · ${sheet.partyName}` : ''}
 		</p>
+		{#if sheet.siblings.length}
+			<p class="mt-1 text-sm text-ink-3">
+				Diese Woche geht über den Monatswechsel – dieser Zettel umfasst
+				<span class="font-medium text-ink">{monthLabel(sheet.month)}</span>
+				({segmentLabel(sheet.weekStart, sheet.month)}).
+				{#each sheet.siblings as s (s.id)}
+					<a href="/stundenzettel/{s.id}" class="font-medium underline hover:text-ink">Zum Teil {monthLabel(s.month)}</a>
+				{/each}
+			</p>
+		{/if}
 	</div>
 	<div class="flex flex-wrap items-center gap-2">
 		<span class="badge {status.tone}">{status.label}</span>
@@ -147,7 +157,7 @@
 					class="grid gap-2 border-b border-line px-3 py-3 last:border-0 lg:min-w-[62rem] lg:grid-cols-[4.5rem_minmax(10rem,1fr)_6rem_4.25rem_4.25rem_repeat(7,4rem)_3.5rem] lg:items-center lg:gap-1.5 lg:py-2"
 				>
 					<div class="flex items-baseline justify-between gap-2 lg:block">
-						<span class="font-semibold lg:text-[0.9375rem] lg:font-medium">{WEEKDAY_LABELS[i]}</span>
+						<span class="font-semibold lg:text-[0.9375rem] lg:font-medium">{WEEKDAY_LABELS[weekdayIndex(row.date)]}</span>
 						<span class="num text-sm text-ink-3 lg:hidden">
 							{dayShort(row.date)}{rowTotal(row) ? ` · ${hoursLabel(rowTotal(row))} Std` : ''}
 						</span>
@@ -182,7 +192,7 @@
 									name="{f.name}.{row.date}"
 									inputmode="decimal"
 									bind:value={rows[i][f.key]}
-									aria-label="{WEEKDAY_LABELS[i]} {f.label}"
+									aria-label="{WEEKDAY_LABELS[weekdayIndex(row.date)]} {f.label}"
 								/>
 							</label>
 						{/each}

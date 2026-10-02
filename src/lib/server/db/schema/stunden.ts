@@ -20,6 +20,12 @@ export const timesheets = sqliteTable(
 			.references(() => users.id, { onDelete: 'cascade' }),
 		/** Montag der Lohnwoche als "JJJJ-MM-TT" */
 		weekStart: text('week_start').notNull(),
+		/**
+		 * Monat als "JJJJ-MM". Der Lohn wird monatlich abgerechnet: Geht eine Woche
+		 * über den Monatswechsel, gibt es je Monat einen eigenen Zettel mit den
+		 * Tagen, die in diesen Monat fallen.
+		 */
+		month: text('month').notNull().default(''),
 		status: text('status', { enum: TIMESHEET_STATUS }).notNull().default('entwurf'),
 		/** Auslöse: Anzahl Tage und Betrag in Euro */
 		allowanceDays: real('allowance_days'),
@@ -37,8 +43,9 @@ export const timesheets = sqliteTable(
 		updatedAt: integer('updated_at', { mode: 'timestamp_ms' })
 	},
 	(t) => [
-		uniqueIndex('timesheets_user_week_idx').on(t.userId, t.weekStart),
+		uniqueIndex('timesheets_user_week_month_idx').on(t.userId, t.weekStart, t.month),
 		index('timesheets_week_idx').on(t.weekStart),
+		index('timesheets_month_idx').on(t.month),
 		index('timesheets_status_idx').on(t.status)
 	]
 );

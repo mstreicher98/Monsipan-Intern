@@ -128,6 +128,13 @@ getippt wird.
 Stunden werden als Zahl eingetragen, nicht als Uhrzeit: `8,5` sind acht Stunden dreißig.
 `8:30` versteht die Eingabe ebenfalls.
 
+**Monatlich getrennt:** Der Lohn wird monatsweise abgerechnet, deshalb endet ein
+Stundenzettel immer am Monatsende. Geht eine Woche über den Monatswechsel, gibt es zwei
+Zettel – einen je Monat, jeder mit den Tagen, die in diesen Monat fallen. In der
+Wochenübersicht steht dann je Person eine Zeile pro Monatsteil, und im Zettel führt ein
+Link zum anderen Teil. Ausdruck und PDF zeigen trotzdem alle sieben Tageszeilen wie der
+Vordruck; die Tage des anderen Monats bleiben leer.
+
 **Ablauf:** In Arbeit → freigegeben → geprüft.
 
 - Der **Partieführer** erfasst die Woche für sich und seine Partie und gibt sie frei.
