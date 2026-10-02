@@ -16,6 +16,7 @@ import Boxes from '@lucide/svelte/icons/boxes';
 import ScanLine from '@lucide/svelte/icons/scan-line';
 import ArrowLeftRight from '@lucide/svelte/icons/arrow-left-right';
 import ClipboardList from '@lucide/svelte/icons/clipboard-list';
+import ClipboardCheck from '@lucide/svelte/icons/clipboard-check';
 import ChartColumn from '@lucide/svelte/icons/chart-column';
 import ChartPie from '@lucide/svelte/icons/chart-pie';
 import ShoppingCart from '@lucide/svelte/icons/shopping-cart';
@@ -80,15 +81,16 @@ export const MODULES: AppModule[] = [
 	},
 	{
 		key: 'lager',
-		label: 'Lager',
+		label: 'Lagermanagement',
 		icon: Boxes,
 		href: '/lager/bestand',
 		group: 'material',
 		status: 'aktiv',
-		hint: 'Bestand, Buchen, Bestellliste',
+		hint: 'Bestand, Buchen, Inventur, Bestellliste',
 		items: [
 			{ href: '/lager/bestand', label: 'Bestand', icon: Boxes },
 			{ href: '/lager/buchen', label: 'Buchen', icon: ScanLine, permission: 'lager.stock.book' },
+			{ href: '/lager/inventur', label: 'Inventur', icon: ClipboardCheck, permission: 'lager.stock.inventory' },
 			{ href: '/lager/bewegungen', label: 'Bewegungen', icon: ArrowLeftRight, permission: 'lager.movements.view' },
 			{ href: '/lager/bestellliste', label: 'Bestellliste', icon: ClipboardList, permission: 'lager.reports.view', badge: 'lowStock' },
 			{ href: '/lager/berichte', label: 'Berichte', icon: ChartColumn, permission: 'lager.reports.view' }

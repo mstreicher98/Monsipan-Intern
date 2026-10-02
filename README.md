@@ -8,7 +8,7 @@ Oberfläche, auf dem Handy wie am PC. Die übrigen Bereiche kommen nach und nach
 | Übersicht | fertig – Einstieg in alle Bereiche, Kennzahlen aus dem Lager |
 | Stundenzettel | fertig – Lohnwoche je Mitarbeiter, Freigabe und Prüfung |
 | Tagesberichte | fertig – Leistung je Tag und Baustelle, zum Unterschreiben |
-| Lager | fertig – Bestand, Buchen, Bewegungen, Bestellliste, Berichte, Artikel |
+| Lagermanagement | fertig – Bestand, Buchen, Inventur, Bewegungen, Bestellliste, Berichte, Artikel |
 | Benutzer | fertig – Zugänge, Gruppen, Berechtigungen |
 | Administration | fertig – Stammdaten, Einstellungen, Sicherungen |
 | Aufträge, Planung, Partien | geplant |
@@ -19,7 +19,7 @@ Welche Bereiche es gibt und welche davon freigeschaltet sind, steht an einer Ste
 seine Seiten unter `src/routes/(app)/<bereich>/` und seinen Code unter
 `src/lib/modules/<bereich>/`.
 
-## Lager
+## Lagermanagement
 
 Lagerverwaltung für die Bodenmarkierung: Bestand je Lagerort, Ein-/Ausbuchen per Scan,
 Umlagern, Rückgaben, Inventur, Bestellliste mit Warn-Mails und Auswertungen.
@@ -30,6 +30,14 @@ Umlagern, Rückgaben, Inventur, Bestellliste mit Warn-Mails und Auswertungen.
 - **Live**: Buchungen auf einem Gerät erscheinen sofort auf allen anderen
 - **Drucken**: Bestand und Bewegungen aufs Papier, mit Zählspalte für die Inventur
 - **Ein Container** plus Caddy für HTTPS, Datenbank ist eine einzige SQLite-Datei
+
+**Inventur:** Ein eigener Bereich neben Buchen. Lagerort wählen, dann stehen alle Artikel
+mit Bestand dort als Zählliste bereit: links der Bestand laut System, daneben ein Feld für die
+gezählte Menge, rechts die Abweichung. **Alle übernehmen** füllt alle leeren Felder mit dem
+Systembestand – praktisch, wenn nur wenige Zeilen abweichen. Gescannte Artikel springen in die
+Liste und zählen je Scan ein Stück hoch; was am Lagerort gar nicht geführt wird, hängt sich
+beim Scannen unten an. Gebucht wird nur, was eingetragen ist – jede gezählte Zeile wird als
+Inventur-Buchung festgehalten, auch wenn sie stimmt.
 
 ---
 
@@ -62,6 +70,7 @@ Administration unter `/verwaltung/…`:
 | Stundenzettel | `/stundenzettel` |
 | Tagesberichte | `/tagesberichte` |
 | Bestand, Buchen, Bewegungen, Bestellliste, Berichte | `/lager/bestand` usw. |
+| Inventur | `/lager/inventur` |
 | Artikel | `/lager/artikel/<id>` |
 | Scanner testen | `/lager/scanner-test` |
 | Stammdaten, Benutzer, Einstellungen | `/verwaltung/…` |

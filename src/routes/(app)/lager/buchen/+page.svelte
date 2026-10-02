@@ -9,7 +9,6 @@
 	import ScanBarcode from '@lucide/svelte/icons/scan-barcode';
 	import ScanLine from '@lucide/svelte/icons/scan-line';
 	import TriangleAlert from '@lucide/svelte/icons/triangle-alert';
-	import PackagePlus from '@lucide/svelte/icons/package-plus';
 	import RotateCcw from '@lucide/svelte/icons/rotate-ccw';
 	import Check from '@lucide/svelte/icons/check';
 	import ArrowRight from '@lucide/svelte/icons/arrow-right';
@@ -36,7 +35,6 @@
 		product: P;
 		quantity: number | null;
 		fromLocationId: number | null;
-		counted: number | null;
 		pulse: number;
 	}
 
@@ -44,13 +42,12 @@
 		{ value: 'OUT', hint: 'Material an eine Partie oder an dich selbst ausgeben' },
 		{ value: 'IN', hint: 'Lieferung oder Zugang ins Lager buchen' },
 		{ value: 'TRANSFER', hint: 'Zwischen zwei Lagerorten verschieben' },
-		{ value: 'RETURN', hint: 'Nicht verbrauchtes Material zurücknehmen' },
-		{ value: 'INVENTORY', hint: 'Gezählten Bestand an einem Lagerort übernehmen' }
+		{ value: 'RETURN', hint: 'Nicht verbrauchtes Material zurücknehmen' }
 	];
-	const types = $derived(TYPES.filter((t) => t.value !== 'INVENTORY' || data.canInventory));
+	const types = TYPES;
 
 	// svelte-ignore state_referenced_locally
-	let type = $state<MovementType>(data.initialType === 'INVENTORY' && !data.canInventory ? 'OUT' : (data.initialType ?? 'OUT'));
+	let type = $state<MovementType>(data.initialType ?? 'OUT');
 	let lines = $state<Line[]>([]);
 	let toLocationId = $state<number | null>(null);
 	let fromLocationId = $state<number | null>(null);
@@ -64,7 +61,6 @@
 	let serverError = $state<{ message: string; line: number | null } | null>(null);
 	let done = $state<{ count: number; units: number; type: MovementType } | null>(null);
 	let restored = $state(false);
-	let loadingLocation = $state(false);
 	/** Auswahl, wenn ein Code zu mehreren Artikeln gehört */
 	let choice = $state<{ products: P[]; code: string | null; batch: string | null } | null>(null);
 	let choiceOpen = $state(false);
@@ -72,7 +68,7 @@
 
 	const meta = $derived(MOVEMENT_META[type]);
 	const needsParty = $derived(type === 'OUT' || type === 'RETURN');
-	const needsTo = $derived(type === 'IN' || type === 'RETURN' || type === 'TRANSFER' || type === 'INVENTORY');
+	const needsTo = $derived(type === 'IN' || type === 'RETURN' || type === 'TRANSFER');
 	const locName = (id: number | null) => data.locations.find((l) => l.id === id)?.name ?? '';
 	const qtyAt = (p: P, id: number | null) => (id ? (p.locations.find((l) => l.locationId === id)?.quantity ?? 0) : 0);
 
@@ -83,7 +79,6 @@
 	}
 
 	function lineIssue(l: Line): string | null {
-		if (type === 'INVENTORY') return l.counted == null ? 'Gezählte Menge eintragen' : null;
 		if (!l.quantity || l.quantity < 1) return 'Menge eintragen';
 		if (type === 'OUT') {
 			if (!l.fromLocationId) return 'Lagerort wählen';
@@ -103,12 +98,12 @@
 			if (!fromLocationId) return 'Quell-Lagerort wählen';
 			if (!toLocationId) return 'Ziel-Lagerort wählen';
 			if (fromLocationId === toLocationId) return 'Quelle und Ziel müssen verschieden sein';
-		} else if (needsTo && !toLocationId) return type === 'INVENTORY' ? 'Lagerort wählen' : 'Ziel-Lagerort wählen';
+		} else if (needsTo && !toLocationId) return 'Ziel-Lagerort wählen';
 		return null;
 	});
 	const issues = $derived(lines.map(lineIssue));
 	const ready = $derived(lines.length > 0 && !headerIssue && issues.every((i) => !i));
-	const units = $derived(lines.reduce((s, l) => s + (type === 'INVENTORY' ? 0 : (l.quantity ?? 0)), 0));
+	const units = $derived(lines.reduce((s, l) => s + (l.quantity ?? 0), 0));
 
 	const submitLabel = $derived.by(() => {
 		const n = lines.length;
@@ -122,8 +117,8 @@
 				return `${art} umlagern`;
 			case 'RETURN':
 				return `${art} zurücknehmen`;
-			case 'INVENTORY':
-				return `Inventur für ${art} übernehmen`;
+			default:
+				return `${art} buchen`;
 		}
 	});
 
@@ -134,20 +129,15 @@
 		const existing = lines.find((l) => l.product.id === p.id);
 		if (existing) {
 			existing.product = p;
-			if (type === 'INVENTORY') {
-				tick().then(() => document.getElementById(`count-${existing.key}`)?.focus());
-			} else {
-				existing.quantity = (existing.quantity ?? 0) + 1;
-				existing.pulse++;
-			}
+			existing.quantity = (existing.quantity ?? 0) + 1;
+			existing.pulse++;
 			return;
 		}
 		const line: Line = {
 			key: nextKey++,
 			product: p,
-			quantity: type === 'INVENTORY' ? null : 1,
+			quantity: 1,
 			fromLocationId: defaultFrom(p),
-			counted: null,
 			pulse: 0
 		};
 		lines = [line, ...lines];
@@ -174,7 +164,7 @@
 		feedbackSuccess();
 		addProduct(p);
 		const line = lines.find((l) => l.product.id === p.id);
-		scanner.report(true, `${p.name}${line?.quantity && type !== 'INVENTORY' ? ` – ${line.quantity} Stück` : ''}`);
+		scanner.report(true, `${p.name}${line?.quantity ? ` – ${line.quantity} Stück` : ''}`);
 	}
 
 	async function handleScan(variants: string[]) {
@@ -199,25 +189,6 @@
 		} catch {
 			feedbackError();
 			toast.error('Suche fehlgeschlagen', 'Bitte Verbindung prüfen.');
-		}
-	}
-
-	async function loadLocation() {
-		if (!toLocationId) return;
-		loadingLocation = true;
-		try {
-			const res = await fetch(`/api/locations/${toLocationId}/stock`);
-			const { items } = (await res.json()) as { items: P[] };
-			let added = 0;
-			for (const p of items) {
-				if (!lines.some((l) => l.product.id === p.id)) {
-					addProduct(p);
-					added++;
-				}
-			}
-			toast.info(added ? `${added} Artikel geladen` : 'Keine weiteren Artikel an diesem Lagerort');
-		} finally {
-			loadingLocation = false;
 		}
 	}
 
@@ -252,7 +223,7 @@
 				const d = JSON.parse(raw);
 				toLocationId = d.toLocationId ?? null;
 				fromLocationId = d.fromLocationId ?? null;
-				if (!data.initialType && d.type && (d.type !== 'INVENTORY' || data.canInventory)) type = d.type;
+				if (!data.initialType && d.type && d.type !== 'INVENTORY') type = d.type;
 				if (Array.isArray(d.lines) && d.lines.length && !data.prefill) {
 					lines = d.lines.map((l: Line) => ({ ...l, key: nextKey++, pulse: 0 }));
 					note = d.note ?? '';
@@ -337,11 +308,6 @@
 				<span class="inline-flex size-2 rounded-full bg-ok" aria-hidden="true"></span>
 				Handscanner bereit – einfach scannen, jeder Scan erhöht die Menge um 1.
 			</p>
-			{#if type === 'INVENTORY' && toLocationId}
-				<button class="btn btn-secondary btn-sm mt-3" onclick={loadLocation} disabled={loadingLocation}>
-					<PackagePlus size={16} aria-hidden="true" />Alle Artikel aus {locName(toLocationId)} laden
-				</button>
-			{/if}
 		</section>
 
 		{#if restored && lines.length}
@@ -355,7 +321,7 @@
 		<section class="card overflow-hidden" aria-labelledby="h-lines">
 			<div class="flex items-center justify-between gap-2 border-b border-line px-4 py-3 lg:px-5">
 				<h2 id="h-lines" class="text-lg">
-					{lines.length === 0 ? 'Noch keine Artikel' : `${lines.length} Artikel`}{#if type !== 'INVENTORY' && units > 0}<span class="font-sans text-base font-normal text-ink-3">, {units} Stück</span>{/if}
+					{lines.length === 0 ? 'Noch keine Artikel' : `${lines.length} Artikel`}{#if units > 0}<span class="font-sans text-base font-normal text-ink-3">, {units} Stück</span>{/if}
 				</h2>
 				{#if lines.length}<button class="btn btn-ghost btn-sm" onclick={clearAll}>Alle entfernen</button>{/if}
 			</div>
@@ -403,31 +369,14 @@
 									</div>
 								{/if}
 
-								{#if type === 'INVENTORY'}
-									<div class="text-sm">
-										<p class="text-ink-3">Laut System</p>
-										<p class="num font-display text-xl font-semibold">{qtyAt(l.product, toLocationId)}</p>
-									</div>
-									<div>
-										<label class="field-label !mb-1 text-[0.8125rem]" for="count-{l.key}">Gezählt</label>
-										<QuantityStepper id="count-{l.key}" bind:value={l.counted} min={0} label="Gezählte Menge {l.product.name}" invalid={failed} />
-									</div>
-									{#if l.counted != null}
-										{@const diff = l.counted - qtyAt(l.product, toLocationId)}
-										<p class="num pb-2.5 text-sm font-semibold {diff === 0 ? 'text-ok' : 'text-warn'}">
-											{diff === 0 ? 'Stimmt' : diff > 0 ? `+${diff}` : `−${-diff}`}
-										</p>
-									{/if}
-								{:else}
-									<div>
-										<span class="field-label !mb-1 text-[0.8125rem]">Stück</span>
-										<QuantityStepper bind:value={l.quantity} label="Menge {l.product.name}" invalid={Boolean(issue) || failed} pulse={l.pulse} />
-									</div>
-									{#if type === 'TRANSFER' && fromLocationId}
-										<p class="pb-2.5 text-sm text-ink-3">{qtyAt(l.product, fromLocationId)} in {locName(fromLocationId)}</p>
-									{:else if type !== 'OUT'}
-										<p class="pb-2.5 text-sm text-ink-3">Bestand gesamt {int(l.product.total)}</p>
-									{/if}
+								<div>
+									<span class="field-label !mb-1 text-[0.8125rem]">Stück</span>
+									<QuantityStepper bind:value={l.quantity} label="Menge {l.product.name}" invalid={Boolean(issue) || failed} pulse={l.pulse} />
+								</div>
+								{#if type === 'TRANSFER' && fromLocationId}
+									<p class="pb-2.5 text-sm text-ink-3">{qtyAt(l.product, fromLocationId)} in {locName(fromLocationId)}</p>
+								{:else if type !== 'OUT'}
+									<p class="pb-2.5 text-sm text-ink-3">Bestand gesamt {int(l.product.total)}</p>
 								{/if}
 							</div>
 
@@ -512,7 +461,7 @@
 			{/if}
 			{#if needsTo}
 				<div>
-					<label for="to-loc" class="field-label">{type === 'INVENTORY' ? 'Lagerort' : type === 'TRANSFER' ? 'Nach Lagerort' : 'In Lagerort'}</label>
+					<label for="to-loc" class="field-label">{type === 'TRANSFER' ? 'Nach Lagerort' : 'In Lagerort'}</label>
 					<select id="to-loc" class="select" bind:value={toLocationId}>
 						<option value={null}>Bitte wählen</option>
 						{#each data.locations as l (l.id)}<option value={l.id}>{l.name}</option>{/each}
@@ -534,10 +483,10 @@
 					note,
 					lines: lines.map((l) => ({
 						productId: l.product.id,
-						quantity: type === 'INVENTORY' ? 0 : (l.quantity ?? 0),
+						quantity: l.quantity ?? 0,
 						fromLocationId: type === 'OUT' ? l.fromLocationId : type === 'TRANSFER' ? fromLocationId : null,
 						toLocationId: needsTo ? toLocationId : null,
-						countedQuantity: type === 'INVENTORY' ? l.counted : null
+						countedQuantity: null
 					}))
 				})}
 			/>
@@ -598,7 +547,7 @@
 			</span>
 			<p class="mt-4 font-display text-2xl font-semibold">Gebucht</p>
 			<p class="mt-1 text-ink-2">
-				{done.count} {done.count === 1 ? 'Artikel' : 'Artikel'}{done.type !== 'INVENTORY' ? `, ${done.units} Stück` : ''}
+				{done.count} {done.count === 1 ? 'Artikel' : 'Artikel'}, {done.units} Stück
 			</p>
 			<span class="lane mt-5 h-1 w-24 animate-lane rounded-full" aria-hidden="true"></span>
 		</div>

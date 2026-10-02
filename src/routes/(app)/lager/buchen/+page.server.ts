@@ -1,4 +1,4 @@
-import { fail } from '@sveltejs/kit';
+import { fail, redirect } from '@sveltejs/kit';
 import { z } from 'zod';
 import { afterStockChange } from '$lib/modules/lager/server/alerts';
 import { MOVEMENT_TYPES } from '$lib/server/db/schema';
@@ -13,6 +13,8 @@ import type { Actions, PageServerLoad } from './$types';
 export const load: PageServerLoad = async ({ locals, url, depends }) => {
 	depends('app:stock');
 	const user = requirePermission(locals, 'lager.stock.book');
+	// Die Inventur hat einen eigenen Bereich; alte Links und Lesezeichen landen dort
+	if (url.searchParams.get('art') === 'INVENTORY') redirect(307, '/lager/inventur');
 	const productId = Number(url.searchParams.get('produkt'));
 	const [locations, parties, prefill] = await Promise.all([
 		locationOptions(),
@@ -28,8 +30,7 @@ export const load: PageServerLoad = async ({ locals, url, depends }) => {
 		defaultPartyId,
 		selfName: fullName(user),
 		prefill,
-		initialType: (MOVEMENT_TYPES as readonly string[]).includes(art ?? '') ? (art as (typeof MOVEMENT_TYPES)[number]) : null,
-		canInventory: can(user.role, 'lager.stock.inventory')
+		initialType: (MOVEMENT_TYPES as readonly string[]).includes(art ?? '') ? (art as (typeof MOVEMENT_TYPES)[number]) : null
 	};
 };
 

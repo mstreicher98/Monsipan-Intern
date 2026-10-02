@@ -153,7 +153,7 @@
 			<a href="/lager/buchen?art=TRANSFER&produkt={p.id}" class="btn btn-secondary"><ArrowLeftRight size={18} aria-hidden="true" />Umlagern</a>
 		{/if}
 		{#if canInventory}
-			<a href="/lager/buchen?art=INVENTORY&produkt={p.id}" class="btn btn-secondary"><ClipboardCheck size={18} aria-hidden="true" />Inventur</a>
+			<a href="/lager/inventur" class="btn btn-secondary"><ClipboardCheck size={18} aria-hidden="true" />Inventur</a>
 		{/if}
 		{#if canManage}
 			<a href="/lager/artikel/{p.id}/bearbeiten" class="btn btn-ghost"><Pencil size={18} aria-hidden="true" />Bearbeiten</a>

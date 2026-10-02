@@ -105,7 +105,7 @@
 {/if}
 
 <div class="mb-3 flex items-center justify-between gap-2">
-	<h2 class="text-xl">Lager</h2>
+	<h2 class="text-xl">Lagermanagement</h2>
 	<a href="/lager/bestand" class="inline-flex items-center gap-1 text-sm font-medium text-ink-2 hover:text-ink">
 		Zum Bereich<ChevronRight size={16} aria-hidden="true" />
 	</a>
