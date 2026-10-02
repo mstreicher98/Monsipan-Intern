@@ -30,6 +30,8 @@ export const users = sqliteTable('users', {
 	/** Inhaber: darf als Einziger Admins löschen, herabstufen oder deaktivieren – genau ein Konto */
 	owner: integer('owner', { mode: 'boolean' }).notNull().default(false),
 	mustChangePassword: integer('must_change_password', { mode: 'boolean' }).notNull().default(false),
+	/** Führt keine Stundenzettel (etwa Admin- oder Büro-Konten) – fehlt in der Wochenliste */
+	timesheetExempt: integer('timesheet_exempt', { mode: 'boolean' }).notNull().default(false),
 	lastLoginAt: integer('last_login_at', { mode: 'timestamp_ms' }),
 	/** Gelöscht, aber wegen vorhandener Buchungen als Name in der Historie behalten */
 	deletedAt: integer('deleted_at', { mode: 'timestamp_ms' }),

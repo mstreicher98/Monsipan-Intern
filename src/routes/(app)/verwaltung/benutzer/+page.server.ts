@@ -36,6 +36,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 				active: users.active,
 				owner: users.owner,
 				mustChangePassword: users.mustChangePassword,
+				timesheetExempt: users.timesheetExempt,
 				lastLoginAt: users.lastLoginAt
 			})
 			.from(users)
@@ -92,7 +93,7 @@ async function readUser(f: FormData, currentRole: Role = 'arbeiter') {
 			return { ok: false as const, message: `${ROLE_LABELS[parsed.data.role]} müssen einer Partie zugeordnet sein.` };
 		}
 	}
-	return { ok: true as const, data: { ...parsed.data, partyId } };
+	return { ok: true as const, data: { ...parsed.data, partyId, timesheetExempt: f.get('timesheetExempt') === 'on' } };
 }
 
 async function uniqueConflict(username: string, email: string | null, exceptId?: number) {

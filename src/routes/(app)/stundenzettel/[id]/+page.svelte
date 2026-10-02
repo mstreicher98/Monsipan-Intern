@@ -7,6 +7,7 @@
 	import Check from '@lucide/svelte/icons/check';
 	import Lock from '@lucide/svelte/icons/lock';
 	import LockOpen from '@lucide/svelte/icons/lock-open';
+	import Undo from '@lucide/svelte/icons/undo-2';
 	import PenLine from '@lucide/svelte/icons/pen-line';
 	import Trash from '@lucide/svelte/icons/trash';
 	import Dialog from '$lib/components/Dialog.svelte';
@@ -82,6 +83,8 @@
 	let checkOpen = $state(false);
 	let checkSignature = $state('');
 	let checking = $state(false);
+	let confirmReopen = $state(false);
+	let confirmUncheck = $state(false);
 
 	const name = (first: string | null, last: string | null) => [first, last].filter(Boolean).join(' ') || 'unbekannt';
 
@@ -370,13 +373,15 @@
 	{#if sheet.status === 'freigegeben' && data.canCheck}
 		<button type="button" class="btn btn-primary" onclick={() => (checkOpen = true)}><Check size={18} aria-hidden="true" />Geprüft</button>
 	{/if}
+	{#if sheet.status === 'geprueft' && data.canCheck}
+		<button type="button" class="btn btn-ghost" onclick={() => (confirmUncheck = true)}>
+			<Undo size={18} aria-hidden="true" />Zurück auf freigegeben
+		</button>
+	{/if}
 	{#if sheet.status !== 'entwurf' && data.canCheck}
-		<form method="POST" action="?/reopen" use:enhance={() => async ({ update }) => {
-			toast.info('Woche wieder geöffnet');
-			await update();
-		}}>
-			<button class="btn btn-ghost"><LockOpen size={18} aria-hidden="true" />Wieder öffnen</button>
-		</form>
+		<button type="button" class="btn btn-ghost" onclick={() => (confirmReopen = true)}>
+			<LockOpen size={18} aria-hidden="true" />Wieder öffnen
+		</button>
 	{/if}
 	{#if sheet.status === 'entwurf' && data.editable}
 		<button type="button" class="btn btn-ghost ml-auto text-danger hover:bg-danger-soft" onclick={() => (confirmDelete = true)}>
@@ -436,6 +441,52 @@
 				<PenLine size={18} aria-hidden="true" />Unterschreiben und als geprüft markieren
 			</button>
 		</div>
+	</form>
+</Dialog>
+
+<Dialog bind:open={confirmReopen} title="Woche wieder öffnen?">
+	<p class="text-ink-2">
+		Die Woche von {fullName(sheet)} wird wieder änderbar.
+		{sheet.status === 'geprueft'
+			? 'Die Unterschriften von Freigabe und Prüfung verfallen – sie muss danach neu freigegeben und geprüft werden.'
+			: 'Die Unterschrift der Freigabe verfällt – sie muss danach neu freigegeben werden.'}
+	</p>
+	<form
+		method="POST"
+		action="?/reopen"
+		class="mt-5 flex justify-end gap-2"
+		use:enhance={() => async ({ result, update }) => {
+			if (result.type === 'success') {
+				toast.info('Woche wieder geöffnet');
+				confirmReopen = false;
+			}
+			await update();
+		}}
+	>
+		<button type="button" class="btn btn-ghost" onclick={() => (confirmReopen = false)}>Abbrechen</button>
+		<button class="btn btn-primary"><LockOpen size={18} aria-hidden="true" />Wieder öffnen</button>
+	</form>
+</Dialog>
+
+<Dialog bind:open={confirmUncheck} title="Prüfung zurücknehmen?">
+	<p class="text-ink-2">
+		Die Woche von {fullName(sheet)} geht zurück auf <span class="font-medium text-ink">freigegeben</span>. Die Prüf-Unterschrift
+		verfällt, die Freigabe samt Unterschrift bleibt. Ändern kann sie danach nur, wer prüfen darf.
+	</p>
+	<form
+		method="POST"
+		action="?/uncheck"
+		class="mt-5 flex justify-end gap-2"
+		use:enhance={() => async ({ result, update }) => {
+			if (result.type === 'success') {
+				toast.info('Zurück auf freigegeben');
+				confirmUncheck = false;
+			}
+			await update();
+		}}
+	>
+		<button type="button" class="btn btn-ghost" onclick={() => (confirmUncheck = false)}>Abbrechen</button>
+		<button class="btn btn-primary"><Undo size={18} aria-hidden="true" />Zurück auf freigegeben</button>
 	</form>
 </Dialog>
 

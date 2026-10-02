@@ -5,7 +5,8 @@
  * Standardmäßig sieht und bearbeitet ein Partieführer nur seine eigene Partie;
  * „Andere Partien ansehen" und „Andere Partien bearbeiten" öffnen den Rest und
  * lassen sich unter Berechtigungen auch Partieführern geben. Den eigenen Zettel
- * darf jeder ansehen.
+ * darf jeder ansehen. Wer „Keine Stundenzettel" hat (etwa ein Admin-Konto),
+ * fehlt in der Wochenliste – außer es gibt für diese Woche schon einen Zettel.
  */
 import { and, asc, eq, inArray, isNull, sql } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/sqlite-core';
@@ -31,6 +32,7 @@ export interface Staff {
 	role: Role;
 	partyId: number | null;
 	partyName: string | null;
+	timesheetExempt: boolean;
 }
 
 const activeUser = and(eq(users.active, true), isNull(users.deletedAt));
@@ -44,7 +46,8 @@ export async function staffFor(user: SessionUser): Promise<Staff[]> {
 		username: users.username,
 		role: users.role,
 		partyId: users.partyId,
-		partyName: parties.name
+		partyName: parties.name,
+		timesheetExempt: users.timesheetExempt
 	};
 	const base = db.select(fields).from(users).leftJoin(parties, eq(parties.id, users.partyId));
 
@@ -97,6 +100,8 @@ export async function weekOverview(user: SessionUser, weekStart: string): Promis
 	for (const s of staff) {
 		for (const month of monthsOfWeek(weekStart)) {
 			const sheet = sheets.find((x) => x.userId === s.id && x.month === month);
+			// Ausgenommene nur zeigen, wenn es schon einen Zettel gibt – sonst gingen die Stunden verloren
+			if (s.timesheetExempt && !sheet) continue;
 			rows.push({
 				user: s,
 				month,
@@ -299,6 +304,14 @@ export async function setStatus(
 		set.checkSignature = null;
 	}
 	await db.update(timesheets).set(set).where(eq(timesheets.id, id));
+}
+
+/** Prüfung zurücknehmen: zurück auf freigegeben, die Freigabe samt Unterschrift bleibt */
+export async function undoCheck(id: number) {
+	await db
+		.update(timesheets)
+		.set({ status: 'freigegeben', checkedBy: null, checkedAt: null, checkSignature: null, updatedAt: new Date() })
+		.where(eq(timesheets.id, id));
 }
 
 export async function deleteSheet(id: number) {

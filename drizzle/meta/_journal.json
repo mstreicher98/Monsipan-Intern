@@ -99,6 +99,13 @@
       "when": 1790959120042,
       "tag": "0013_stunden_pruef_unterschrift",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "6",
+      "when": 1790961654498,
+      "tag": "0014_benutzer_ohne_stundenzettel",
+      "breakpoints": true
     }
   ]
 }

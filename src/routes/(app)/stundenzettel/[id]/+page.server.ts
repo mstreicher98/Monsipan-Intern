@@ -10,6 +10,7 @@ import {
 	setStatus,
 	sheetDetail,
 	totals,
+	undoCheck,
 	type DayInput
 } from '$lib/modules/stunden/server/timesheets';
 import { isValidSignature } from '$lib/modules/stunden/signature';
@@ -121,6 +122,15 @@ export const actions: Actions = {
 		}
 		await setStatus(sheet.id, 'geprueft', user.id, raw);
 		return { checked: true };
+	},
+
+	/** Prüfung zurücknehmen – die Woche bleibt freigegeben, nur die Prüf-Unterschrift verfällt */
+	uncheck: async ({ params, locals }) => {
+		const { user, sheet } = await load_(Number(params.id), locals);
+		if (!can(user.role, 'stunden.pruefen')) return fail(403, { message: 'Dafür fehlt dir die Berechtigung.' });
+		if (sheet.status !== 'geprueft') return fail(400, { message: 'Diese Woche ist nicht geprüft.' });
+		await undoCheck(sheet.id);
+		return { unchecked: true };
 	},
 
 	/** Nach dem Freigeben kommt nur noch zurück, wer prüfen darf – nicht der Partieführer selbst */

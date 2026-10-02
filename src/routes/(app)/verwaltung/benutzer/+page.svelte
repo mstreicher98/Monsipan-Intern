@@ -119,6 +119,7 @@
 					{#if u.active && needsParty(u.role) && !u.partyId}<span class="badge badge-danger">Partie fehlt</span>{/if}
 					{#if u.mustChangePassword && u.active}<span class="badge badge-warn">Passwort offen</span>{/if}
 					{#if u.owner}<span class="badge badge-brand"><Crown size={13} aria-hidden="true" />{OWNER_LABEL}</span>{/if}
+					{#if u.timesheetExempt}<span class="badge">Keine Stundenzettel</span>{/if}
 					<span class="badge {roleTone[u.role]}">{ROLE_LABELS[u.role]}</span>
 					<button
 						class="btn btn-ghost btn-sm btn-icon"
@@ -253,6 +254,14 @@
 				</p>
 			</div>
 		{/if}
+
+		<label class="flex items-center gap-3 rounded-xl bg-surface-2 p-3 sm:col-span-2">
+			<input type="checkbox" name="timesheetExempt" class="size-5 accent-[var(--c-ink)]" checked={editing?.timesheetExempt ?? false} />
+			<span>
+				<span class="font-medium">Keine Stundenzettel</span>
+				<span class="block text-sm text-ink-3">Fehlt in der Stundenzettel-Liste – etwa für Admin- oder Büro-Konten.</span>
+			</span>
+		</label>
 
 		{#if editing}
 			{@const activeLocked = why(editing, 'deactivate')}

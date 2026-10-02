@@ -52,7 +52,7 @@
 				<span class="min-w-0 flex-1">
 					<span class="block truncate font-medium">{fullName(row.user)}</span>
 					<span class="block truncate text-[0.8125rem] text-ink-3">
-						{row.user.partyName ?? 'Ohne Partie'}{row.allowanceDays ? ` · Auslöse ${hoursLabel(row.allowanceDays)} Tage` : ''}
+						{row.user.partyName ?? 'Ohne Partie'}{row.allowanceDays ? ` · Auslöse ${hoursLabel(row.allowanceDays)} Tage` : ''}{row.user.timesheetExempt ? ' · sonst keine Stundenzettel' : ''}
 					</span>
 				</span>
 				{#if status}

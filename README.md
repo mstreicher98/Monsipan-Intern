@@ -144,6 +144,11 @@ vergeben: **Andere Partien ansehen** (nur lesen) und **Andere Partien bearbeiten
 (ausfüllen und freigeben). Bauleitung und Admin haben beides, die Buchhaltung das Ansehen.
 Den eigenen Zettel darf jeder ansehen.
 
+**Keine Stundenzettel:** Konten, die keine Stunden schreiben – etwa Admin- oder
+Büro-Konten –, bekommen unter **Benutzer** das Häkchen **Keine Stundenzettel**. Sie fehlen
+dann in der Wochenliste, und für sie wird kein Zettel angelegt. Gibt es für eine Woche
+schon einen Zettel, bleibt er sichtbar, damit keine Stunden verloren gehen.
+
 **Ablauf:** In Arbeit → freigegeben → geprüft.
 
 - Der **Partieführer** erfasst die Woche und gibt sie frei. Beim Freigeben unterschreibt er
@@ -154,7 +159,9 @@ Den eigenen Zettel darf jeder ansehen.
 - **Buchhaltung und Bauleitung** prüfen und unterschreiben dabei – ohne Unterschrift geht
   das Prüfen nicht. Die Unterschrift steht mit Name und Datum beim Feld „überprüft"; danach
   ist die Woche zu.
-- **Wieder öffnen** kann nur, wer prüfen darf. Die Woche ist dann erneut änderbar, beide
+- **Zurück auf freigegeben** (nach Rückfrage) nimmt nur die Prüfung zurück: Die Prüf-Unterschrift verfällt,
+  die Freigabe samt Unterschrift bleibt.
+- **Wieder öffnen** kann nur, wer prüfen darf, und fragt vorher nach. Die Woche ist dann erneut änderbar, beide
   Unterschriften verfallen, weil sich der Inhalt danach noch ändern kann.
 
 **Drucken** und **PDF** geben das Blatt im Aufbau des Vordrucks aus. Die Unterschriften

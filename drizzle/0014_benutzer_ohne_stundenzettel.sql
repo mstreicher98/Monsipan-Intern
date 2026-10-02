@@ -1,0 +1,1 @@
+ALTER TABLE `users` ADD `timesheet_exempt` integer DEFAULT false NOT NULL;

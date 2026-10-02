@@ -27,6 +27,7 @@ export const actions: Actions = {
 		const month = String(form.get('monat') ?? '');
 		if (!Number.isInteger(userId) || !isValidIsoDate(weekStart)) error(400, 'Ungültige Angaben');
 
+		// Ausgenommene Personen ohne Zettel stehen nicht in der Übersicht – für sie wird nichts angelegt
 		const allowed = await weekOverview(user, weekStart);
 		const row = allowed.find((r) => r.user.id === userId && r.month === month);
 		if (!row) error(403, 'Für diese Person darfst du keine Stunden erfassen.');
