@@ -7,20 +7,35 @@
 	import Check from '@lucide/svelte/icons/check';
 	import Lock from '@lucide/svelte/icons/lock';
 	import LockOpen from '@lucide/svelte/icons/lock-open';
+	import PenLine from '@lucide/svelte/icons/pen-line';
 	import Trash from '@lucide/svelte/icons/trash';
 	import Dialog from '$lib/components/Dialog.svelte';
-	import { fullName } from '$lib/format';
-	import { hoursLabel, monthLabel, parseHours, segmentLabel, WEEKDAY_LABELS, weekdayIndex, weekLabel } from '$lib/modules/stunden/week';
+	import SignaturePad from '$lib/modules/stunden/components/SignaturePad.svelte';
+	import { SIGNATURE_HEIGHT, SIGNATURE_WIDTH } from '$lib/modules/stunden/signature';
+	import { dateTime, fullName } from '$lib/format';
+	import {
+		hoursLabel,
+		monthLabel,
+		parseHours,
+		segmentLabel,
+		WEEKDAY_LABELS,
+		weekdayIndex,
+		weekLabel,
+		workedHours
+	} from '$lib/modules/stunden/week';
 	import { toast } from '$lib/stores/toast.svelte';
 
 	let { data, form } = $props();
 	const sheet = $derived(data.sheet);
 
+	type TimeKey = 'fromTime' | 'breakStart' | 'breakEnd' | 'toTime';
 	type Row = {
 		date: string;
 		costCenter: string;
 		site: string;
 		fromTime: string;
+		breakStart: string;
+		breakEnd: string;
 		toTime: string;
 		normalHours: string;
 		overtime50: string;
@@ -36,6 +51,8 @@
 		costCenter: d.costCenter,
 		site: d.site,
 		fromTime: d.fromTime,
+		breakStart: d.breakStart,
+		breakEnd: d.breakEnd,
 		toTime: d.toTime,
 		normalHours: hoursLabel(d.normalHours),
 		overtime50: hoursLabel(d.overtime50),
@@ -60,6 +77,15 @@
 	let note = $state(data.sheet.note);
 	let busy = $state(false);
 	let confirmDelete = $state(false);
+	let signOpen = $state(false);
+	let signature = $state('');
+
+	const TIME_FIELDS: { key: TimeKey; name: string; label: string; placeholder: string }[] = [
+		{ key: 'fromTime', name: 'beginn', label: 'Beginn', placeholder: '06:30' },
+		{ key: 'breakStart', name: 'pause', label: 'Pause', placeholder: '12:00' },
+		{ key: 'breakEnd', name: 'pauseende', label: 'Pauseende', placeholder: '12:30' },
+		{ key: 'toTime', name: 'ende', label: 'Ende', placeholder: '17:00' }
+	];
 
 	const HOUR_FIELDS = [
 		{ key: 'normalHours', name: 'norm', label: 'Norm-Std.', short: 'Norm' },
@@ -77,6 +103,21 @@
 		return `${d}.${m}.`;
 	};
 
+	const worked = (r: Row) => workedHours(r.fromTime, r.breakStart, r.breakEnd, r.toTime);
+
+	/**
+	 * Zeit eintragen. Die Norm-Stunden folgen der errechneten Arbeitszeit,
+	 * solange niemand sie von Hand anders gesetzt hat.
+	 */
+	function setTime(i: number, key: TimeKey, value: string) {
+		const row = rows[i];
+		const before = worked(row);
+		row[key] = value;
+		const after = worked(row);
+		const followsTimes = !row.normalHours.trim() || (before != null && parseHours(row.normalHours) === before);
+		if (after != null && followsTimes) row.normalHours = hoursLabel(after);
+	}
+
 	const rowTotal = (r: Row) => HOUR_FIELDS.reduce((s, f) => s + parseHours(r[f.key]), 0);
 	const columnTotal = (key: (typeof HOUR_FIELDS)[number]['key']) => rows.reduce((s, r) => s + parseHours(r[key]), 0);
 	const grandTotal = $derived(rows.reduce((s, r) => s + rowTotal(r), 0));
@@ -87,6 +128,8 @@
 		geprueft: { label: 'Geprüft', tone: 'badge-ok' }
 	};
 	const status = $derived(STATUS[sheet.status]);
+
+	const GRID = 'lg:grid-cols-[4rem_minmax(9rem,1fr)_5.5rem_repeat(4,3.9rem)_repeat(7,3.7rem)_3.2rem]';
 </script>
 
 <svelte:head><title>{pageTitle(`${fullName(sheet)} – ${weekLabel(sheet.weekStart)}`)}</title></svelte:head>
@@ -123,41 +166,70 @@
 	<p class="card mb-4 border-danger/40 p-3 text-sm text-danger" role="alert">{form.message}</p>
 {/if}
 
+{#if sheet.status !== 'entwurf' && sheet.releasedAt}
+	<section class="card mb-4 flex flex-wrap items-center gap-4 p-4">
+		{#if sheet.releaseSignature}
+			<svg
+				viewBox="0 0 {SIGNATURE_WIDTH} {SIGNATURE_HEIGHT}"
+				class="h-16 w-48 shrink-0 rounded-lg bg-white"
+				role="img"
+				aria-label="Unterschrift"
+			>
+				<path d={sheet.releaseSignature} fill="none" stroke="#1d2127" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" />
+			</svg>
+		{/if}
+		<p class="text-sm text-ink-2">
+			Freigegeben{sheet.releaseSignature ? ' und unterschrieben' : ''} von
+			<span class="font-medium text-ink">{[sheet.releasedByFirst, sheet.releasedByLast].filter(Boolean).join(' ') || 'unbekannt'}</span>
+			am {dateTime(sheet.releasedAt)}
+		</p>
+	</section>
+{/if}
+
 <form
+	id="zettel"
 	method="POST"
 	action="?/save"
-	use:enhance={() => {
+	use:enhance={({ action }) => {
 		busy = true;
+		const releasing = action.search.includes('release');
 		return async ({ result, update }) => {
 			busy = false;
-			if (result.type === 'success') toast.success('Gespeichert');
+			if (result.type === 'success') {
+				toast.success(releasing ? 'Woche freigegeben' : 'Gespeichert');
+				if (releasing) {
+					signOpen = false;
+					signature = '';
+				}
+			}
 			await update({ reset: false });
 		};
 	}}
 >
+	<!-- Außerhalb des fieldset, damit sie auch bei gesperrter Woche nicht stört -->
+	<input type="hidden" name="unterschrift" value={signature} />
+
 	<fieldset disabled={!data.editable} class="contents">
 		<div class="card lg:overflow-x-auto">
 			<!--
 				Am Handy ist jeder Tag eine kleine Karte: Baustelle breit, darunter
-				Kostenstelle/Zeit und die Stunden als Raster. Ab lg klappen die
-				Zwischenebenen per `contents` weg und alles steht in einer Zeile.
+				Kostenstelle und die vier Zeiten, dann die Stunden als Raster. Ab lg
+				klappen die Zwischenebenen per `contents` weg und alles steht in einer Zeile.
 			-->
-			<div class="hidden min-w-[62rem] gap-1.5 border-b border-line px-3 py-2 text-[0.75rem] text-ink-3 lg:grid lg:grid-cols-[4.5rem_minmax(10rem,1fr)_6rem_4.25rem_4.25rem_repeat(7,4rem)_3.5rem]">
+			<div class="hidden min-w-[66rem] gap-1.5 border-b border-line px-3 py-2 text-[0.75rem] text-ink-3 lg:grid {GRID}">
 				<span>Tag</span>
 				<span>Baustelle / Tätigkeit</span>
 				<span>Kostenstelle</span>
-				<span>von</span>
-				<span>bis</span>
-				{#each HOUR_FIELDS as f (f.key)}<span class="text-center">{f.label}</span>{/each}
+				{#each TIME_FIELDS as t (t.key)}<span>{t.label}</span>{/each}
+				{#each HOUR_FIELDS as f (f.key)}<span class="text-center">{f.short}</span>{/each}
 				<span class="text-right">Summe</span>
 			</div>
 
 			{#each rows as row, i (row.date)}
-				<div
-					class="grid gap-2 border-b border-line px-3 py-3 last:border-0 lg:min-w-[62rem] lg:grid-cols-[4.5rem_minmax(10rem,1fr)_6rem_4.25rem_4.25rem_repeat(7,4rem)_3.5rem] lg:items-center lg:gap-1.5 lg:py-2"
-				>
+				{@const day = WEEKDAY_LABELS[weekdayIndex(row.date)]}
+				<div class="grid gap-2 border-b border-line px-3 py-3 last:border-0 lg:min-w-[66rem] {GRID} lg:items-center lg:gap-1.5 lg:py-2">
 					<div class="flex items-baseline justify-between gap-2 lg:block">
-						<span class="font-semibold lg:text-[0.9375rem] lg:font-medium">{WEEKDAY_LABELS[weekdayIndex(row.date)]}</span>
+						<span class="font-semibold lg:text-[0.9375rem] lg:font-medium">{day}</span>
 						<span class="num text-sm text-ink-3 lg:hidden">
 							{dayShort(row.date)}{rowTotal(row) ? ` · ${hoursLabel(rowTotal(row))} Std` : ''}
 						</span>
@@ -168,19 +240,25 @@
 						<input class="input input-sm" name="baustelle.{row.date}" maxlength="200" list="baustellen" bind:value={row.site} />
 					</label>
 
-					<div class="grid grid-cols-[1fr_4.5rem_4.5rem] gap-2 lg:contents">
-						<label class="block">
+					<div class="grid grid-cols-4 gap-2 lg:contents">
+						<label class="col-span-4 block lg:col-span-1">
 							<span class="field-label lg:sr-only">Kostenstelle</span>
 							<input class="input input-sm" name="kostenstelle.{row.date}" maxlength="60" bind:value={row.costCenter} />
 						</label>
-						<label class="block">
-							<span class="field-label lg:sr-only">von</span>
-							<input class="input input-sm num" name="von.{row.date}" inputmode="numeric" placeholder="07:00" bind:value={row.fromTime} />
-						</label>
-						<label class="block">
-							<span class="field-label lg:sr-only">bis</span>
-							<input class="input input-sm num" name="bis.{row.date}" inputmode="numeric" placeholder="16:30" bind:value={row.toTime} />
-						</label>
+						{#each TIME_FIELDS as t (t.key)}
+							<label class="block">
+								<span class="field-label truncate lg:sr-only">{t.label}</span>
+								<input
+									class="input input-sm num text-center"
+									name="{t.name}.{row.date}"
+									inputmode="numeric"
+									placeholder={t.placeholder}
+									value={row[t.key]}
+									oninput={(e) => setTime(i, t.key, e.currentTarget.value)}
+									aria-label="{day} {t.label}"
+								/>
+							</label>
+						{/each}
 					</div>
 
 					<div class="grid grid-cols-4 gap-2 lg:contents">
@@ -192,7 +270,7 @@
 									name="{f.name}.{row.date}"
 									inputmode="decimal"
 									bind:value={rows[i][f.key]}
-									aria-label="{WEEKDAY_LABELS[weekdayIndex(row.date)]} {f.label}"
+									aria-label="{day} {f.label}"
 								/>
 							</label>
 						{/each}
@@ -202,16 +280,18 @@
 				</div>
 			{/each}
 
-			<div
-				class="flex items-center justify-between gap-2 bg-surface-2 px-3 py-2.5 font-semibold lg:grid lg:min-w-[62rem] lg:grid-cols-[4.5rem_minmax(10rem,1fr)_6rem_4.25rem_4.25rem_repeat(7,4rem)_3.5rem] lg:items-center lg:gap-1.5"
-			>
-				<span class="lg:col-span-5">Gesamtstunden</span>
+			<div class="flex items-center justify-between gap-2 bg-surface-2 px-3 py-2.5 font-semibold lg:grid lg:min-w-[66rem] {GRID} lg:items-center lg:gap-1.5">
+				<span class="lg:col-span-7">Gesamtstunden</span>
 				{#each HOUR_FIELDS as f (f.key)}
 					<span class="num hidden text-center lg:block">{hoursLabel(columnTotal(f.key)) || '–'}</span>
 				{/each}
 				<span class="num lg:text-right">{hoursLabel(grandTotal) || '–'}</span>
 			</div>
 		</div>
+		<p class="field-hint mt-2">
+			Aus Beginn, Pause, Pauseende und Ende wird die Arbeitszeit gerechnet und als Norm-Stunden eingetragen. Überstunden und
+			andere Stundenarten trägst du selbst ein; ein von Hand geänderter Wert bleibt stehen.
+		</p>
 
 		<datalist id="baustellen">
 			{#each data.sites as s (s)}<option value={s}></option>{/each}
@@ -256,6 +336,11 @@
 	{#if data.editable}
 		<div class="card sticky bottom-24 mt-4 flex flex-wrap items-center gap-2 p-3 lg:bottom-6">
 			<button class="btn btn-primary" disabled={busy}>{busy ? 'Wird gespeichert …' : 'Speichern'}</button>
+			{#if sheet.status === 'entwurf' && data.canRelease}
+				<button type="button" class="btn btn-secondary" disabled={busy} onclick={() => (signOpen = true)}>
+					<Lock size={18} aria-hidden="true" />Freigeben
+				</button>
+			{/if}
 			<span class="num ml-auto text-sm text-ink-2">Gesamt {hoursLabel(grandTotal) || '0'} Stunden</span>
 		</div>
 	{:else}
@@ -268,14 +353,6 @@
 </form>
 
 <div class="mt-4 flex flex-wrap gap-2">
-	{#if sheet.status === 'entwurf' && data.canRelease && data.editable}
-		<form method="POST" action="?/release" use:enhance={() => async ({ update }) => {
-			toast.success('Woche freigegeben');
-			await update();
-		}}>
-			<button class="btn btn-secondary"><Lock size={18} aria-hidden="true" />Freigeben</button>
-		</form>
-	{/if}
 	{#if sheet.status === 'freigegeben' && data.canCheck}
 		<form method="POST" action="?/check" use:enhance={() => async ({ update }) => {
 			toast.success('Als geprüft markiert');
@@ -298,6 +375,25 @@
 		</button>
 	{/if}
 </div>
+
+<Dialog bind:open={signOpen} title="Woche freigeben">
+	<p class="text-ink-2">
+		Mit der Unterschrift bestätigst du die Stunden von <span class="font-medium text-ink">{fullName(sheet)}</span>
+		für {sheet.siblings.length ? segmentLabel(sheet.weekStart, sheet.month) : weekLabel(sheet.weekStart)}. Sie steht danach auf dem
+		Ausdruck in der Zeile „Unterschrift Vorarbeiter".
+	</p>
+	<div class="mt-4">
+		<SignaturePad bind:path={signature} />
+	</div>
+	<div class="mt-4 flex flex-wrap justify-end gap-2">
+		<button type="submit" form="zettel" formaction="?/release" name="ohneUnterschrift" value="1" class="btn btn-ghost" disabled={busy}>
+			Ohne Unterschrift freigeben
+		</button>
+		<button type="submit" form="zettel" formaction="?/release" class="btn btn-primary" disabled={busy || !signature}>
+			<PenLine size={18} aria-hidden="true" />Unterschreiben und freigeben
+		</button>
+	</div>
+</Dialog>
 
 <Dialog bind:open={confirmDelete} title="Woche löschen?">
 	<p class="text-ink-2">Die Woche von {fullName(sheet)} wird samt allen Tagen gelöscht. Das lässt sich nicht rückgängig machen.</p>

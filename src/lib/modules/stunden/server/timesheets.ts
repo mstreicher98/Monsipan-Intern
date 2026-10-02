@@ -2,16 +2,24 @@
  * Stundenzettel: lesen, anlegen, speichern, freigeben, prüfen.
  *
  * Wer was darf, hängt an zwei Dingen: dem Recht (stunden.*) und der Partie.
- * Ein Partieführer erfasst für seine Partie, Bauleitung und Buchhaltung sehen
- * alle. Den eigenen Zettel darf jeder ansehen.
+ * Standardmäßig sieht und bearbeitet ein Partieführer nur seine eigene Partie;
+ * „Andere Partien ansehen" und „Andere Partien bearbeiten" öffnen den Rest und
+ * lassen sich unter Berechtigungen auch Partieführern geben. Den eigenen Zettel
+ * darf jeder ansehen.
  */
 import { and, asc, eq, inArray, isNull, sql } from 'drizzle-orm';
+import { alias } from 'drizzle-orm/sqlite-core';
 import { can, type Role } from '$lib/permissions';
 import { db, type Tx } from '$lib/server/db';
 import { col } from '$lib/server/db/sql';
 import { parties, timesheetDays, timesheets, users } from '$lib/server/db/schema';
 import type { SessionUser } from '$lib/server/auth';
 import { mondayOf, monthsOfWeek, parseHours, parseTime, weekDaysInMonth, type WEEKDAY_LABELS } from '../week';
+
+/** Darf andere Partien sehen – wer andere bearbeiten darf, darf sie auch sehen */
+const seesAll = (user: SessionUser) => can(user.role, 'stunden.alle.sehen') || can(user.role, 'stunden.alle.bearbeiten');
+const editsAll = (user: SessionUser) => can(user.role, 'stunden.alle.bearbeiten');
+const samePartyAs = (user: SessionUser, partyId: number | null) => !!user.partyId && user.partyId === partyId;
 
 export type { WEEKDAY_LABELS };
 
@@ -40,7 +48,7 @@ export async function staffFor(user: SessionUser): Promise<Staff[]> {
 	};
 	const base = db.select(fields).from(users).leftJoin(parties, eq(parties.id, users.partyId));
 
-	if (can(user.role, 'stunden.alle.sehen')) {
+	if (seesAll(user)) {
 		return base.where(activeUser).orderBy(asc(users.lastName), asc(users.firstName)).all();
 	}
 	if (can(user.role, 'stunden.erfassen') && user.partyId) {
@@ -132,6 +140,9 @@ async function createDays(tx: Tx, timesheetId: number, weekStart: string, month:
 	}
 }
 
+/** Wer freigegeben (und unterschrieben) hat */
+const releaser = alias(users, 'releaser');
+
 export async function sheetDetail(id: number) {
 	const sheet = await db
 		.select({
@@ -146,6 +157,9 @@ export async function sheetDetail(id: number) {
 			vazPercent: timesheets.vazPercent,
 			note: timesheets.note,
 			releasedAt: timesheets.releasedAt,
+			releaseSignature: timesheets.releaseSignature,
+			releasedByFirst: releaser.firstName,
+			releasedByLast: releaser.lastName,
 			checkedAt: timesheets.checkedAt,
 			firstName: users.firstName,
 			lastName: users.lastName,
@@ -156,6 +170,7 @@ export async function sheetDetail(id: number) {
 		.from(timesheets)
 		.innerJoin(users, eq(users.id, timesheets.userId))
 		.leftJoin(parties, eq(parties.id, users.partyId))
+		.leftJoin(releaser, eq(releaser.id, timesheets.releasedBy))
 		.where(eq(timesheets.id, id))
 		.get();
 	if (!sheet) return null;
@@ -183,6 +198,8 @@ export interface DayInput {
 	costCenter: string;
 	site: string;
 	fromTime: string;
+	breakStart: string;
+	breakEnd: string;
 	toTime: string;
 	normalHours: string;
 	overtime50: string;
@@ -227,6 +244,8 @@ export async function saveSheet(id: number, head: HeadInput, days: DayInput[]) {
 					costCenter: String(d.costCenter ?? '').slice(0, 60),
 					site: String(d.site ?? '').slice(0, 200),
 					fromTime: parseTime(d.fromTime),
+					breakStart: parseTime(d.breakStart),
+					breakEnd: parseTime(d.breakEnd),
 					toTime: parseTime(d.toTime),
 					normalHours: parseHours(d.normalHours),
 					overtime50: parseHours(d.overtime50),
@@ -241,12 +260,23 @@ export async function saveSheet(id: number, head: HeadInput, days: DayInput[]) {
 	});
 }
 
-export async function setStatus(id: number, status: 'entwurf' | 'freigegeben' | 'geprueft', userId: number) {
+/**
+ * Status setzen. Beim Freigeben kann die Unterschrift des Vorarbeiters
+ * mitkommen; wird die Woche wieder geöffnet, verfällt sie – der Inhalt kann
+ * sich danach ja noch ändern.
+ */
+export async function setStatus(
+	id: number,
+	status: 'entwurf' | 'freigegeben' | 'geprueft',
+	userId: number,
+	signature: string | null = null
+) {
 	const now = new Date();
 	const set: Record<string, unknown> = { status, updatedAt: now };
 	if (status === 'freigegeben') {
 		set.releasedBy = userId;
 		set.releasedAt = now;
+		set.releaseSignature = signature;
 		set.checkedBy = null;
 		set.checkedAt = null;
 	} else if (status === 'geprueft') {
@@ -255,6 +285,7 @@ export async function setStatus(id: number, status: 'entwurf' | 'freigegeben' | 
 	} else {
 		set.releasedBy = null;
 		set.releasedAt = null;
+		set.releaseSignature = null;
 		set.checkedBy = null;
 		set.checkedAt = null;
 	}
@@ -268,17 +299,21 @@ export async function deleteSheet(id: number) {
 /** Darf diese Person den Zettel öffnen? */
 export function mayView(user: SessionUser, sheet: { userId: number; partyId: number | null }): boolean {
 	if (sheet.userId === user.id) return true;
-	if (can(user.role, 'stunden.alle.sehen')) return true;
-	return can(user.role, 'stunden.erfassen') && !!user.partyId && user.partyId === sheet.partyId;
+	if (seesAll(user)) return true;
+	return can(user.role, 'stunden.erfassen') && samePartyAs(user, sheet.partyId);
+}
+
+/** Darf diese Person Stunden für diesen Mitarbeiter erfassen (Zettel anlegen, ausfüllen)? */
+export function mayRecordFor(user: SessionUser, person: { partyId: number | null }): boolean {
+	if (!can(user.role, 'stunden.erfassen')) return false;
+	return editsAll(user) || samePartyAs(user, person.partyId);
 }
 
 /** Darf diese Person Zeilen ändern? Geprüfte Wochen sind zu. */
 export function mayEdit(user: SessionUser, sheet: { userId: number; partyId: number | null; status: string }): boolean {
 	if (sheet.status === 'geprueft') return false;
 	if (sheet.status === 'freigegeben') return can(user.role, 'stunden.pruefen');
-	if (!can(user.role, 'stunden.erfassen')) return false;
-	if (can(user.role, 'stunden.alle.sehen')) return true;
-	return !!user.partyId && user.partyId === sheet.partyId;
+	return mayRecordFor(user, sheet);
 }
 
 /** Zuletzt verwendete Baustellen als Vorschlagsliste (später kommen hier Aufträge her) */

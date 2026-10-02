@@ -8,7 +8,8 @@
  */
 import { bufferResponse, startPdf } from '$lib/server/pdf';
 import { fullName } from '$lib/format';
-import { hoursLabel, isoWeek, monthLabel, monthsOfWeek, WEEKDAY_LABELS, weekdayIndex, weekDays } from '../week';
+import { SIGNATURE_HEIGHT, SIGNATURE_WIDTH } from '../signature';
+import { hoursLabel, isoWeek, monthLabel, monthsOfWeek, timeRangeLabel, WEEKDAY_LABELS, weekdayIndex, weekDays } from '../week';
 import type { SheetDetail } from './timesheets';
 import { totals } from './timesheets';
 
@@ -156,7 +157,7 @@ export async function lohnzettelPdf(sheet: SheetDetail): Promise<Response> {
 		const timeTop = y + DAY_H;
 		line(left, timeTop, xs[3], timeTop, 0.6);
 		doc.font('Helvetica').fontSize(6.5).text('Zeit\nvon/bis', colX(0) + 3, timeTop + 2, { width: colW(0) - 6, lineGap: -1 });
-		const times = d?.fromTime && d.toTime ? `${d.fromTime} – ${d.toTime}` : (d?.fromTime ?? '');
+		const times = d ? timeRangeLabel(d) : '';
 		if (times) doc.font('Helvetica').fontSize(9.5).text(times, colX(1) + 4, timeTop + 4, { lineBreak: false });
 
 		y = timeTop + TIME_H;
@@ -172,8 +173,8 @@ export async function lohnzettelPdf(sheet: SheetDetail): Promise<Response> {
 	}
 
 	/* ------------------------------------------------------- Summenzeile */
-	doc.font('Helvetica').fontSize(10).text(`${hoursLabel(sheet.vazPercent)} %`.trim(), colX(1), y + 6, { width: colW(1), align: 'center' });
-	doc.fontSize(10.5).text('Gesamtstunden', colX(2) + 8, y + 6, { lineBreak: false });
+	// Nur die Summen je Stundenart – die Gesamtsumme steht nicht noch einmal daneben
+	doc.font('Helvetica').fontSize(10.5).text('Gesamtstunden', colX(2) + 8, y + 6, { lineBreak: false });
 	for (const h of HOURS) {
 		const idx = COLUMNS.findIndex((c) => c.key === h.key);
 		doc
@@ -181,7 +182,6 @@ export async function lohnzettelPdf(sheet: SheetDetail): Promise<Response> {
 			.fontSize(10)
 			.text(hoursLabel(t[TOTAL_KEY[h.key]]), colX(idx), y + 6, { width: colW(idx), align: 'center' });
 	}
-	doc.font('Helvetica-Bold').fontSize(10).text(hoursLabel(t.total), colX(10), y + 6, { width: colW(10), align: 'center' });
 
 	const tableBottom = y + SUM_H;
 	line(left, tableBottom, right, tableBottom);
@@ -192,7 +192,13 @@ export async function lohnzettelPdf(sheet: SheetDetail): Promise<Response> {
 	line(left, top, right, top);
 
 	/* ------------------------------------------- VAZ, Auslöse, Unterschriften */
-	filledLine('VAZ', sheet.vaz, left, tableBottom + 6, left + 240, 9);
+	// VAZ und der Prozentsatz stehen gemeinsam unter der Tabelle, nicht in ihr
+	filledLine('VAZ', sheet.vaz, left, tableBottom + 6, left + 220, 9);
+	line(left + 230, tableBottom + 19, left + 280, tableBottom + 19, 0.8);
+	if (sheet.vazPercent != null) {
+		doc.font('Helvetica').fontSize(10).text(hoursLabel(sheet.vazPercent), left + 230, tableBottom + 8, { width: 50, align: 'center' });
+	}
+	doc.font('Helvetica').fontSize(9).text('%', left + 284, tableBottom + 10, { lineBreak: false });
 
 	const ausloeseY = tableBottom + 58;
 	doc.font('Helvetica').fontSize(10).text('Auslöse', right - 330, ausloeseY, { lineBreak: false });
@@ -205,6 +211,28 @@ export async function lohnzettelPdf(sheet: SheetDetail): Promise<Response> {
 
 	const signY = tableBottom + 140;
 	const signW = 130;
+
+	// Unterschrift aus der Freigabe über der Linie – der Pfad liegt im 600×200-Feld
+	if (sheet.releaseSignature) {
+		const boxH = 44;
+		const scale = Math.min(signW / SIGNATURE_WIDTH, boxH / SIGNATURE_HEIGHT);
+		doc.save();
+		doc.translate(left + (signW - SIGNATURE_WIDTH * scale) / 2, signY - boxH - 2);
+		doc.scale(scale);
+		doc.path(sheet.releaseSignature).lineWidth(4).lineCap('round').lineJoin('round').strokeColor('#1d2127').stroke();
+		doc.restore();
+		const who = [sheet.releasedByFirst, sheet.releasedByLast].filter(Boolean).join(' ');
+		const when = sheet.releasedAt
+			? new Intl.DateTimeFormat('de-AT', { day: '2-digit', month: '2-digit', year: 'numeric' }).format(sheet.releasedAt)
+			: '';
+		doc
+			.font('Helvetica')
+			.fontSize(6.5)
+			.fillColor('#5c626b')
+			.text([who, when].filter(Boolean).join(', '), left, signY + 16, { width: signW, align: 'center' });
+		doc.fillColor('#1d2127');
+	}
+
 	line(left, signY, left + signW, signY);
 	doc.font('Helvetica').fontSize(9.5).text('Unterschrift Vorarbeiter', left, signY + 4, { width: signW, align: 'center' });
 	line(right - signW, signY, right, signY);

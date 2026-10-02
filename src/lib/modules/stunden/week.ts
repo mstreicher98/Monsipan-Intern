@@ -129,6 +129,42 @@ export function parseHours(input: string | null | undefined): number {
 	return Math.min(24, Math.round(n * 100) / 100);
 }
 
+/** Minuten seit Mitternacht; null, wenn die Eingabe keine Uhrzeit ist */
+export function minutesOf(input: string | null | undefined): number | null {
+	const t = parseTime(input);
+	if (!t) return null;
+	const [h, m] = t.split(':').map(Number);
+	return h * 60 + m;
+}
+
+/**
+ * Arbeitszeit eines Tages aus Beginn, Pause, Pauseende und Ende – so wie sie
+ * auf der Baustelle aufgeschrieben wird. Ohne vollständige Pause zählt Beginn
+ * bis Ende. Über Mitternacht wird nicht gerechnet; dann gibt es null.
+ */
+export function workedHours(
+	start: string | null | undefined,
+	breakStart: string | null | undefined,
+	breakEnd: string | null | undefined,
+	end: string | null | undefined
+): number | null {
+	const s = minutesOf(start);
+	const e = minutesOf(end);
+	if (s == null || e == null || e <= s) return null;
+	let minutes = e - s;
+	const bs = minutesOf(breakStart);
+	const be = minutesOf(breakEnd);
+	if (bs != null && be != null && s <= bs && bs < be && be <= e) minutes -= be - bs;
+	return Math.round((minutes / 60) * 100) / 100;
+}
+
+/** "06:30 – 12:00, 12:30 – 17:30" für Ausdruck und PDF */
+export function timeRangeLabel(d: { fromTime: string; breakStart: string; breakEnd: string; toTime: string }): string {
+	if (!d.fromTime && !d.toTime) return '';
+	if (d.breakStart && d.breakEnd) return `${d.fromTime} – ${d.breakStart}, ${d.breakEnd} – ${d.toTime}`;
+	return [d.fromTime, d.toTime].filter(Boolean).join(' – ');
+}
+
 /** Uhrzeit "7:30" oder "0730" auf "07:30" bringen; ungültiges wird leer */
 export function parseTime(input: string | null | undefined): string {
 	const s = String(input ?? '').trim();

@@ -120,30 +120,42 @@ Admin, damit sich niemand aussperrt.
 ## Stundenzettel
 
 Eine Woche je Mitarbeiter, aufgebaut wie der Lohnzettel auf Papier: Montag bis Sonntag mit
-Kostenstelle, Baustelle/Tätigkeit, Zeit von/bis und den Stundenarten Norm, Überstunden 50 %
+Kostenstelle, Baustelle/Tätigkeit, Arbeitszeit und den Stundenarten Norm, Überstunden 50 %
 und 100 %, Urlaub, Feiertag, Regen und Efzg (Entgeltfortzahlung). Dazu Auslöse (Tage und
-Betrag) und VAZ. Die Summen je Spalte und die Gesamtstunden rechnet die Seite mit, während
-getippt wird.
+Betrag) und VAZ mit Prozentsatz. Die Summen je Spalte und die Gesamtstunden rechnet die
+Seite mit, während getippt wird.
 
-Stunden werden als Zahl eingetragen, nicht als Uhrzeit: `8,5` sind acht Stunden dreißig.
-`8:30` versteht die Eingabe ebenfalls.
+**Arbeitszeit:** je Tag **Beginn**, **Pause**, **Pauseende** und **Ende** (z. B. 06:30, 12:00,
+12:30, 17:00). Daraus rechnet die Seite die Arbeitszeit ohne Pause und trägt sie als
+Norm-Stunden ein. Überstunden und die anderen Stundenarten trägt man selbst ein; wer die
+Norm-Stunden von Hand ändert, behält seinen Wert. Uhrzeiten dürfen auch als `0630` oder
+`6.30` getippt werden, Stunden als `8,5` oder `8:30`.
 
 **Monatlich getrennt:** Der Lohn wird monatsweise abgerechnet, deshalb endet ein
 Stundenzettel immer am Monatsende. Geht eine Woche über den Monatswechsel, gibt es zwei
-Zettel – einen je Monat, jeder mit den Tagen, die in diesen Monat fallen. In der
-Wochenübersicht steht dann je Person eine Zeile pro Monatsteil, und im Zettel führt ein
-Link zum anderen Teil. Ausdruck und PDF zeigen trotzdem alle sieben Tageszeilen wie der
-Vordruck; die Tage des anderen Monats bleiben leer.
+Zettel – einen je Monat, jeder mit den Tagen, die in diesen Monat fallen. Die
+Wochenübersicht zeigt dann zwei Blöcke, einen je Monat, und im Zettel führt ein Link zum
+anderen Teil. Ausdruck und PDF zeigen trotzdem alle sieben Tageszeilen wie der Vordruck;
+die Tage des anderen Monats bleiben leer.
+
+**Wer was sieht:** Ein Partieführer sieht und bearbeitet standardmäßig nur die Zettel
+seiner eigenen Partie. Unter **Benutzer → Berechtigungen** lassen sich dafür zwei Rechte
+vergeben: **Andere Partien ansehen** (nur lesen) und **Andere Partien bearbeiten**
+(ausfüllen und freigeben). Bauleitung und Admin haben beides, die Buchhaltung das Ansehen.
+Den eigenen Zettel darf jeder ansehen.
 
 **Ablauf:** In Arbeit → freigegeben → geprüft.
 
-- Der **Partieführer** erfasst die Woche für sich und seine Partie und gibt sie frei.
+- Der **Partieführer** erfasst die Woche und gibt sie frei. Beim Freigeben unterschreibt er
+  mit Finger, Stift oder Maus; die Unterschrift steht danach auf Ausdruck und PDF in der
+  Zeile „Unterschrift Vorarbeiter", mit Name und Datum. Freigeben ohne Unterschrift geht
+  auch. Noch nicht gespeicherte Eingaben werden beim Freigeben mitgespeichert.
 - **Buchhaltung und Bauleitung** prüfen und setzen den Haken; danach ist die Woche zu.
-- **Wieder öffnen** macht sie erneut änderbar.
-- Jeder sieht den eigenen Zettel, auch ohne Erfassungsrecht.
+- **Wieder öffnen** macht sie erneut änderbar – die Unterschrift verfällt dabei, weil sich
+  der Inhalt danach noch ändern kann.
 
-**Drucken** gibt das Blatt im Formularlayout aus, inklusive der Zeilen für Unterschrift
-Vorarbeiter und überprüft.
+**Drucken** und **PDF** geben das Blatt im Aufbau des Vordrucks aus. Die Unterschrift liegt
+als Linienzug vor und bleibt in jeder Größe scharf.
 
 ## Tagesberichte
 

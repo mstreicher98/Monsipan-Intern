@@ -37,6 +37,11 @@ export const timesheets = sqliteTable(
 		createdBy: integer('created_by').references(() => users.id, { onDelete: 'set null' }),
 		releasedBy: integer('released_by').references(() => users.id, { onDelete: 'set null' }),
 		releasedAt: integer('released_at', { mode: 'timestamp_ms' }),
+		/**
+		 * Unterschrift des Vorarbeiters beim Freigeben, als SVG-Pfad in einem
+		 * 600×200-Feld. Ein Pfad statt eines Bildes: klein, und scharf in Druck und PDF.
+		 */
+		releaseSignature: text('release_signature'),
 		checkedBy: integer('checked_by').references(() => users.id, { onDelete: 'set null' }),
 		checkedAt: integer('checked_at', { mode: 'timestamp_ms' }),
 		createdAt: createdAt(),
@@ -62,7 +67,10 @@ export const timesheetDays = sqliteTable(
 		costCenter: text('cost_center').notNull().default(''),
 		/** Baustelle / Tätigkeit; später kommt hier der Auftrag dazu */
 		site: text('site').notNull().default(''),
+		/** Arbeitszeit: Beginn – Pause und Pauseende – Ende, jeweils "HH:MM" */
 		fromTime: text('from_time').notNull().default(''),
+		breakStart: text('break_start').notNull().default(''),
+		breakEnd: text('break_end').notNull().default(''),
 		toTime: text('to_time').notNull().default(''),
 		normalHours: real('normal_hours').notNull().default(0),
 		overtime50: real('overtime_50').notNull().default(0),

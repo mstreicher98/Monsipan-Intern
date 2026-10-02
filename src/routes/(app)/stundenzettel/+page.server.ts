@@ -1,7 +1,7 @@
 import { error, redirect } from '@sveltejs/kit';
 import { can } from '$lib/permissions';
 import { requireUser } from '$lib/server/guard';
-import { openSheet, weekOverview } from '$lib/modules/stunden/server/timesheets';
+import { mayRecordFor, openSheet, weekOverview } from '$lib/modules/stunden/server/timesheets';
 import { isValidIsoDate, mondayOf, today } from '$lib/modules/stunden/week';
 import type { Actions, PageServerLoad } from './$types';
 
@@ -30,7 +30,10 @@ export const actions: Actions = {
 		const allowed = await weekOverview(user, weekStart);
 		const row = allowed.find((r) => r.user.id === userId && r.month === month);
 		if (!row) error(403, 'Für diese Person darfst du keine Stunden erfassen.');
-		if (!row.sheetId && !can(user.role, 'stunden.erfassen')) error(403, 'Dafür fehlt dir die Berechtigung.');
+		// Ansehen reicht zum Öffnen; anlegen darf nur, wer für diese Partie erfasst
+		if (!row.sheetId && !mayRecordFor(user, row.user)) {
+			error(403, 'Für diese Person darfst du keinen Stundenzettel anlegen – sie gehört zu einer anderen Partie.');
+		}
 
 		const id = row.sheetId ?? (await openSheet(userId, weekStart, month, user.id));
 		redirect(303, `/stundenzettel/${id}`);

@@ -4,6 +4,7 @@ import { requireUser } from '$lib/server/guard';
 import {
 	deleteSheet,
 	mayEdit,
+	mayRecordFor,
 	mayView,
 	recentSites,
 	saveSheet,
@@ -12,6 +13,7 @@ import {
 	totals,
 	type DayInput
 } from '$lib/modules/stunden/server/timesheets';
+import { isValidSignature } from '$lib/modules/stunden/signature';
 import type { Actions, PageServerLoad } from './$types';
 
 async function load_(id: number, locals: App.Locals) {
@@ -35,15 +37,17 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 	};
 };
 
-/** Die sieben Tageszeilen aus dem Formular lesen */
+/** Die Tageszeilen aus dem Formular lesen */
 function readDays(form: FormData, dates: string[]): DayInput[] {
 	const value = (name: string, date: string) => String(form.get(`${name}.${date}`) ?? '');
 	return dates.map((date) => ({
 		date,
 		costCenter: value('kostenstelle', date),
 		site: value('baustelle', date),
-		fromTime: value('von', date),
-		toTime: value('bis', date),
+		fromTime: value('beginn', date),
+		breakStart: value('pause', date),
+		breakEnd: value('pauseende', date),
+		toTime: value('ende', date),
 		normalHours: value('norm', date),
 		overtime50: value('ue50', date),
 		overtime100: value('ue100', date),
@@ -54,6 +58,16 @@ function readDays(form: FormData, dates: string[]): DayInput[] {
 	}));
 }
 
+function readHead(form: FormData) {
+	return {
+		allowanceDays: String(form.get('ausloeseTage') ?? ''),
+		allowanceAmount: String(form.get('ausloeseBetrag') ?? ''),
+		vaz: String(form.get('vaz') ?? ''),
+		vazPercent: String(form.get('vazProzent') ?? ''),
+		note: String(form.get('notiz') ?? '')
+	};
+}
+
 export const actions: Actions = {
 	save: async ({ params, request, locals }) => {
 		const { user, sheet } = await load_(Number(params.id), locals);
@@ -61,13 +75,7 @@ export const actions: Actions = {
 		const form = await request.formData();
 		await saveSheet(
 			sheet.id,
-			{
-				allowanceDays: String(form.get('ausloeseTage') ?? ''),
-				allowanceAmount: String(form.get('ausloeseBetrag') ?? ''),
-				vaz: String(form.get('vaz') ?? ''),
-				vazPercent: String(form.get('vazProzent') ?? ''),
-				note: String(form.get('notiz') ?? '')
-			},
+			readHead(form),
 			readDays(
 				form,
 				sheet.days.map((d) => d.date)
@@ -76,12 +84,27 @@ export const actions: Actions = {
 		return { saved: true };
 	},
 
-	release: async ({ params, locals }) => {
+	/** Speichert den aktuellen Stand und gibt frei – mit Unterschrift, wenn eine mitkommt */
+	release: async ({ params, request, locals }) => {
 		const { user, sheet } = await load_(Number(params.id), locals);
 		if (!can(user.role, 'stunden.freigeben') || !mayEdit(user, sheet)) {
 			return fail(403, { message: 'Freigeben darf nur, wer die Woche auch erfassen darf.' });
 		}
-		await setStatus(sheet.id, 'freigegeben', user.id);
+		const form = await request.formData();
+		const raw = form.get('ohneUnterschrift') ? '' : String(form.get('unterschrift') ?? '').trim();
+		if (raw && !isValidSignature(raw)) {
+			return fail(400, { message: 'Die Unterschrift konnte nicht gelesen werden – bitte neu unterschreiben.' });
+		}
+		// Was im Formular steht, aber noch nicht gespeichert war, geht nicht verloren
+		await saveSheet(
+			sheet.id,
+			readHead(form),
+			readDays(
+				form,
+				sheet.days.map((d) => d.date)
+			)
+		);
+		await setStatus(sheet.id, 'freigegeben', user.id, raw || null);
 		return { released: true };
 	},
 
@@ -94,7 +117,8 @@ export const actions: Actions = {
 
 	reopen: async ({ params, locals }) => {
 		const { user, sheet } = await load_(Number(params.id), locals);
-		const own = sheet.status === 'freigegeben' && can(user.role, 'stunden.freigeben');
+		// Selbst Freigegebenes darf zurückholen, wer die Woche auch erfassen darf
+		const own = sheet.status === 'freigegeben' && can(user.role, 'stunden.freigeben') && mayRecordFor(user, sheet);
 		if (!can(user.role, 'stunden.pruefen') && !own) return fail(403, { message: 'Dafür fehlt dir die Berechtigung.' });
 		await setStatus(sheet.id, 'entwurf', user.id);
 		return { reopened: true };

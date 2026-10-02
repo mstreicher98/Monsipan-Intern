@@ -52,7 +52,9 @@ export const DEFAULT_PERMISSIONS = {
 	'stunden.erfassen': ['admin', 'bauleiter', 'partiefuehrer'],
 	'stunden.freigeben': ['admin', 'bauleiter', 'partiefuehrer'],
 	'stunden.pruefen': ['admin', 'bauleiter', 'buchhaltung'],
+	// Ohne diese beiden Rechte sieht und bearbeitet man nur die eigene Partie
 	'stunden.alle.sehen': ['admin', 'bauleiter', 'buchhaltung'],
+	'stunden.alle.bearbeiten': ['admin', 'bauleiter'],
 
 	// Tagesberichte
 	'tagesberichte.erfassen': ['admin', 'bauleiter', 'partiefuehrer'],
@@ -88,9 +90,10 @@ export const PERMISSION_GROUPS: { title: string; items: { key: Permission; label
 		title: 'Stundenzettel',
 		items: [
 			{ key: 'stunden.erfassen', label: 'Erfassen', hint: 'Wochen der eigenen Partie ausfüllen' },
-			{ key: 'stunden.freigeben', label: 'Freigeben', hint: 'Woche abschließen und einreichen' },
+			{ key: 'stunden.freigeben', label: 'Freigeben', hint: 'Woche unterschreiben und einreichen' },
 			{ key: 'stunden.pruefen', label: 'Prüfen', hint: 'Geprüft-Haken setzen, Auslöse bestätigen' },
-			{ key: 'stunden.alle.sehen', label: 'Alle sehen', hint: 'Auch Partien, zu denen man nicht gehört' }
+			{ key: 'stunden.alle.sehen', label: 'Andere Partien ansehen', hint: 'Zettel aller Partien lesen' },
+			{ key: 'stunden.alle.bearbeiten', label: 'Andere Partien bearbeiten', hint: 'Zettel aller Partien ausfüllen und freigeben' }
 		]
 	},
 	{

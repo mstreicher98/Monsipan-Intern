@@ -85,6 +85,13 @@
       "when": 1790943963679,
       "tag": "0011_stunden_monatlich_daten",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "6",
+      "when": 1790956878527,
+      "tag": "0012_stunden_pause_unterschrift",
+      "breakpoints": true
     }
   ]
 }
