@@ -2,6 +2,7 @@
 	import { pageTitle } from '$lib/app';
 	import Download from '@lucide/svelte/icons/download';
 	import Printer from '@lucide/svelte/icons/printer';
+	import FileText from '@lucide/svelte/icons/file-text';
 	import CircleCheck from '@lucide/svelte/icons/circle-check';
 	import ProductAvatar from '$lib/modules/lager/components/ProductAvatar.svelte';
 	import { amountLabel, date, int, packageLabel } from '$lib/format';
@@ -24,12 +25,14 @@
 		return [...map.entries()].sort(([a], [b]) => a.localeCompare(b, 'de'));
 	});
 
-	const exportHref = $derived(
-		'/export/bestellliste.csv?' +
-			new URLSearchParams(
-				data.items.filter((p) => !excluded[p.id]).map((p) => ['m', `${p.id}:${qty[p.id] ?? p.suggested}`])
-			).toString()
+	/** Die auf der Seite eingestellten Mengen wandern in den Export mit */
+	const exportQuery = $derived(
+		new URLSearchParams(
+			data.items.filter((p) => !excluded[p.id]).map((p) => ['m', `${p.id}:${qty[p.id] ?? p.suggested}`])
+		).toString()
 	);
+	const exportHref = $derived(`/export/bestellliste.csv?${exportQuery}`);
+	const pdfHref = $derived(`/export/bestellliste.pdf?${exportQuery}`);
 </script>
 
 <svelte:head><title>{pageTitle('Bestellliste')}</title></svelte:head>
@@ -44,6 +47,7 @@
 	{#if data.items.length}
 		<div class="no-print flex gap-2">
 			<button class="btn btn-secondary" onclick={() => window.print()}><Printer size={18} aria-hidden="true" />Drucken</button>
+			<a href={pdfHref} class="btn btn-secondary" download><FileText size={18} aria-hidden="true" />Als PDF</a>
 			<a href={exportHref} class="btn btn-primary" download><Download size={18} aria-hidden="true" />Als CSV</a>
 		</div>
 	{/if}

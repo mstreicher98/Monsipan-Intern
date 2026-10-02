@@ -51,7 +51,7 @@ Inventur-Buchung festgehalten, auch wenn sie stimmt.
 3. [Betrieb auf dem Server](#betrieb-auf-dem-server)
 4. [Datensicherung](#datensicherung)
 5. [Alles zurücksetzen](#alles-zurücksetzen)
-6. [Listen drucken](#listen-drucken)
+6. [Drucken, PDF und CSV](#drucken-pdf-und-csv)
 7. [Materialbeschreibungen (PDF)](#materialbeschreibungen-pdf)
 8. [App fürs Handy](#app-fürs-handy)
 9. [Scanner einrichten](#scanner-einrichten)
@@ -311,7 +311,7 @@ Artikel und Codes, Bestand, alle Bewegungen, Lagerorte, Partien, Materialarten u
   Liste gekennzeichnet, wird getrennt aufbewahrt (die letzten 10) und verdrängt keine der
   14 regulären Sicherungen. Wiederherstellen wie oben beschrieben.
 
-## Listen drucken
+## Drucken, PDF und CSV
 
 **Bestand** und **Bewegungen** haben je einen Knopf **Drucken**. Er öffnet eine eigene
 Druckansicht, die den aktuellen Filter übernimmt und alle Treffer enthält – nicht nur die
@@ -326,6 +326,23 @@ sonst hilft der Knopf auf der Seite.
   Mindestbestand“. Ganz rechts ist eine leere Spalte **gezählt** zum Eintragen bei der Inventur.
 - **Bewegungen:** Zeitpunkt, Art, Artikel, Menge mit Vorzeichen, Von/Nach und wer gebucht
   hat. Stornierte Buchungen sind durchgestrichen. Nur für Rollen, die Bewegungen sehen dürfen.
+
+**Als PDF herunterladen:** Überall, wo es Drucken oder CSV gibt, gibt es auch **PDF**. Die
+Datei entsteht am Server (pdfkit, keine Browser-Druckfunktion nötig), übernimmt die
+eingestellten Filter und eignet sich zum Weiterschicken oder Ablegen:
+
+| Dokument | Adresse |
+|---|---|
+| Bestandsliste | `/export/bestand.pdf` |
+| Bewegungen | `/export/bewegungen.pdf` |
+| Bestellliste (nach Hersteller gruppiert, mit Unterschriftszeile) | `/export/bestellliste.pdf` |
+| Verbrauch je Monat | `/export/verbrauch.pdf` |
+| Lohnzettel einer Woche | `/stundenzettel/<id>/pdf` |
+| Tagesbericht | `/tagesberichte/<id>/pdf` |
+
+Jede Seite hat Kopf (Titel, Filter) und Fuß (Anwendung, Ausdruckzeitpunkt, Seite x von y);
+der Tabellenkopf wiederholt sich beim Seitenumbruch. Lohnzettel und Tagesbericht bringen
+ihre Unterschriftszeilen mit. **CSV** gibt es unverändert daneben – für Excel.
 
 ## Materialbeschreibungen (PDF)
 
