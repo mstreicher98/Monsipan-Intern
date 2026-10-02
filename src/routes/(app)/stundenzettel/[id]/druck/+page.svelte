@@ -24,6 +24,8 @@
 	const byDate = $derived(new Map(sheet.days.map((d) => [d.date, d])));
 	const alleTage = $derived(weekDays(sheet.weekStart));
 	const releaser = $derived([sheet.releasedByFirst, sheet.releasedByLast].filter(Boolean).join(' '));
+	const checker = $derived([sheet.checkedByFirst, sheet.checkedByLast].filter(Boolean).join(' '));
+	const checked = $derived(sheet.status === 'geprueft' && !!sheet.checkSignature && !!sheet.checkedAt);
 
 	const HOURS = [
 		{ key: 'normalHours', total: 'normal' },
@@ -121,7 +123,8 @@
 		</table>
 
 		<p class="vaz">
-			<span class="klein">VAZ</span><span class="wert linie">{sheet.vaz}</span>
+			<span class="klein">VAZ</span>
+			{#if sheet.vaz}<span class="vaz-text">{sheet.vaz}</span>{/if}
 			<span class="wert linie prozent">{sheet.vazPercent != null ? hoursLabel(sheet.vazPercent) : ''}</span><span class="klein">%</span>
 		</p>
 
@@ -148,8 +151,17 @@
 			</div>
 			<span class="hinweis">Freiwillige Leistungen über KV begründen keinen Rechtsanspruch!</span>
 			<div class="sign-block">
-				<div class="sign-bild"></div>
+				<div class="sign-bild">
+					{#if checked}
+						<svg viewBox="0 0 {SIGNATURE_WIDTH} {SIGNATURE_HEIGHT}" role="img" aria-label="Unterschrift {checker}">
+							<path d={sheet.checkSignature} fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" />
+						</svg>
+					{/if}
+				</div>
 				<span class="sign">überprüft</span>
+				{#if checked && sheet.checkedAt}
+					<span class="sign-info">{checker}, {dateTime(sheet.checkedAt)}</span>
+				{/if}
 			</div>
 		</footer>
 	</div>
@@ -293,12 +305,15 @@
 		vertical-align: middle;
 	}
 
+	/* VAZ ohne lange Linie – nur der Prozentsatz hat sein Feld */
 	.vaz {
 		display: flex;
 		align-items: baseline;
 		gap: 0.4rem;
-		width: 55%;
 		margin-top: 0.1rem;
+	}
+	.vaz-text {
+		font-size: 0.8125rem;
 	}
 	.vaz .prozent {
 		flex: 0 0 4rem;
@@ -328,8 +343,11 @@
 		justify-content: space-between;
 		gap: 1rem;
 		margin-top: 1.5rem;
+		/* Platz für Name und Datum unter den Linien */
+		padding-bottom: 1rem;
 	}
 	.sign-block {
+		position: relative;
 		display: flex;
 		width: 11rem;
 		flex-direction: column;
@@ -349,7 +367,12 @@
 		text-align: center;
 		font-size: 0.75rem;
 	}
+	/* Hängt unter der Linie, damit beide Linien auf einer Höhe bleiben */
 	.sign-info {
+		position: absolute;
+		top: 100%;
+		right: 0;
+		left: 0;
 		text-align: center;
 		font-size: 0.625rem;
 		opacity: 0.75;

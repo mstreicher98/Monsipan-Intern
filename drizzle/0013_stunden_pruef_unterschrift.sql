@@ -1,0 +1,1 @@
+ALTER TABLE `timesheets` ADD `check_signature` text;

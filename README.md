@@ -149,13 +149,16 @@ Den eigenen Zettel darf jeder ansehen.
 - Der **Partieführer** erfasst die Woche und gibt sie frei. Beim Freigeben unterschreibt er
   mit Finger, Stift oder Maus; die Unterschrift steht danach auf Ausdruck und PDF in der
   Zeile „Unterschrift Vorarbeiter", mit Name und Datum. Freigeben ohne Unterschrift geht
-  auch. Noch nicht gespeicherte Eingaben werden beim Freigeben mitgespeichert.
-- **Buchhaltung und Bauleitung** prüfen und setzen den Haken; danach ist die Woche zu.
-- **Wieder öffnen** macht sie erneut änderbar – die Unterschrift verfällt dabei, weil sich
-  der Inhalt danach noch ändern kann.
+  auch. Noch nicht gespeicherte Eingaben werden beim Freigeben mitgespeichert. Danach kann
+  der Partieführer die Woche weder ändern noch selbst wieder öffnen.
+- **Buchhaltung und Bauleitung** prüfen und unterschreiben dabei – ohne Unterschrift geht
+  das Prüfen nicht. Die Unterschrift steht mit Name und Datum beim Feld „überprüft"; danach
+  ist die Woche zu.
+- **Wieder öffnen** kann nur, wer prüfen darf. Die Woche ist dann erneut änderbar, beide
+  Unterschriften verfallen, weil sich der Inhalt danach noch ändern kann.
 
-**Drucken** und **PDF** geben das Blatt im Aufbau des Vordrucks aus. Die Unterschrift liegt
-als Linienzug vor und bleibt in jeder Größe scharf.
+**Drucken** und **PDF** geben das Blatt im Aufbau des Vordrucks aus. Die Unterschriften
+liegen als Linienzug vor und bleiben in jeder Größe scharf.
 
 ## Tagesberichte
 

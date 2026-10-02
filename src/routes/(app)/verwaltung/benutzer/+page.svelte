@@ -223,6 +223,8 @@
 			<p class="field-hint">Für „Passwort vergessen“ und Warn-Mails.</p>
 		</div>
 
+		<!-- Gesperrte Felder schickt der Browser nicht mit – ihr Wert kommt deshalb versteckt mit -->
+		{#if roleLocked}<input type="hidden" name="role" value={role} />{/if}
 		<fieldset class="sm:col-span-2" disabled={Boolean(roleLocked)}>
 			<legend class="field-label">Rolle</legend>
 			{#if roleLocked}<p class="field-hint mb-2">{roleLocked}</p>{/if}
@@ -254,6 +256,7 @@
 
 		{#if editing}
 			{@const activeLocked = why(editing, 'deactivate')}
+			{#if activeLocked && editing.active}<input type="hidden" name="active" value="on" />{/if}
 			<label class="flex items-center gap-3 rounded-xl bg-surface-2 p-3 sm:col-span-2 {activeLocked ? 'opacity-60' : ''}">
 				<input type="checkbox" name="active" class="size-5 accent-[var(--c-ink)]" checked={editing.active} disabled={Boolean(activeLocked)} />
 				<span>

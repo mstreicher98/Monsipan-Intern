@@ -16,7 +16,7 @@ import { intOrNull, requirePermission } from '$lib/server/guard';
 import { inviteMail, isMailConfigured, passwordResetMail, sendMail } from '$lib/server/mail';
 import { partyOptions } from '$lib/server/options';
 import { fullName } from '$lib/format';
-import { needsParty, ROLE_LABELS, ROLES } from '$lib/permissions';
+import { needsParty, ROLE_LABELS, ROLES, type Role } from '$lib/permissions';
 import { canBecomeOwner, denyReason, type UserAction, type UserRef } from '$lib/user-rules';
 import type { Actions, PageServerLoad } from './$types';
 
@@ -69,14 +69,17 @@ const UserSchema = z.object({
 	role: z.enum(ROLES)
 });
 
-/** Liest das Formular; Partieführer und Arbeiter brauchen eine aktive Partie */
-async function readUser(f: FormData) {
+/**
+ * Liest das Formular; Partieführer und Arbeiter brauchen eine aktive Partie.
+ * Fehlt die Rolle (etwa beim gesperrten Inhaber-Konto), gilt die bisherige.
+ */
+async function readUser(f: FormData, currentRole: Role = 'arbeiter') {
 	const parsed = UserSchema.safeParse({
 		firstName: f.get('firstName') ?? '',
 		lastName: f.get('lastName') ?? '',
 		username: f.get('username') ?? '',
 		email: f.get('email') ?? '',
-		role: f.get('role') ?? 'arbeiter'
+		role: f.get('role') ?? currentRole
 	});
 	if (!parsed.success) return { ok: false as const, message: parsed.error.issues[0].message };
 	let partyId: number | null = null;
@@ -158,7 +161,9 @@ export const actions: Actions = {
 		const f = await request.formData();
 		const id = intOrNull(f.get('id'));
 		if (!id) return fail(400, { message: 'Benutzer fehlt' });
-		const parsed = await readUser(f);
+		const current = await loadTarget(id);
+		if (!current || current.deletedAt) return fail(400, { message: 'Benutzer nicht gefunden.' });
+		const parsed = await readUser(f, current.role);
 		if (!parsed.ok) return fail(400, { message: parsed.message });
 		const d = parsed.data;
 		const active = f.get('active') === 'on';
@@ -167,8 +172,6 @@ export const actions: Actions = {
 		if (id === me.id && (!active || d.role !== 'admin')) {
 			return fail(400, { message: 'Du kannst dich nicht selbst deaktivieren oder dir die Admin-Rolle nehmen.' });
 		}
-		const current = await loadTarget(id);
-		if (!current || current.deletedAt) return fail(400, { message: 'Benutzer nicht gefunden.' });
 		const action: UserAction = d.role !== current.role ? 'role' : current.active && !active ? 'deactivate' : 'edit';
 		const denied = denyReason(me, current, action);
 		if (denied) return fail(403, { message: denied });

@@ -79,6 +79,11 @@
 	let confirmDelete = $state(false);
 	let signOpen = $state(false);
 	let signature = $state('');
+	let checkOpen = $state(false);
+	let checkSignature = $state('');
+	let checking = $state(false);
+
+	const name = (first: string | null, last: string | null) => [first, last].filter(Boolean).join(' ') || 'unbekannt';
 
 	const TIME_FIELDS: { key: TimeKey; name: string; label: string; placeholder: string }[] = [
 		{ key: 'fromTime', name: 'beginn', label: 'Beginn', placeholder: '06:30' },
@@ -166,23 +171,32 @@
 	<p class="card mb-4 border-danger/40 p-3 text-sm text-danger" role="alert">{form.message}</p>
 {/if}
 
-{#if sheet.status !== 'entwurf' && sheet.releasedAt}
-	<section class="card mb-4 flex flex-wrap items-center gap-4 p-4">
-		{#if sheet.releaseSignature}
+{#snippet signed(label: string, signature: string | null, who: string, at: Date)}
+	<div class="flex flex-wrap items-center gap-4">
+		{#if signature}
 			<svg
 				viewBox="0 0 {SIGNATURE_WIDTH} {SIGNATURE_HEIGHT}"
 				class="h-16 w-48 shrink-0 rounded-lg bg-white"
 				role="img"
-				aria-label="Unterschrift"
+				aria-label="Unterschrift {who}"
 			>
-				<path d={sheet.releaseSignature} fill="none" stroke="#1d2127" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" />
+				<path d={signature} fill="none" stroke="#1d2127" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" />
 			</svg>
 		{/if}
 		<p class="text-sm text-ink-2">
-			Freigegeben{sheet.releaseSignature ? ' und unterschrieben' : ''} von
-			<span class="font-medium text-ink">{[sheet.releasedByFirst, sheet.releasedByLast].filter(Boolean).join(' ') || 'unbekannt'}</span>
-			am {dateTime(sheet.releasedAt)}
+			{label}{signature ? ' und unterschrieben' : ''} von
+			<span class="font-medium text-ink">{who}</span>
+			am {dateTime(at)}
 		</p>
+	</div>
+{/snippet}
+
+{#if sheet.status !== 'entwurf' && sheet.releasedAt}
+	<section class="card mb-4 grid gap-4 p-4 lg:grid-cols-2">
+		{@render signed('Freigegeben', sheet.releaseSignature, name(sheet.releasedByFirst, sheet.releasedByLast), sheet.releasedAt)}
+		{#if sheet.status === 'geprueft' && sheet.checkedAt}
+			{@render signed('Geprüft', sheet.checkSignature, name(sheet.checkedByFirst, sheet.checkedByLast), sheet.checkedAt)}
+		{/if}
 	</section>
 {/if}
 
@@ -347,21 +361,16 @@
 		<p class="field-hint mt-4">
 			{sheet.status === 'geprueft'
 				? 'Diese Woche ist geprüft und damit abgeschlossen.'
-				: 'Diese Woche ist freigegeben und wartet auf die Prüfung.'}
+				: 'Diese Woche ist freigegeben und wartet auf die Prüfung. Ändern oder wieder öffnen kann sie jetzt nur noch, wer prüft.'}
 		</p>
 	{/if}
 </form>
 
 <div class="mt-4 flex flex-wrap gap-2">
 	{#if sheet.status === 'freigegeben' && data.canCheck}
-		<form method="POST" action="?/check" use:enhance={() => async ({ update }) => {
-			toast.success('Als geprüft markiert');
-			await update();
-		}}>
-			<button class="btn btn-primary"><Check size={18} aria-hidden="true" />Geprüft</button>
-		</form>
+		<button type="button" class="btn btn-primary" onclick={() => (checkOpen = true)}><Check size={18} aria-hidden="true" />Geprüft</button>
 	{/if}
-	{#if sheet.status !== 'entwurf' && (data.canCheck || (sheet.status === 'freigegeben' && data.canRelease))}
+	{#if sheet.status !== 'entwurf' && data.canCheck}
 		<form method="POST" action="?/reopen" use:enhance={() => async ({ update }) => {
 			toast.info('Woche wieder geöffnet');
 			await update();
@@ -393,6 +402,41 @@
 			<PenLine size={18} aria-hidden="true" />Unterschreiben und freigeben
 		</button>
 	</div>
+</Dialog>
+
+<Dialog bind:open={checkOpen} title="Woche prüfen">
+	<p class="text-ink-2">
+		Mit der Unterschrift bestätigst du, dass du die Stunden von <span class="font-medium text-ink">{fullName(sheet)}</span>
+		für {sheet.siblings.length ? segmentLabel(sheet.weekStart, sheet.month) : weekLabel(sheet.weekStart)} geprüft hast. Sie steht danach
+		auf dem Ausdruck beim Feld „überprüft".
+	</p>
+	<form
+		method="POST"
+		action="?/check"
+		use:enhance={() => {
+			checking = true;
+			return async ({ result, update }) => {
+				checking = false;
+				if (result.type === 'success') {
+					toast.success('Als geprüft markiert');
+					checkOpen = false;
+					checkSignature = '';
+				}
+				await update();
+			};
+		}}
+	>
+		<input type="hidden" name="unterschrift" value={checkSignature} />
+		<div class="mt-4">
+			<SignaturePad bind:path={checkSignature} />
+		</div>
+		<div class="mt-4 flex flex-wrap justify-end gap-2">
+			<button type="button" class="btn btn-ghost" onclick={() => (checkOpen = false)}>Abbrechen</button>
+			<button class="btn btn-primary" disabled={checking || !checkSignature}>
+				<PenLine size={18} aria-hidden="true" />Unterschreiben und als geprüft markieren
+			</button>
+		</div>
+	</form>
 </Dialog>
 
 <Dialog bind:open={confirmDelete} title="Woche löschen?">

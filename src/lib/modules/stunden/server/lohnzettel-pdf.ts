@@ -192,13 +192,19 @@ export async function lohnzettelPdf(sheet: SheetDetail): Promise<Response> {
 	line(left, top, right, top);
 
 	/* ------------------------------------------- VAZ, Auslöse, Unterschriften */
-	// VAZ und der Prozentsatz stehen gemeinsam unter der Tabelle, nicht in ihr
-	filledLine('VAZ', sheet.vaz, left, tableBottom + 6, left + 220, 9);
-	line(left + 230, tableBottom + 19, left + 280, tableBottom + 19, 0.8);
-	if (sheet.vazPercent != null) {
-		doc.font('Helvetica').fontSize(10).text(hoursLabel(sheet.vazPercent), left + 230, tableBottom + 8, { width: 50, align: 'center' });
+	// VAZ und der Prozentsatz stehen gemeinsam unter der Tabelle, nicht in ihr.
+	// Keine lange Linie – nur der Prozentsatz hat sein Feld.
+	doc.font('Helvetica').fontSize(9).fillColor('#1d2127').text('VAZ', left, tableBottom + 10, { lineBreak: false });
+	let vazX = left + doc.widthOfString('VAZ') + 8;
+	if (sheet.vaz) {
+		doc.font('Helvetica').fontSize(10).text(sheet.vaz, vazX, tableBottom + 8, { width: 160, lineBreak: false, ellipsis: true });
+		vazX += Math.min(160, doc.widthOfString(sheet.vaz)) + 8;
 	}
-	doc.font('Helvetica').fontSize(9).text('%', left + 284, tableBottom + 10, { lineBreak: false });
+	line(vazX, tableBottom + 19, vazX + 50, tableBottom + 19, 0.8);
+	if (sheet.vazPercent != null) {
+		doc.font('Helvetica').fontSize(10).text(hoursLabel(sheet.vazPercent), vazX, tableBottom + 8, { width: 50, align: 'center' });
+	}
+	doc.font('Helvetica').fontSize(9).text('%', vazX + 54, tableBottom + 10, { lineBreak: false });
 
 	const ausloeseY = tableBottom + 58;
 	doc.font('Helvetica').fontSize(10).text('Auslöse', right - 330, ausloeseY, { lineBreak: false });
@@ -212,25 +218,30 @@ export async function lohnzettelPdf(sheet: SheetDetail): Promise<Response> {
 	const signY = tableBottom + 140;
 	const signW = 130;
 
-	// Unterschrift aus der Freigabe über der Linie – der Pfad liegt im 600×200-Feld
-	if (sheet.releaseSignature) {
+	/** Unterschrift über der Linie ab x, darunter Name und Datum – der Pfad liegt im 600×200-Feld */
+	const signature = (path: string, x: number, first: string | null, last: string | null, at: Date | null) => {
 		const boxH = 44;
 		const scale = Math.min(signW / SIGNATURE_WIDTH, boxH / SIGNATURE_HEIGHT);
 		doc.save();
-		doc.translate(left + (signW - SIGNATURE_WIDTH * scale) / 2, signY - boxH - 2);
+		doc.translate(x + (signW - SIGNATURE_WIDTH * scale) / 2, signY - boxH - 2);
 		doc.scale(scale);
-		doc.path(sheet.releaseSignature).lineWidth(4).lineCap('round').lineJoin('round').strokeColor('#1d2127').stroke();
+		doc.path(path).lineWidth(4).lineCap('round').lineJoin('round').strokeColor('#1d2127').stroke();
 		doc.restore();
-		const who = [sheet.releasedByFirst, sheet.releasedByLast].filter(Boolean).join(' ');
-		const when = sheet.releasedAt
-			? new Intl.DateTimeFormat('de-AT', { day: '2-digit', month: '2-digit', year: 'numeric' }).format(sheet.releasedAt)
-			: '';
+		const who = [first, last].filter(Boolean).join(' ');
+		const when = at ? new Intl.DateTimeFormat('de-AT', { day: '2-digit', month: '2-digit', year: 'numeric' }).format(at) : '';
 		doc
 			.font('Helvetica')
 			.fontSize(6.5)
 			.fillColor('#5c626b')
-			.text([who, when].filter(Boolean).join(', '), left, signY + 16, { width: signW, align: 'center' });
+			.text([who, when].filter(Boolean).join(', '), x, signY + 16, { width: signW, align: 'center' });
 		doc.fillColor('#1d2127');
+	};
+
+	if (sheet.releaseSignature) {
+		signature(sheet.releaseSignature, left, sheet.releasedByFirst, sheet.releasedByLast, sheet.releasedAt);
+	}
+	if (sheet.status === 'geprueft' && sheet.checkSignature) {
+		signature(sheet.checkSignature, right - signW, sheet.checkedByFirst, sheet.checkedByLast, sheet.checkedAt);
 	}
 
 	line(left, signY, left + signW, signY);

@@ -4,7 +4,6 @@ import { requireUser } from '$lib/server/guard';
 import {
 	deleteSheet,
 	mayEdit,
-	mayRecordFor,
 	mayView,
 	recentSites,
 	saveSheet,
@@ -90,6 +89,7 @@ export const actions: Actions = {
 		if (!can(user.role, 'stunden.freigeben') || !mayEdit(user, sheet)) {
 			return fail(403, { message: 'Freigeben darf nur, wer die Woche auch erfassen darf.' });
 		}
+		if (sheet.status !== 'entwurf') return fail(400, { message: 'Diese Woche ist bereits freigegeben.' });
 		const form = await request.formData();
 		const raw = form.get('ohneUnterschrift') ? '' : String(form.get('unterschrift') ?? '').trim();
 		if (raw && !isValidSignature(raw)) {
@@ -108,18 +108,26 @@ export const actions: Actions = {
 		return { released: true };
 	},
 
-	check: async ({ params, locals }) => {
+	/** Prüfen geht nur mit Unterschrift – sie steht danach beim Feld „überprüft" */
+	check: async ({ params, request, locals }) => {
 		const { user, sheet } = await load_(Number(params.id), locals);
 		if (!can(user.role, 'stunden.pruefen')) return fail(403, { message: 'Dafür fehlt dir die Berechtigung.' });
-		await setStatus(sheet.id, 'geprueft', user.id);
+		if (sheet.status !== 'freigegeben') return fail(400, { message: 'Geprüft werden kann nur eine freigegebene Woche.' });
+		const form = await request.formData();
+		const raw = String(form.get('unterschrift') ?? '').trim();
+		if (!raw) return fail(400, { message: 'Bitte unterschreiben – ohne Unterschrift wird die Woche nicht als geprüft markiert.' });
+		if (!isValidSignature(raw)) {
+			return fail(400, { message: 'Die Unterschrift konnte nicht gelesen werden – bitte neu unterschreiben.' });
+		}
+		await setStatus(sheet.id, 'geprueft', user.id, raw);
 		return { checked: true };
 	},
 
+	/** Nach dem Freigeben kommt nur noch zurück, wer prüfen darf – nicht der Partieführer selbst */
 	reopen: async ({ params, locals }) => {
 		const { user, sheet } = await load_(Number(params.id), locals);
-		// Selbst Freigegebenes darf zurückholen, wer die Woche auch erfassen darf
-		const own = sheet.status === 'freigegeben' && can(user.role, 'stunden.freigeben') && mayRecordFor(user, sheet);
-		if (!can(user.role, 'stunden.pruefen') && !own) return fail(403, { message: 'Dafür fehlt dir die Berechtigung.' });
+		if (!can(user.role, 'stunden.pruefen')) return fail(403, { message: 'Dafür fehlt dir die Berechtigung.' });
+		if (sheet.status === 'entwurf') return { reopened: true };
 		await setStatus(sheet.id, 'entwurf', user.id);
 		return { reopened: true };
 	},

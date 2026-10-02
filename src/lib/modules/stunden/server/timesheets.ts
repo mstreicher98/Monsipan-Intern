@@ -142,6 +142,8 @@ async function createDays(tx: Tx, timesheetId: number, weekStart: string, month:
 
 /** Wer freigegeben (und unterschrieben) hat */
 const releaser = alias(users, 'releaser');
+/** Wer geprüft (und unterschrieben) hat */
+const checker = alias(users, 'checker');
 
 export async function sheetDetail(id: number) {
 	const sheet = await db
@@ -161,6 +163,9 @@ export async function sheetDetail(id: number) {
 			releasedByFirst: releaser.firstName,
 			releasedByLast: releaser.lastName,
 			checkedAt: timesheets.checkedAt,
+			checkSignature: timesheets.checkSignature,
+			checkedByFirst: checker.firstName,
+			checkedByLast: checker.lastName,
 			firstName: users.firstName,
 			lastName: users.lastName,
 			username: users.username,
@@ -171,6 +176,7 @@ export async function sheetDetail(id: number) {
 		.innerJoin(users, eq(users.id, timesheets.userId))
 		.leftJoin(parties, eq(parties.id, users.partyId))
 		.leftJoin(releaser, eq(releaser.id, timesheets.releasedBy))
+		.leftJoin(checker, eq(checker.id, timesheets.checkedBy))
 		.where(eq(timesheets.id, id))
 		.get();
 	if (!sheet) return null;
@@ -262,8 +268,8 @@ export async function saveSheet(id: number, head: HeadInput, days: DayInput[]) {
 
 /**
  * Status setzen. Beim Freigeben kann die Unterschrift des Vorarbeiters
- * mitkommen; wird die Woche wieder geöffnet, verfällt sie – der Inhalt kann
- * sich danach ja noch ändern.
+ * mitkommen, beim Prüfen die des Prüfers. Wird die Woche wieder geöffnet,
+ * verfallen beide – der Inhalt kann sich danach ja noch ändern.
  */
 export async function setStatus(
 	id: number,
@@ -279,15 +285,18 @@ export async function setStatus(
 		set.releaseSignature = signature;
 		set.checkedBy = null;
 		set.checkedAt = null;
+		set.checkSignature = null;
 	} else if (status === 'geprueft') {
 		set.checkedBy = userId;
 		set.checkedAt = now;
+		set.checkSignature = signature;
 	} else {
 		set.releasedBy = null;
 		set.releasedAt = null;
 		set.releaseSignature = null;
 		set.checkedBy = null;
 		set.checkedAt = null;
+		set.checkSignature = null;
 	}
 	await db.update(timesheets).set(set).where(eq(timesheets.id, id));
 }
@@ -309,7 +318,10 @@ export function mayRecordFor(user: SessionUser, person: { partyId: number | null
 	return editsAll(user) || samePartyAs(user, person.partyId);
 }
 
-/** Darf diese Person Zeilen ändern? Geprüfte Wochen sind zu. */
+/**
+ * Darf diese Person Zeilen ändern? Nach dem Freigeben nur noch, wer prüfen
+ * darf – der Partieführer selbst nicht mehr. Geprüfte Wochen sind zu.
+ */
 export function mayEdit(user: SessionUser, sheet: { userId: number; partyId: number | null; status: string }): boolean {
 	if (sheet.status === 'geprueft') return false;
 	if (sheet.status === 'freigegeben') return can(user.role, 'stunden.pruefen');

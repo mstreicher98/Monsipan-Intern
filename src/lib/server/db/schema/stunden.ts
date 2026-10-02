@@ -44,6 +44,8 @@ export const timesheets = sqliteTable(
 		releaseSignature: text('release_signature'),
 		checkedBy: integer('checked_by').references(() => users.id, { onDelete: 'set null' }),
 		checkedAt: integer('checked_at', { mode: 'timestamp_ms' }),
+		/** Unterschrift dessen, der geprüft hat – gleiches Format wie releaseSignature */
+		checkSignature: text('check_signature'),
 		createdAt: createdAt(),
 		updatedAt: integer('updated_at', { mode: 'timestamp_ms' })
 	},
