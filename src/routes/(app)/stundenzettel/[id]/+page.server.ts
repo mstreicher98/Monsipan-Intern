@@ -1,5 +1,5 @@
 import { error, fail, redirect } from '@sveltejs/kit';
-import { can } from '$lib/permissions';
+import { can, type Role } from '$lib/permissions';
 import { requireUser } from '$lib/server/guard';
 import {
 	deleteSheet,
@@ -33,7 +33,9 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 		sites: await recentSites(),
 		editable: mayEdit(user, sheet),
 		canRelease: can(user.role, 'stunden.freigeben'),
-		canCheck: can(user.role, 'stunden.pruefen')
+		canCheck: can(user.role, 'stunden.pruefen'),
+		canReopen: mayReopen(user.role, sheet.status),
+		canUncheck: sheet.status === 'geprueft' && can(user.role, 'stunden.pruefung.zuruecknehmen')
 	};
 };
 
@@ -56,6 +58,13 @@ function readDays(form: FormData, dates: string[]): DayInput[] {
 		rainHours: value('regen', date),
 		sickHours: value('efzg', date)
 	}));
+}
+
+/** Wieder öffnen hängt am Status: für freigegebene und geprüfte Wochen gibt es je ein eigenes Recht */
+function mayReopen(role: Role, status: string): boolean {
+	if (status === 'freigegeben') return can(role, 'stunden.oeffnen.freigegeben');
+	if (status === 'geprueft') return can(role, 'stunden.oeffnen.geprueft');
+	return false;
 }
 
 function readHead(form: FormData) {
@@ -127,17 +136,17 @@ export const actions: Actions = {
 	/** Prüfung zurücknehmen – die Woche bleibt freigegeben, nur die Prüf-Unterschrift verfällt */
 	uncheck: async ({ params, locals }) => {
 		const { user, sheet } = await load_(Number(params.id), locals);
-		if (!can(user.role, 'stunden.pruefen')) return fail(403, { message: 'Dafür fehlt dir die Berechtigung.' });
+		if (!can(user.role, 'stunden.pruefung.zuruecknehmen')) return fail(403, { message: 'Dafür fehlt dir die Berechtigung.' });
 		if (sheet.status !== 'geprueft') return fail(400, { message: 'Diese Woche ist nicht geprüft.' });
 		await undoCheck(sheet.id);
 		return { unchecked: true };
 	},
 
-	/** Nach dem Freigeben kommt nur noch zurück, wer prüfen darf – nicht der Partieführer selbst */
+	/** Wieder öffnen nur mit dem Recht für den jeweiligen Status – standardmäßig nicht der Partieführer */
 	reopen: async ({ params, locals }) => {
 		const { user, sheet } = await load_(Number(params.id), locals);
-		if (!can(user.role, 'stunden.pruefen')) return fail(403, { message: 'Dafür fehlt dir die Berechtigung.' });
 		if (sheet.status === 'entwurf') return { reopened: true };
+		if (!mayReopen(user.role, sheet.status)) return fail(403, { message: 'Dafür fehlt dir die Berechtigung.' });
 		await setStatus(sheet.id, 'entwurf', user.id);
 		return { reopened: true };
 	},

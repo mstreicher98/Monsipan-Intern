@@ -364,7 +364,7 @@
 		<p class="field-hint mt-4">
 			{sheet.status === 'geprueft'
 				? 'Diese Woche ist geprüft und damit abgeschlossen.'
-				: 'Diese Woche ist freigegeben und wartet auf die Prüfung. Ändern oder wieder öffnen kann sie jetzt nur noch, wer prüft.'}
+				: 'Diese Woche ist freigegeben und wartet auf die Prüfung. Ändern kann sie jetzt nur noch, wer prüft.'}
 		</p>
 	{/if}
 </form>
@@ -373,12 +373,12 @@
 	{#if sheet.status === 'freigegeben' && data.canCheck}
 		<button type="button" class="btn btn-primary" onclick={() => (checkOpen = true)}><Check size={18} aria-hidden="true" />Geprüft</button>
 	{/if}
-	{#if sheet.status === 'geprueft' && data.canCheck}
+	{#if data.canUncheck}
 		<button type="button" class="btn btn-ghost" onclick={() => (confirmUncheck = true)}>
 			<Undo size={18} aria-hidden="true" />Zurück auf freigegeben
 		</button>
 	{/if}
-	{#if sheet.status !== 'entwurf' && data.canCheck}
+	{#if data.canReopen}
 		<button type="button" class="btn btn-ghost" onclick={() => (confirmReopen = true)}>
 			<LockOpen size={18} aria-hidden="true" />Wieder öffnen
 		</button>

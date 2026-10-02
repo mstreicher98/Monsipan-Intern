@@ -159,10 +159,14 @@ schon einen Zettel, bleibt er sichtbar, damit keine Stunden verloren gehen.
 - **Buchhaltung und Bauleitung** prüfen und unterschreiben dabei – ohne Unterschrift geht
   das Prüfen nicht. Die Unterschrift steht mit Name und Datum beim Feld „überprüft"; danach
   ist die Woche zu.
-- **Zurück auf freigegeben** (nach Rückfrage) nimmt nur die Prüfung zurück: Die Prüf-Unterschrift verfällt,
-  die Freigabe samt Unterschrift bleibt.
-- **Wieder öffnen** kann nur, wer prüfen darf, und fragt vorher nach. Die Woche ist dann erneut änderbar, beide
-  Unterschriften verfallen, weil sich der Inhalt danach noch ändern kann.
+- **Zurück auf freigegeben** (nach Rückfrage) nimmt nur die Prüfung zurück: Die
+  Prüf-Unterschrift verfällt, die Freigabe samt Unterschrift bleibt.
+- **Wieder öffnen** (nach Rückfrage) macht die Woche erneut änderbar. Die Unterschriften
+  verfallen, weil sich der Inhalt danach noch ändern kann.
+
+Wer zurücksetzen darf, steht unter **Benutzer → Berechtigungen** in drei eigenen Rechten:
+**Freigegebene wieder öffnen**, **Geprüfte wieder öffnen** und **Zurück auf freigegeben**.
+Standardmäßig haben sie Admin, Bauleitung und Buchhaltung.
 
 **Drucken** und **PDF** geben das Blatt im Aufbau des Vordrucks aus. Die Unterschriften
 liegen als Linienzug vor und bleiben in jeder Größe scharf.
