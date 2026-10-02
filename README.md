@@ -337,8 +337,13 @@ eingestellten Filter und eignet sich zum Weiterschicken oder Ablegen:
 | Bewegungen | `/export/bewegungen.pdf` |
 | Bestellliste (nach Hersteller gruppiert, mit Unterschriftszeile) | `/export/bestellliste.pdf` |
 | Verbrauch je Monat | `/export/verbrauch.pdf` |
-| Lohnzettel einer Woche | `/stundenzettel/<id>/pdf` |
+| Lohnzettel einer Woche (im Aufbau des Formulars aus dem Block) | `/stundenzettel/<id>/pdf` |
 | Tagesbericht | `/tagesberichte/<id>/pdf` |
+
+**Lohnzettel:** Druckansicht und PDF sind dem Vordruck nachgebaut – Briefkopf mit
+Lohnwoche, das Raster mit je einer Zeile pro Tag und einer schmalen für Zeit von/bis,
+Gesamtstunden, VAZ, Auslöse und die beiden Unterschriftszeilen mit dem KV-Satz dazwischen.
+Mit  lässt sich eine Druckansicht ohne Druckfenster anschauen.
 
 Jede Seite hat Kopf (Titel, Filter) und Fuß (Anwendung, Ausdruckzeitpunkt, Seite x von y);
 der Tabellenkopf wiederholt sich beim Seitenumbruch. Lohnzettel und Tagesbericht bringen

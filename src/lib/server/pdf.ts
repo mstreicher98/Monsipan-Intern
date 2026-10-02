@@ -58,6 +58,44 @@ function text(v: PdfCell): string {
 	return String(v);
 }
 
+/**
+ * Leeres Dokument für Formulare, die genau wie ihre Papiervorlage aussehen
+ * sollen (z. B. der Lohnzettel). Gezeichnet wird dort mit pdfkit direkt.
+ */
+export function startPdf(opts: { title: string; landscape?: boolean }) {
+	const doc = new PDFDocument({
+		size: 'A4',
+		layout: opts.landscape ? 'landscape' : 'portrait',
+		margins: { top: 36, bottom: 36, left: 36, right: 36 },
+		info: { Title: opts.title, Author: APP_NAME, Creator: APP_NAME }
+	});
+	const chunks: Buffer[] = [];
+	const done = new Promise<Buffer>((resolve, reject) => {
+		doc.on('data', (c: Buffer) => chunks.push(c));
+		doc.on('end', () => resolve(Buffer.concat(chunks)));
+		doc.on('error', reject);
+	});
+	return {
+		doc,
+		finish: async () => {
+			doc.end();
+			return done;
+		}
+	};
+}
+
+export function bufferResponse(filename: string, buffer: Buffer): Response {
+	const body = new Uint8Array(buffer);
+	return new Response(body, {
+		headers: {
+			'content-type': 'application/pdf',
+			'content-disposition': `attachment; filename="${filename}"`,
+			'content-length': String(body.length),
+			'cache-control': 'no-store'
+		}
+	});
+}
+
 export function pdfBuffer(opts: PdfOptions): Promise<Buffer> {
 	const doc = new PDFDocument({
 		size: 'A4',
