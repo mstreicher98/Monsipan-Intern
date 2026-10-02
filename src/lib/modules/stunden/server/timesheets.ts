@@ -19,7 +19,7 @@ import { db, type Tx } from '$lib/server/db';
 import { col } from '$lib/server/db/sql';
 import { parties, timesheetDays, timesheets, users } from '$lib/server/db/schema';
 import type { SessionUser } from '$lib/server/auth';
-import { mondayOf, monthsOfWeek, parseHours, parseTime, weekDaysInMonth, type WEEKDAY_LABELS } from '../week';
+import { mondayOf, monthsOfWeek, normalizeRanges, parseHours, weekDaysInMonth, type TimeRange, type WEEKDAY_LABELS } from '../week';
 
 /** Darf andere Partien sehen – wer andere bearbeiten darf, darf sie auch sehen */
 const seesAll = (user: SessionUser) => can(user.role, 'stunden.alle.sehen') || can(user.role, 'stunden.alle.bearbeiten');
@@ -249,10 +249,8 @@ export interface DayInput {
 	date: string;
 	costCenter: string;
 	site: string;
-	fromTime: string;
-	breakStart: string;
-	breakEnd: string;
-	toTime: string;
+	/** Zeiträume Beginn – Ende, beliebig viele */
+	times: TimeRange[];
 	normalHours: string;
 	overtime50: string;
 	overtime100: string;
@@ -295,10 +293,8 @@ export async function saveSheet(id: number, head: HeadInput, days: DayInput[]) {
 				.set({
 					costCenter: String(d.costCenter ?? '').slice(0, 60),
 					site: String(d.site ?? '').slice(0, 200),
-					fromTime: parseTime(d.fromTime),
-					breakStart: parseTime(d.breakStart),
-					breakEnd: parseTime(d.breakEnd),
-					toTime: parseTime(d.toTime),
+					// Mehr als 12 Zeiträume am Tag sind ein Tippfehler, keine Arbeitszeit
+					times: normalizeRanges(d.times).slice(0, 12),
 					normalHours: parseHours(d.normalHours),
 					overtime50: parseHours(d.overtime50),
 					overtime100: parseHours(d.overtime100),

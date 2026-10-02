@@ -107,7 +107,7 @@
 					</tr>
 					<tr class="zeit">
 						<th scope="row" class="c-tag"><span class="sub">Zeit<br />von/bis</span></th>
-						<td colspan="2" class="num">{day ? timeRangeLabel(day) : ''}</td>
+						<td colspan="2" class="num">{day ? timeRangeLabel(day.times) : ''}</td>
 					</tr>
 				{/each}
 				<tr class="summe">

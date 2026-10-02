@@ -125,11 +125,14 @@ und 100 %, Urlaub, Feiertag, Regen und Efzg (Entgeltfortzahlung). Dazu Auslöse 
 Betrag) und VAZ mit Prozentsatz. Die Summen je Spalte und die Gesamtstunden rechnet die
 Seite mit, während getippt wird.
 
-**Arbeitszeit:** je Tag **Beginn**, **Pause**, **Pauseende** und **Ende** (z. B. 06:30, 12:00,
-12:30, 17:00). Daraus rechnet die Seite die Arbeitszeit ohne Pause und trägt sie als
-Norm-Stunden ein. Überstunden und die anderen Stundenarten trägt man selbst ein; wer die
-Norm-Stunden von Hand ändert, behält seinen Wert. Uhrzeiten dürfen auch als `0630` oder
-`6.30` getippt werden, Stunden als `8,5` oder `8:30`.
+**Arbeitszeit:** je Tag beliebig viele Zeiten von **Beginn** bis **Ende** – mit **+ Zeit**
+kommt eine dazu, mit × fällt eine weg (z. B. 07:00 – 13:00 und 18:00 – 04:00). Pausen
+sind einfach die Lücken dazwischen. Endet eine Zeit vor ihrem Beginn, geht sie über
+Mitternacht. Die Summe trägt die Seite als Norm-Stunden ein. Überstunden und die anderen
+Stundenarten trägt man selbst ein; wer die Norm-Stunden von Hand ändert, behält seinen
+Wert. Uhrzeiten dürfen auch als `0630` oder `6.30` getippt werden, Stunden als `8,5` oder
+`8:30`. Ausdruck und PDF schreiben alle Zeiten in die Zeile „Zeit von/bis“; bei vielen
+wird die Schrift kleiner.
 
 **Monatlich getrennt:** Der Lohn wird monatsweise abgerechnet, deshalb endet ein
 Stundenzettel immer am Monatsende. Geht eine Woche über den Monatswechsel, gibt es zwei

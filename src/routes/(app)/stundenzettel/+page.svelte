@@ -109,7 +109,7 @@
 {/each}
 
 <p class="field-hint mt-3">
-	Ein Klick öffnet den Zettel – gibt es ihn noch nicht, wird er angelegt. Die Stunden ergeben sich aus Beginn, Pause, Pauseende und Ende.
+	Ein Klick öffnet den Zettel – gibt es ihn noch nicht, wird er angelegt. Die Stunden ergeben sich aus den Zeiten von Beginn bis Ende.
 </p>
 
 <Dialog bind:open={borrowOpen} title="Aushilfe übernehmen">

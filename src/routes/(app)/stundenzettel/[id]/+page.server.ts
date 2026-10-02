@@ -43,17 +43,22 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 	};
 };
 
-/** Die Tageszeilen aus dem Formular lesen */
+/**
+ * Die Tageszeilen aus dem Formular lesen. Beginn und Ende kommen je Zeitraum
+ * einmal, in derselben Reihenfolge – sie werden paarweise zusammengesetzt.
+ */
 function readDays(form: FormData, dates: string[]): DayInput[] {
 	const value = (name: string, date: string) => String(form.get(`${name}.${date}`) ?? '');
+	const times = (date: string) => {
+		const from = form.getAll(`beginn.${date}`).map(String);
+		const to = form.getAll(`ende.${date}`).map(String);
+		return Array.from({ length: Math.max(from.length, to.length) }, (_, i) => ({ from: from[i] ?? '', to: to[i] ?? '' }));
+	};
 	return dates.map((date) => ({
 		date,
 		costCenter: value('kostenstelle', date),
 		site: value('baustelle', date),
-		fromTime: value('beginn', date),
-		breakStart: value('pause', date),
-		breakEnd: value('pauseende', date),
-		toTime: value('ende', date),
+		times: times(date),
 		normalHours: value('norm', date),
 		overtime50: value('ue50', date),
 		overtime100: value('ue100', date),

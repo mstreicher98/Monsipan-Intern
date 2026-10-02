@@ -11,6 +11,8 @@
 	import UserPlus from '@lucide/svelte/icons/user-plus';
 	import PenLine from '@lucide/svelte/icons/pen-line';
 	import Trash from '@lucide/svelte/icons/trash';
+	import Plus from '@lucide/svelte/icons/plus';
+	import X from '@lucide/svelte/icons/x';
 	import Dialog from '$lib/components/Dialog.svelte';
 	import SignaturePad from '$lib/modules/stunden/components/SignaturePad.svelte';
 	import { SIGNATURE_HEIGHT, SIGNATURE_WIDTH } from '$lib/modules/stunden/signature';
@@ -23,22 +25,20 @@
 		WEEKDAY_LABELS,
 		weekdayIndex,
 		weekLabel,
-		workedHours
+		workedHours,
+		type TimeRange
 	} from '$lib/modules/stunden/week';
 	import { toast } from '$lib/stores/toast.svelte';
 
 	let { data, form } = $props();
 	const sheet = $derived(data.sheet);
 
-	type TimeKey = 'fromTime' | 'breakStart' | 'breakEnd' | 'toTime';
 	type Row = {
 		date: string;
 		costCenter: string;
 		site: string;
-		fromTime: string;
-		breakStart: string;
-		breakEnd: string;
-		toTime: string;
+		/** Zeiträume Beginn – Ende; mindestens einer steht zum Ausfüllen da */
+		times: TimeRange[];
 		normalHours: string;
 		overtime50: string;
 		overtime100: string;
@@ -52,10 +52,7 @@
 		date: d.date,
 		costCenter: d.costCenter,
 		site: d.site,
-		fromTime: d.fromTime,
-		breakStart: d.breakStart,
-		breakEnd: d.breakEnd,
-		toTime: d.toTime,
+		times: d.times.length ? d.times.map((t) => ({ ...t })) : [{ from: '', to: '' }],
 		normalHours: hoursLabel(d.normalHours),
 		overtime50: hoursLabel(d.overtime50),
 		overtime100: hoursLabel(d.overtime100),
@@ -67,6 +64,13 @@
 
 	// svelte-ignore state_referenced_locally
 	let rows = $state<Row[]>(data.sheet.days.map(toRow));
+	/**
+	 * Zuletzt errechnete Arbeitszeit je Tag. Steht genau dieser Wert in der
+	 * Norm-Spalte, folgt sie weiter den Zeiten – auch wenn zwischendurch ein
+	 * Zeitraum nur halb ausgefüllt war.
+	 */
+	// svelte-ignore state_referenced_locally
+	const lastWorked: (number | null)[] = data.sheet.days.map((d) => workedHours(d.times));
 	// svelte-ignore state_referenced_locally
 	let allowanceDays = $state(hoursLabel(data.sheet.allowanceDays));
 	// svelte-ignore state_referenced_locally
@@ -90,13 +94,6 @@
 
 	const name = (first: string | null, last: string | null) => [first, last].filter(Boolean).join(' ') || 'unbekannt';
 
-	const TIME_FIELDS: { key: TimeKey; name: string; label: string; placeholder: string }[] = [
-		{ key: 'fromTime', name: 'beginn', label: 'Beginn', placeholder: '06:30' },
-		{ key: 'breakStart', name: 'pause', label: 'Pause', placeholder: '12:00' },
-		{ key: 'breakEnd', name: 'pauseende', label: 'Pauseende', placeholder: '12:30' },
-		{ key: 'toTime', name: 'ende', label: 'Ende', placeholder: '17:00' }
-	];
-
 	const HOUR_FIELDS = [
 		{ key: 'normalHours', name: 'norm', label: 'Norm-Std.', short: 'Norm' },
 		{ key: 'overtime50', name: 'ue50', label: 'ÜS 50 %', short: 'ÜS 50' },
@@ -113,20 +110,27 @@
 		return `${d}.${m}.`;
 	};
 
-	const worked = (r: Row) => workedHours(r.fromTime, r.breakStart, r.breakEnd, r.toTime);
-
 	/**
-	 * Zeit eintragen. Die Norm-Stunden folgen der errechneten Arbeitszeit,
+	 * Zeiten ändern. Die Norm-Stunden folgen der errechneten Arbeitszeit,
 	 * solange niemand sie von Hand anders gesetzt hat.
 	 */
-	function setTime(i: number, key: TimeKey, value: string) {
+	function changeTimes(i: number, change: (times: TimeRange[]) => void) {
 		const row = rows[i];
-		const before = worked(row);
-		row[key] = value;
-		const after = worked(row);
+		change(row.times);
+		const after = workedHours(row.times);
+		// Halb ausgefüllt: nichts rechnen, aber den letzten Wert behalten
+		if (after == null) return;
+		const before = lastWorked[i];
 		const followsTimes = !row.normalHours.trim() || (before != null && parseHours(row.normalHours) === before);
-		if (after != null && followsTimes) row.normalHours = hoursLabel(after);
+		if (followsTimes) row.normalHours = hoursLabel(after);
+		lastWorked[i] = after;
 	}
+
+	const setTime = (i: number, j: number, key: keyof TimeRange, value: string) => changeTimes(i, (t) => (t[j][key] = value));
+	const addRange = (i: number) => changeTimes(i, (t) => t.push({ from: '', to: '' }));
+	/** Den letzten Zeitraum nicht entfernen, nur leeren – einer steht immer da */
+	const removeRange = (i: number, j: number) =>
+		changeTimes(i, (t) => (t.length > 1 ? t.splice(j, 1) : t.splice(0, 1, { from: '', to: '' })));
 
 	const rowTotal = (r: Row) => HOUR_FIELDS.reduce((s, f) => s + parseHours(r[f.key]), 0);
 	const columnTotal = (key: (typeof HOUR_FIELDS)[number]['key']) => rows.reduce((s, r) => s + parseHours(r[key]), 0);
@@ -139,7 +143,7 @@
 	};
 	const status = $derived(STATUS[sheet.status]);
 
-	const GRID = 'lg:grid-cols-[4rem_minmax(9rem,1fr)_5.5rem_repeat(4,3.9rem)_repeat(7,3.7rem)_3.2rem]';
+	const GRID = 'lg:grid-cols-[4rem_minmax(9rem,1fr)_5.5rem_12.75rem_repeat(7,3.7rem)_3.2rem]';
 </script>
 
 <svelte:head><title>{pageTitle(`${fullName(sheet)} – ${weekLabel(sheet.weekStart)}`)}</title></svelte:head>
@@ -256,7 +260,7 @@
 				<span>Tag</span>
 				<span>Baustelle / Tätigkeit</span>
 				<span>Kostenstelle</span>
-				{#each TIME_FIELDS as t (t.key)}<span>{t.label}</span>{/each}
+				<span>Arbeitszeit (Beginn – Ende)</span>
 				{#each HOUR_FIELDS as f (f.key)}<span class="text-center">{f.short}</span>{/each}
 				<span class="text-right">Summe</span>
 			</div>
@@ -276,25 +280,59 @@
 						<input class="input input-sm" name="baustelle.{row.date}" maxlength="200" list="baustellen" bind:value={row.site} />
 					</label>
 
-					<div class="grid grid-cols-4 gap-2 lg:contents">
-						<label class="col-span-4 block lg:col-span-1">
+					<div class="grid gap-2 lg:contents">
+						<label class="block">
 							<span class="field-label lg:sr-only">Kostenstelle</span>
 							<input class="input input-sm" name="kostenstelle.{row.date}" maxlength="60" bind:value={row.costCenter} />
 						</label>
-						{#each TIME_FIELDS as t (t.key)}
-							<label class="block">
-								<span class="field-label truncate lg:sr-only">{t.label}</span>
-								<input
-									class="input input-sm num text-center"
-									name="{t.name}.{row.date}"
-									inputmode="numeric"
-									placeholder={t.placeholder}
-									value={row[t.key]}
-									oninput={(e) => setTime(i, t.key, e.currentTarget.value)}
-									aria-label="{day} {t.label}"
-								/>
-							</label>
-						{/each}
+
+						<!-- Beliebig viele Zeiträume Beginn – Ende; Beginn und Ende gehen paarweise ans Formular -->
+						<div class="space-y-1.5">
+							<span class="field-label lg:sr-only">Arbeitszeit</span>
+							{#each row.times as t, j (j)}
+								<div class="flex items-center gap-1.5">
+									<input
+										class="input input-sm num min-w-0 flex-1 text-center lg:w-[4.3rem] lg:flex-none"
+										name="beginn.{row.date}"
+										inputmode="numeric"
+										placeholder={j === 0 ? '06:30' : ''}
+										value={t.from}
+										oninput={(e) => setTime(i, j, 'from', e.currentTarget.value)}
+										aria-label="{day} Beginn {j + 1}"
+									/>
+									<span class="text-ink-3" aria-hidden="true">–</span>
+									<input
+										class="input input-sm num min-w-0 flex-1 text-center lg:w-[4.3rem] lg:flex-none"
+										name="ende.{row.date}"
+										inputmode="numeric"
+										placeholder={j === 0 ? '17:00' : ''}
+										value={t.to}
+										oninput={(e) => setTime(i, j, 'to', e.currentTarget.value)}
+										aria-label="{day} Ende {j + 1}"
+									/>
+									{#if data.editable}
+										<button
+											type="button"
+											class="grid size-7 shrink-0 place-items-center rounded-lg text-ink-3 hover:bg-surface-2 hover:text-ink disabled:opacity-30"
+											onclick={() => removeRange(i, j)}
+											disabled={row.times.length === 1 && !t.from && !t.to}
+											aria-label="{day}: Zeitraum {j + 1} entfernen"
+										>
+											<X size={15} aria-hidden="true" />
+										</button>
+									{/if}
+								</div>
+							{/each}
+							{#if data.editable && row.times.length < 12}
+								<button
+									type="button"
+									class="inline-flex items-center gap-1 rounded-lg px-1.5 py-0.5 text-[0.8125rem] font-medium text-ink-2 hover:bg-surface-2 hover:text-ink"
+									onclick={() => addRange(i)}
+								>
+									<Plus size={14} aria-hidden="true" />Zeit
+								</button>
+							{/if}
+						</div>
 					</div>
 
 					<div class="grid grid-cols-4 gap-2 lg:contents">
@@ -317,7 +355,7 @@
 			{/each}
 
 			<div class="flex items-center justify-between gap-2 bg-surface-2 px-3 py-2.5 font-semibold lg:grid lg:min-w-[66rem] {GRID} lg:items-center lg:gap-1.5">
-				<span class="lg:col-span-7">Gesamtstunden</span>
+				<span class="lg:col-span-4">Gesamtstunden</span>
 				{#each HOUR_FIELDS as f (f.key)}
 					<span class="num hidden text-center lg:block">{hoursLabel(columnTotal(f.key)) || '–'}</span>
 				{/each}
@@ -325,8 +363,9 @@
 			</div>
 		</div>
 		<p class="field-hint mt-2">
-			Aus Beginn, Pause, Pauseende und Ende wird die Arbeitszeit gerechnet und als Norm-Stunden eingetragen. Überstunden und
-			andere Stundenarten trägst du selbst ein; ein von Hand geänderter Wert bleibt stehen.
+			Je Tag beliebig viele Zeiten von Beginn bis Ende – mit „Zeit“ kommt eine dazu, Pausen sind einfach die Lücken dazwischen.
+			Zeiten über Mitternacht (18:00 – 04:00) zählen mit. Die Summe steht als Norm-Stunden da; Überstunden und andere
+			Stundenarten trägst du selbst ein, ein von Hand geänderter Wert bleibt stehen.
 		</p>
 
 		<datalist id="baustellen">

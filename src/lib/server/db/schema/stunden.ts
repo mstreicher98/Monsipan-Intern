@@ -7,6 +7,9 @@ import { index, integer, real, sqliteTable, text, uniqueIndex } from 'drizzle-or
 import { createdAt } from './common';
 import { parties, users } from './core';
 
+/** Ein Arbeitszeitraum, z. B. { from: '07:00', to: '13:00' } – gleich aufgebaut wie in week.ts */
+export type TimeRange = { from: string; to: string };
+
 export const TIMESHEET_STATUS = ['entwurf', 'freigegeben', 'geprueft'] as const;
 export type TimesheetStatus = (typeof TIMESHEET_STATUS)[number];
 
@@ -74,11 +77,11 @@ export const timesheetDays = sqliteTable(
 		costCenter: text('cost_center').notNull().default(''),
 		/** Baustelle / Tätigkeit; später kommt hier der Auftrag dazu */
 		site: text('site').notNull().default(''),
-		/** Arbeitszeit: Beginn – Pause und Pauseende – Ende, jeweils "HH:MM" */
-		fromTime: text('from_time').notNull().default(''),
-		breakStart: text('break_start').notNull().default(''),
-		breakEnd: text('break_end').notNull().default(''),
-		toTime: text('to_time').notNull().default(''),
+		/**
+		 * Arbeitszeit als Liste von Zeiträumen Beginn – Ende ("HH:MM"), beliebig viele
+		 * am Tag. Endet ein Zeitraum vor seinem Beginn, geht er über Mitternacht.
+		 */
+		times: text('times', { mode: 'json' }).$type<TimeRange[]>().notNull().default([]),
 		normalHours: real('normal_hours').notNull().default(0),
 		overtime50: real('overtime_50').notNull().default(0),
 		overtime100: real('overtime_100').notNull().default(0),

@@ -157,8 +157,14 @@ export async function lohnzettelPdf(sheet: SheetDetail): Promise<Response> {
 		const timeTop = y + DAY_H;
 		line(left, timeTop, xs[3], timeTop, 0.6);
 		doc.font('Helvetica').fontSize(6.5).text('Zeit\nvon/bis', colX(0) + 3, timeTop + 2, { width: colW(0) - 6, lineGap: -1 });
-		const times = d ? timeRangeLabel(d) : '';
-		if (times) doc.font('Helvetica').fontSize(9.5).text(times, colX(1) + 4, timeTop + 4, { lineBreak: false });
+		const times = d ? timeRangeLabel(d.times) : '';
+		if (times) {
+			// Bei vielen Zeiträumen wird die Schrift kleiner, damit alles in die Zeile passt
+			const room = xs[3] - colX(1) - 8;
+			doc.font('Helvetica').fontSize(9.5);
+			const size = Math.max(6, Math.min(9.5, (9.5 * room) / doc.widthOfString(times)));
+			doc.fontSize(size).text(times, colX(1) + 4, timeTop + 4 + (9.5 - size) / 2, { lineBreak: false, width: room, ellipsis: true });
+		}
 
 		y = timeTop + TIME_H;
 		line(left, y, right, y);

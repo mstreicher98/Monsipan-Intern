@@ -137,32 +137,50 @@ export function minutesOf(input: string | null | undefined): number | null {
 	return h * 60 + m;
 }
 
+/** Ein Arbeitszeitraum Beginn – Ende, jeweils "HH:MM" */
+export type TimeRange = { from: string; to: string };
+
+/** Zeiträume säubern: Uhrzeiten vereinheitlichen, ganz leere weglassen */
+export function normalizeRanges(ranges: readonly TimeRange[] | null | undefined): TimeRange[] {
+	return (ranges ?? [])
+		.map((r) => ({ from: parseTime(r.from), to: parseTime(r.to) }))
+		.filter((r) => r.from || r.to);
+}
+
 /**
- * Arbeitszeit eines Tages aus Beginn, Pause, Pauseende und Ende – so wie sie
- * auf der Baustelle aufgeschrieben wird. Ohne vollständige Pause zählt Beginn
- * bis Ende. Über Mitternacht wird nicht gerechnet; dann gibt es null.
+ * Stunden eines Zeitraums. Endet er vor seinem Beginn, geht er über
+ * Mitternacht (18:00 – 04:00 = 10 Stunden). Unvollständig oder gleich: null.
  */
-export function workedHours(
-	start: string | null | undefined,
-	breakStart: string | null | undefined,
-	breakEnd: string | null | undefined,
-	end: string | null | undefined
-): number | null {
-	const s = minutesOf(start);
-	const e = minutesOf(end);
-	if (s == null || e == null || e <= s) return null;
-	let minutes = e - s;
-	const bs = minutesOf(breakStart);
-	const be = minutesOf(breakEnd);
-	if (bs != null && be != null && s <= bs && bs < be && be <= e) minutes -= be - bs;
+export function rangeHours(r: TimeRange): number | null {
+	const s = minutesOf(r.from);
+	const e = minutesOf(r.to);
+	if (s == null || e == null || s === e) return null;
+	const minutes = e > s ? e - s : e + 24 * 60 - s;
 	return Math.round((minutes / 60) * 100) / 100;
 }
 
-/** "06:30 – 12:00, 12:30 – 17:30" für Ausdruck und PDF */
-export function timeRangeLabel(d: { fromTime: string; breakStart: string; breakEnd: string; toTime: string }): string {
-	if (!d.fromTime && !d.toTime) return '';
-	if (d.breakStart && d.breakEnd) return `${d.fromTime} – ${d.breakStart}, ${d.breakEnd} – ${d.toTime}`;
-	return [d.fromTime, d.toTime].filter(Boolean).join(' – ');
+/**
+ * Arbeitszeit eines Tages: Summe aller Zeiträume. Solange ein Zeitraum nur halb
+ * ausgefüllt ist oder gar keiner vollständig, gibt es null – dann bleibt die
+ * Norm-Spalte, wie sie ist.
+ */
+export function workedHours(ranges: readonly TimeRange[] | null | undefined): number | null {
+	const filled = normalizeRanges(ranges);
+	if (!filled.length) return null;
+	let total = 0;
+	for (const r of filled) {
+		const h = rangeHours(r);
+		if (h == null) return null;
+		total += h;
+	}
+	return Math.round(total * 100) / 100;
+}
+
+/** "07:00 – 13:00, 18:00 – 04:00" für Ausdruck und PDF */
+export function timeRangeLabel(ranges: readonly TimeRange[] | null | undefined): string {
+	return normalizeRanges(ranges)
+		.map((r) => [r.from, r.to].filter(Boolean).join(' – '))
+		.join(', ');
 }
 
 /** Uhrzeit "7:30" oder "0730" auf "07:30" bringen; ungültiges wird leer */

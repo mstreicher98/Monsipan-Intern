@@ -113,6 +113,20 @@
       "when": 1790963728993,
       "tag": "0015_stunden_aushilfe",
       "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "6",
+      "when": 1790972147131,
+      "tag": "0016_stunden_zeitraeume",
+      "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "6",
+      "when": 1790972165071,
+      "tag": "0017_stunden_alte_zeiten_weg",
+      "breakpoints": true
     }
   ]
 }

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { isValidSignature, strokesToPath } from './signature';
-import { timeRangeLabel, workedHours } from './week';
+import { normalizeRanges, rangeHours, timeRangeLabel, workedHours } from './week';
 
 describe('Unterschrift', () => {
 	it('macht aus Strichen einen SVG-Pfad', () => {
@@ -25,29 +25,40 @@ describe('Unterschrift', () => {
 	});
 });
 
-describe('Arbeitszeit aus Beginn, Pause und Ende', () => {
-	it('zieht die Pause ab', () => {
-		expect(workedHours('06:30', '12:00', '12:30', '17:30')).toBe(10.5);
-		expect(workedHours('7:00', '12:00', '12:45', '16:00')).toBe(8.25);
+describe('Arbeitszeit aus Zeiträumen Beginn – Ende', () => {
+	const r = (from: string, to: string) => ({ from, to });
+
+	it('zählt einen Zeitraum', () => {
+		expect(workedHours([r('07:00', '15:00')])).toBe(8);
+		expect(workedHours([r('7:00', '1545')])).toBe(8.75);
 	});
 
-	it('zählt ohne vollständige Pause von Beginn bis Ende', () => {
-		expect(workedHours('07:00', '', '', '15:00')).toBe(8);
-		expect(workedHours('07:00', '12:00', '', '15:00')).toBe(8);
+	it('zählt beliebig viele Zeiträume zusammen', () => {
+		expect(workedHours([r('06:30', '12:00'), r('12:30', '17:30')])).toBe(10.5);
+		expect(workedHours([r('06:00', '09:00'), r('10:00', '12:00'), r('13:00', '16:30')])).toBe(8.5);
 	});
 
-	it('rechnet nichts bei fehlenden oder verdrehten Zeiten', () => {
-		expect(workedHours('', '', '', '15:00')).toBeNull();
-		expect(workedHours('17:00', '', '', '07:00')).toBeNull();
-		// Pause außerhalb der Arbeitszeit wird ignoriert
-		expect(workedHours('07:00', '18:00', '18:30', '15:00')).toBe(8);
+	it('rechnet über Mitternacht', () => {
+		expect(rangeHours(r('18:00', '04:00'))).toBe(10);
+		expect(workedHours([r('07:00', '13:00'), r('18:00', '04:00')])).toBe(16);
+	});
+
+	it('rechnet nichts, solange ein Zeitraum unvollständig ist', () => {
+		expect(workedHours([])).toBeNull();
+		expect(workedHours([r('', '15:00')])).toBeNull();
+		expect(workedHours([r('07:00', '12:00'), r('13:00', '')])).toBeNull();
+		expect(workedHours([r('07:00', '07:00')])).toBeNull();
+		// Ganz leere Zeilen stören nicht
+		expect(workedHours([r('07:00', '15:00'), r('', '')])).toBe(8);
+	});
+
+	it('säubert die Eingaben', () => {
+		expect(normalizeRanges([r('7.30', '1600'), r('', ''), r('xx', '12:00')])).toEqual([r('07:30', '16:00'), r('', '12:00')]);
 	});
 
 	it('beschriftet die Zeiten für Ausdruck und PDF', () => {
-		expect(timeRangeLabel({ fromTime: '06:30', breakStart: '12:00', breakEnd: '12:30', toTime: '17:30' })).toBe(
-			'06:30 – 12:00, 12:30 – 17:30'
-		);
-		expect(timeRangeLabel({ fromTime: '07:00', breakStart: '', breakEnd: '', toTime: '15:00' })).toBe('07:00 – 15:00');
-		expect(timeRangeLabel({ fromTime: '', breakStart: '', breakEnd: '', toTime: '' })).toBe('');
+		expect(timeRangeLabel([r('06:30', '12:00'), r('12:30', '17:30')])).toBe('06:30 – 12:00, 12:30 – 17:30');
+		expect(timeRangeLabel([r('18:00', '04:00')])).toBe('18:00 – 04:00');
+		expect(timeRangeLabel([])).toBe('');
 	});
 });
