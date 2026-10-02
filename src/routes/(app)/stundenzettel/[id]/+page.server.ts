@@ -3,7 +3,9 @@ import { can, type Role } from '$lib/permissions';
 import { requireUser } from '$lib/server/guard';
 import {
 	deleteSheet,
+	handBackWeek,
 	mayEdit,
+	mayRecordFor,
 	mayView,
 	recentSites,
 	saveSheet,
@@ -35,7 +37,9 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 		canRelease: can(user.role, 'stunden.freigeben'),
 		canCheck: can(user.role, 'stunden.pruefen'),
 		canReopen: mayReopen(user.role, sheet.status),
-		canUncheck: sheet.status === 'geprueft' && can(user.role, 'stunden.pruefung.zuruecknehmen')
+		canUncheck: sheet.status === 'geprueft' && can(user.role, 'stunden.pruefung.zuruecknehmen'),
+		// Zurückgeben kann, wer die übernommene Woche schreibt – solange sie in Arbeit ist
+		canHandBack: !!sheet.writingPartyId && sheet.status === 'entwurf' && mayRecordFor(user, sheet)
 	};
 };
 
@@ -159,5 +163,15 @@ export const actions: Actions = {
 		const week = sheet.weekStart;
 		await deleteSheet(sheet.id);
 		redirect(303, `/stundenzettel?woche=${week}`);
+	},
+
+	/** Übernommene Woche an die eigene Partie des Mitarbeiters zurückgeben */
+	zurueckgeben: async ({ params, locals }) => {
+		const { user, sheet } = await load_(Number(params.id), locals);
+		if (!sheet.writingPartyId) return fail(400, { message: 'Diese Woche ist nicht übernommen.' });
+		if (!mayRecordFor(user, sheet)) return fail(403, { message: 'Zurückgeben kann nur, wer die Woche übernommen hat.' });
+		const problem = await handBackWeek(sheet.userId, sheet.weekStart);
+		if (problem) return fail(400, { message: problem });
+		redirect(303, `/stundenzettel?woche=${sheet.weekStart}`);
 	}
 };

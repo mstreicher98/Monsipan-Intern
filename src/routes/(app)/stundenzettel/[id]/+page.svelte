@@ -8,6 +8,7 @@
 	import Lock from '@lucide/svelte/icons/lock';
 	import LockOpen from '@lucide/svelte/icons/lock-open';
 	import Undo from '@lucide/svelte/icons/undo-2';
+	import UserPlus from '@lucide/svelte/icons/user-plus';
 	import PenLine from '@lucide/svelte/icons/pen-line';
 	import Trash from '@lucide/svelte/icons/trash';
 	import Dialog from '$lib/components/Dialog.svelte';
@@ -85,6 +86,7 @@
 	let checking = $state(false);
 	let confirmReopen = $state(false);
 	let confirmUncheck = $state(false);
+	let confirmHandBack = $state(false);
 
 	const name = (first: string | null, last: string | null) => [first, last].filter(Boolean).join(' ') || 'unbekannt';
 
@@ -172,6 +174,23 @@
 
 {#if form && 'message' in form && form.message}
 	<p class="card mb-4 border-danger/40 p-3 text-sm text-danger" role="alert">{form.message}</p>
+{/if}
+
+{#if sheet.writingPartyId}
+	<section class="card mb-4 flex flex-wrap items-center gap-3 p-4">
+		<UserPlus size={20} class="shrink-0 text-ink-3" aria-hidden="true" />
+		<p class="min-w-0 flex-1 text-sm text-ink-2">
+			<span class="font-medium text-ink">Aushilfe:</span> Diese Woche schreibt
+			<span class="font-medium text-ink">{sheet.writingPartyName ?? 'eine andere Partie'}</span> den ganzen Zettel, weil
+			{fullName(sheet)} mehr Tage dort war als bei {sheet.partyName ?? 'der eigenen Partie'}.
+			{#if !data.editable && sheet.status === 'entwurf'}Die eigene Partie sieht ihn nur.{/if}
+		</p>
+		{#if data.canHandBack}
+			<button type="button" class="btn btn-ghost btn-sm" onclick={() => (confirmHandBack = true)}>
+				<Undo size={16} aria-hidden="true" />Woche zurückgeben
+			</button>
+		{/if}
+	</section>
 {/if}
 
 {#snippet signed(label: string, signature: string | null, who: string, at: Date)}
@@ -364,7 +383,11 @@
 		<p class="field-hint mt-4">
 			{sheet.status === 'geprueft'
 				? 'Diese Woche ist geprüft und damit abgeschlossen.'
-				: 'Diese Woche ist freigegeben und wartet auf die Prüfung. Ändern kann sie jetzt nur noch, wer prüft.'}
+				: sheet.status === 'freigegeben'
+					? 'Diese Woche ist freigegeben und wartet auf die Prüfung. Ändern kann sie jetzt nur noch, wer prüft.'
+					: sheet.writingPartyId
+						? `Diese Woche schreibt ${sheet.writingPartyName ?? 'eine andere Partie'} – du kannst sie nur ansehen.`
+						: 'Diese Woche kannst du nur ansehen.'}
 		</p>
 	{/if}
 </form>
@@ -465,6 +488,17 @@
 	>
 		<button type="button" class="btn btn-ghost" onclick={() => (confirmReopen = false)}>Abbrechen</button>
 		<button class="btn btn-primary"><LockOpen size={18} aria-hidden="true" />Wieder öffnen</button>
+	</form>
+</Dialog>
+
+<Dialog bind:open={confirmHandBack} title="Woche zurückgeben?">
+	<p class="text-ink-2">
+		Die Woche von {fullName(sheet)} geht zurück an {sheet.partyName ?? 'die eigene Partie'}, die den Zettel dann schreibt. Was du schon
+		eingetragen hast, bleibt stehen.
+	</p>
+	<form method="POST" action="?/zurueckgeben" class="mt-5 flex justify-end gap-2" use:enhance>
+		<button type="button" class="btn btn-ghost" onclick={() => (confirmHandBack = false)}>Abbrechen</button>
+		<button class="btn btn-primary"><Undo size={18} aria-hidden="true" />Zurückgeben</button>
 	</form>
 </Dialog>
 

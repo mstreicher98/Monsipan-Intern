@@ -149,6 +149,17 @@ Büro-Konten –, bekommen unter **Benutzer** das Häkchen **Keine Stundenzettel
 dann in der Wochenliste, und für sie wird kein Zettel angelegt. Gibt es für eine Woche
 schon einen Zettel, bleibt er sichtbar, damit keine Stunden verloren gehen.
 
+**Aushilfe aus einer anderen Partie:** Den Zettel einer Woche schreibt der Partieführer,
+bei dem der Arbeiter die meisten Tage war – und zwar für die ganze Woche, auch für die
+Tage bei der anderen Partie. War er mehr Tage bei einer fremden Partie, übernimmt deren
+Partieführer die Woche über **Aushilfe übernehmen** in der Wochenliste. Was die eigene
+Partie schon eingetragen hat, bleibt stehen; sie sieht den Zettel danach nur noch, mit
+dem Hinweis, wer ihn schreibt. Geht die Woche über den Monatswechsel, werden beide
+Monatsteile übernommen. Solange die Woche in Arbeit ist, lässt sie sich mit **Woche
+zurückgeben** wieder abgeben. Wer übernehmen darf, regelt das Recht **Aushilfen
+übernehmen** (standardmäßig Partieführer, Bauleitung und Admin, jeweils mit eigener
+Partie).
+
 **Ablauf:** In Arbeit → freigegeben → geprüft.
 
 - Der **Partieführer** erfasst die Woche und gibt sie frei. Beim Freigeben unterschreibt er

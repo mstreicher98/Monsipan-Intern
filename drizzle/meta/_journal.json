@@ -106,6 +106,13 @@
       "when": 1790961654498,
       "tag": "0014_benutzer_ohne_stundenzettel",
       "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "6",
+      "when": 1790963728993,
+      "tag": "0015_stunden_aushilfe",
+      "breakpoints": true
     }
   ]
 }

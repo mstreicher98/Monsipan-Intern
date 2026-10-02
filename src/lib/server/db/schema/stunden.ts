@@ -5,7 +5,7 @@
  */
 import { index, integer, real, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core';
 import { createdAt } from './common';
-import { users } from './core';
+import { parties, users } from './core';
 
 export const TIMESHEET_STATUS = ['entwurf', 'freigegeben', 'geprueft'] as const;
 export type TimesheetStatus = (typeof TIMESHEET_STATUS)[number];
@@ -27,6 +27,11 @@ export const timesheets = sqliteTable(
 		 */
 		month: text('month').notNull().default(''),
 		status: text('status', { enum: TIMESHEET_STATUS }).notNull().default('entwurf'),
+		/**
+		 * Aushilfe: War der Mitarbeiter diese Woche mehr Tage bei einer anderen Partie,
+		 * schreibt deren Partieführer den ganzen Zettel. Leer = seine eigene Partie.
+		 */
+		writingPartyId: integer('writing_party_id').references(() => parties.id, { onDelete: 'set null' }),
 		/** Auslöse: Anzahl Tage und Betrag in Euro */
 		allowanceDays: real('allowance_days'),
 		allowanceAmount: real('allowance_amount'),

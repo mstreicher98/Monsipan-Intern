@@ -1,7 +1,7 @@
-import { error, redirect } from '@sveltejs/kit';
+import { error, fail, redirect } from '@sveltejs/kit';
 import { can } from '$lib/permissions';
 import { requireUser } from '$lib/server/guard';
-import { mayRecordFor, openSheet, weekOverview } from '$lib/modules/stunden/server/timesheets';
+import { borrowCandidates, borrowWeek, mayRecordFor, openSheet, weekOverview } from '$lib/modules/stunden/server/timesheets';
 import { isValidIsoDate, mondayOf, today } from '$lib/modules/stunden/week';
 import type { Actions, PageServerLoad } from './$types';
 
@@ -9,9 +9,14 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	const user = requireUser(locals);
 	const param = url.searchParams.get('woche') ?? '';
 	const weekStart = mondayOf(isValidIsoDate(param) ? param : today());
+	const rows = await weekOverview(user, weekStart);
+	// Wer diese Woche schon übernommen ist, steht nicht noch einmal zur Auswahl
+	const taken = new Set(rows.filter((r) => r.writingPartyId && r.writingPartyId === user.partyId).map((r) => r.user.id));
 	return {
 		weekStart,
-		rows: await weekOverview(user, weekStart),
+		rows,
+		ownPartyId: user.partyId,
+		candidates: (await borrowCandidates(user)).filter((c) => !taken.has(c.id)),
 		canCreate: can(user.role, 'stunden.erfassen'),
 		canCheck: can(user.role, 'stunden.pruefen')
 	};
@@ -32,11 +37,24 @@ export const actions: Actions = {
 		const row = allowed.find((r) => r.user.id === userId && r.month === month);
 		if (!row) error(403, 'Für diese Person darfst du keine Stunden erfassen.');
 		// Ansehen reicht zum Öffnen; anlegen darf nur, wer für diese Partie erfasst
-		if (!row.sheetId && !mayRecordFor(user, row.user)) {
+		if (!row.sheetId && !mayRecordFor(user, { partyId: row.user.partyId, writingPartyId: row.writingPartyId })) {
 			error(403, 'Für diese Person darfst du keinen Stundenzettel anlegen – sie gehört zu einer anderen Partie.');
 		}
 
 		const id = row.sheetId ?? (await openSheet(userId, weekStart, month, user.id));
 		redirect(303, `/stundenzettel/${id}`);
+	},
+
+	/** Arbeiter einer anderen Partie für diese Woche übernehmen – die eigene Partie schreibt dann den ganzen Zettel */
+	aushilfe: async ({ request, locals }) => {
+		const user = requireUser(locals);
+		if (!can(user.role, 'stunden.aushilfe')) return fail(403, { message: 'Dafür fehlt dir die Berechtigung.' });
+		const form = await request.formData();
+		const personId = Number(form.get('userId'));
+		const weekStart = String(form.get('weekStart') ?? '');
+		if (!Number.isInteger(personId) || !isValidIsoDate(weekStart)) return fail(400, { message: 'Bitte eine Person wählen.' });
+		const result = await borrowWeek(user, personId, weekStart);
+		if ('error' in result) return fail(400, { message: result.error });
+		redirect(303, `/stundenzettel/${result.id}`);
 	}
 };

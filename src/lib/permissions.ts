@@ -59,6 +59,8 @@ export const DEFAULT_PERMISSIONS = {
 	// Ohne diese beiden Rechte sieht und bearbeitet man nur die eigene Partie
 	'stunden.alle.sehen': ['admin', 'bauleiter', 'buchhaltung'],
 	'stunden.alle.bearbeiten': ['admin', 'bauleiter'],
+	// Arbeiter einer anderen Partie für eine Woche übernehmen
+	'stunden.aushilfe': ['admin', 'bauleiter', 'partiefuehrer'],
 
 	// Tagesberichte
 	'tagesberichte.erfassen': ['admin', 'bauleiter', 'partiefuehrer'],
@@ -112,7 +114,12 @@ export const PERMISSION_GROUPS: { title: string; items: { key: Permission; label
 				hint: 'Prüfung zurücknehmen – die Freigabe samt Unterschrift bleibt'
 			},
 			{ key: 'stunden.alle.sehen', label: 'Andere Partien ansehen', hint: 'Zettel aller Partien lesen' },
-			{ key: 'stunden.alle.bearbeiten', label: 'Andere Partien bearbeiten', hint: 'Zettel aller Partien ausfüllen und freigeben' }
+			{ key: 'stunden.alle.bearbeiten', label: 'Andere Partien bearbeiten', hint: 'Zettel aller Partien ausfüllen und freigeben' },
+			{
+				key: 'stunden.aushilfe',
+				label: 'Aushilfen übernehmen',
+				hint: 'Arbeiter einer anderen Partie für eine Woche übernehmen und seinen Zettel schreiben'
+			}
 		]
 	},
 	{

@@ -7,10 +7,14 @@
  * lassen sich unter Berechtigungen auch Partieführern geben. Den eigenen Zettel
  * darf jeder ansehen. Wer „Keine Stundenzettel" hat (etwa ein Admin-Konto),
  * fehlt in der Wochenliste – außer es gibt für diese Woche schon einen Zettel.
+ *
+ * Aushilfe: War ein Arbeiter diese Woche mehr Tage bei einer anderen Partie,
+ * übernimmt deren Partieführer die Woche und schreibt den ganzen Zettel
+ * (writingPartyId). Die eigene Partie sieht ihn dann nur noch.
  */
-import { and, asc, eq, inArray, isNull, sql } from 'drizzle-orm';
+import { and, asc, eq, inArray, isNull, ne, sql } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/sqlite-core';
-import { can, type Role } from '$lib/permissions';
+import { can, PARTY_ROLES, type Role } from '$lib/permissions';
 import { db, type Tx } from '$lib/server/db';
 import { col } from '$lib/server/db/sql';
 import { parties, timesheetDays, timesheets, users } from '$lib/server/db/schema';
@@ -20,7 +24,10 @@ import { mondayOf, monthsOfWeek, parseHours, parseTime, weekDaysInMonth, type WE
 /** Darf andere Partien sehen – wer andere bearbeiten darf, darf sie auch sehen */
 const seesAll = (user: SessionUser) => can(user.role, 'stunden.alle.sehen') || can(user.role, 'stunden.alle.bearbeiten');
 const editsAll = (user: SessionUser) => can(user.role, 'stunden.alle.bearbeiten');
-const samePartyAs = (user: SessionUser, partyId: number | null) => !!user.partyId && user.partyId === partyId;
+const samePartyAs = (user: SessionUser, partyId: number | null | undefined) => !!user.partyId && user.partyId === partyId;
+
+/** Die Partie, die den Zettel schreibt: bei Aushilfe die übernehmende, sonst die eigene */
+export const writerParty = (sheet: { partyId: number | null; writingPartyId?: number | null }) => sheet.writingPartyId ?? sheet.partyId;
 
 export type { WEEKDAY_LABELS };
 
@@ -37,19 +44,23 @@ export interface Staff {
 
 const activeUser = and(eq(users.active, true), isNull(users.deletedAt));
 
+const staffFields = {
+	id: users.id,
+	firstName: users.firstName,
+	lastName: users.lastName,
+	username: users.username,
+	role: users.role,
+	partyId: users.partyId,
+	partyName: parties.name,
+	timesheetExempt: users.timesheetExempt
+};
+
+/** Partie, die bei Aushilfe den Zettel schreibt */
+const writer = alias(parties, 'writer');
+
 /** Mitarbeiter, deren Zettel diese Person sehen darf */
 export async function staffFor(user: SessionUser): Promise<Staff[]> {
-	const fields = {
-		id: users.id,
-		firstName: users.firstName,
-		lastName: users.lastName,
-		username: users.username,
-		role: users.role,
-		partyId: users.partyId,
-		partyName: parties.name,
-		timesheetExempt: users.timesheetExempt
-	};
-	const base = db.select(fields).from(users).leftJoin(parties, eq(parties.id, users.partyId));
+	const base = db.select(staffFields).from(users).leftJoin(parties, eq(parties.id, users.partyId));
 
 	if (seesAll(user)) {
 		return base.where(activeUser).orderBy(asc(users.lastName), asc(users.firstName)).all();
@@ -65,6 +76,9 @@ export async function staffFor(user: SessionUser): Promise<Staff[]> {
 
 export interface WeekRow {
 	user: Staff;
+	/** Bei Aushilfe: die Partie, die diese Woche schreibt */
+	writingPartyId: number | null;
+	writingPartyName: string | null;
 	/** Monat dieses Teils als "JJJJ-MM" – über den Monatswechsel gibt es zwei Zeilen */
 	month: string;
 	sheetId: number | null;
@@ -73,9 +87,22 @@ export interface WeekRow {
 	allowanceDays: number | null;
 }
 
-/** Übersicht einer Woche: je Mitarbeiter ein Eintrag pro Monat, in den die Woche fällt */
+/**
+ * Übersicht einer Woche: je Mitarbeiter ein Eintrag pro Monat, in den die Woche fällt.
+ * Dazu kommen Aushilfen, die die eigene Partie diese Woche übernommen hat.
+ */
 export async function weekOverview(user: SessionUser, weekStart: string): Promise<WeekRow[]> {
 	const staff = await staffFor(user);
+	if (user.partyId) {
+		const borrowed = await db
+			.selectDistinct(staffFields)
+			.from(timesheets)
+			.innerJoin(users, eq(users.id, timesheets.userId))
+			.leftJoin(parties, eq(parties.id, users.partyId))
+			.where(and(eq(timesheets.weekStart, weekStart), eq(timesheets.writingPartyId, user.partyId)))
+			.all();
+		for (const b of borrowed) if (!staff.some((s) => s.id === b.id)) staff.push(b);
+	}
 	if (!staff.length) return [];
 	const ids = staff.map((s) => s.id);
 	const sheets = await db
@@ -85,6 +112,8 @@ export async function weekOverview(user: SessionUser, weekStart: string): Promis
 			month: timesheets.month,
 			status: timesheets.status,
 			allowanceDays: timesheets.allowanceDays,
+			writingPartyId: timesheets.writingPartyId,
+			writingPartyName: writer.name,
 			// Spalten mit Tabellennamen: in der Unterabfrage zeigt ein nacktes "id" sonst auf timesheet_days
 			total: sql<number>`coalesce((
 				select sum(${col(timesheetDays.normalHours)} + ${col(timesheetDays.overtime50)} + ${col(timesheetDays.overtime100)}
@@ -93,6 +122,7 @@ export async function weekOverview(user: SessionUser, weekStart: string): Promis
 				from ${timesheetDays} where ${col(timesheetDays.timesheetId)} = ${col(timesheets.id)}), 0)`
 		})
 		.from(timesheets)
+		.leftJoin(writer, eq(writer.id, timesheets.writingPartyId))
 		.where(and(eq(timesheets.weekStart, weekStart), inArray(timesheets.userId, ids)))
 		.all();
 
@@ -104,6 +134,8 @@ export async function weekOverview(user: SessionUser, weekStart: string): Promis
 			if (s.timesheetExempt && !sheet) continue;
 			rows.push({
 				user: s,
+				writingPartyId: sheet?.writingPartyId ?? null,
+				writingPartyName: sheet?.writingPartyName ?? null,
 				month,
 				sheetId: sheet?.id ?? null,
 				status: sheet?.status ?? null,
@@ -119,7 +151,13 @@ export async function weekOverview(user: SessionUser, weekStart: string): Promis
  * Zettel eines Monatsteils samt Tagen; legt ihn an, wenn es ihn noch nicht gibt.
  * Angelegt werden nur die Tage der Woche, die in diesen Monat fallen.
  */
-export async function openSheet(userId: number, weekStart: string, month: string, createdBy: number): Promise<number> {
+export async function openSheet(
+	userId: number,
+	weekStart: string,
+	month: string,
+	createdBy: number,
+	writingPartyId: number | null = null
+): Promise<number> {
 	const monday = mondayOf(weekStart);
 	const existing = await db
 		.select({ id: timesheets.id })
@@ -131,7 +169,7 @@ export async function openSheet(userId: number, weekStart: string, month: string
 	return db.transaction(async (tx) => {
 		const row = await tx
 			.insert(timesheets)
-			.values({ userId, weekStart: monday, month, createdBy, updatedAt: new Date() })
+			.values({ userId, weekStart: monday, month, createdBy, writingPartyId, updatedAt: new Date() })
 			.returning({ id: timesheets.id })
 			.get();
 		await createDays(tx, row.id, monday, month);
@@ -175,11 +213,14 @@ export async function sheetDetail(id: number) {
 			lastName: users.lastName,
 			username: users.username,
 			partyId: users.partyId,
-			partyName: parties.name
+			partyName: parties.name,
+			writingPartyId: timesheets.writingPartyId,
+			writingPartyName: writer.name
 		})
 		.from(timesheets)
 		.innerJoin(users, eq(users.id, timesheets.userId))
 		.leftJoin(parties, eq(parties.id, users.partyId))
+		.leftJoin(writer, eq(writer.id, timesheets.writingPartyId))
 		.leftJoin(releaser, eq(releaser.id, timesheets.releasedBy))
 		.leftJoin(checker, eq(checker.id, timesheets.checkedBy))
 		.where(eq(timesheets.id, id))
@@ -318,24 +359,97 @@ export async function deleteSheet(id: number) {
 	await db.delete(timesheets).where(eq(timesheets.id, id));
 }
 
-/** Darf diese Person den Zettel öffnen? */
-export function mayView(user: SessionUser, sheet: { userId: number; partyId: number | null }): boolean {
+type SheetParties = { partyId: number | null; writingPartyId?: number | null };
+
+/**
+ * Darf diese Person den Zettel öffnen? Bei Aushilfe sehen ihn beide Partien –
+ * die schreibende und die eigene des Mitarbeiters (nur lesend).
+ */
+export function mayView(user: SessionUser, sheet: SheetParties & { userId: number }): boolean {
 	if (sheet.userId === user.id) return true;
 	if (seesAll(user)) return true;
-	return can(user.role, 'stunden.erfassen') && samePartyAs(user, sheet.partyId);
+	return can(user.role, 'stunden.erfassen') && (samePartyAs(user, sheet.partyId) || samePartyAs(user, sheet.writingPartyId));
 }
 
-/** Darf diese Person Stunden für diesen Mitarbeiter erfassen (Zettel anlegen, ausfüllen)? */
-export function mayRecordFor(user: SessionUser, person: { partyId: number | null }): boolean {
+/**
+ * Darf diese Person Stunden für diesen Mitarbeiter erfassen (Zettel anlegen, ausfüllen)?
+ * Maßgeblich ist die schreibende Partie – bei Aushilfe also die übernehmende.
+ */
+export function mayRecordFor(user: SessionUser, sheet: SheetParties): boolean {
 	if (!can(user.role, 'stunden.erfassen')) return false;
-	return editsAll(user) || samePartyAs(user, person.partyId);
+	return editsAll(user) || samePartyAs(user, writerParty(sheet));
+}
+
+/** Arbeiter und Partieführer anderer Partien, die diese Person als Aushilfe übernehmen könnte */
+export async function borrowCandidates(user: SessionUser): Promise<Staff[]> {
+	if (!user.partyId || !can(user.role, 'stunden.aushilfe') || !can(user.role, 'stunden.erfassen')) return [];
+	return db
+		.select(staffFields)
+		.from(users)
+		.innerJoin(parties, eq(parties.id, users.partyId))
+		.where(
+			and(
+				activeUser,
+				eq(users.timesheetExempt, false),
+				inArray(users.role, [...PARTY_ROLES]),
+				ne(users.partyId, user.partyId)
+			)
+		)
+		.orderBy(asc(users.lastName), asc(users.firstName))
+		.all();
+}
+
+/**
+ * Woche eines Arbeiters übernehmen: Für jeden Monatsteil wird der Zettel angelegt
+ * (oder der vorhandene genommen) und der eigenen Partie zugeschrieben. Was die
+ * eigene Partie schon eingetragen hat, bleibt stehen.
+ */
+export async function borrowWeek(user: SessionUser, personId: number, weekStart: string): Promise<{ id: number } | { error: string }> {
+	if (!user.partyId) return { error: 'Übernehmen kann nur, wer selbst zu einer Partie gehört.' };
+	const person = (await borrowCandidates(user)).find((c) => c.id === personId);
+	if (!person) return { error: 'Diese Person lässt sich nicht übernehmen.' };
+	const monday = mondayOf(weekStart);
+	const existing = await db
+		.select({ status: timesheets.status, writingPartyId: timesheets.writingPartyId, writingPartyName: writer.name })
+		.from(timesheets)
+		.leftJoin(writer, eq(writer.id, timesheets.writingPartyId))
+		.where(and(eq(timesheets.userId, personId), eq(timesheets.weekStart, monday)))
+		.all();
+	if (existing.some((e) => e.status !== 'entwurf')) {
+		return { error: 'Diese Woche ist schon freigegeben – übernehmen geht nicht mehr.' };
+	}
+	const other = existing.find((e) => e.writingPartyId && e.writingPartyId !== user.partyId);
+	if (other) return { error: `Diese Woche hat schon ${other.writingPartyName ?? 'eine andere Partie'} übernommen.` };
+
+	const ids: number[] = [];
+	for (const month of monthsOfWeek(monday)) {
+		const id = await openSheet(personId, monday, month, user.id, user.partyId);
+		await db.update(timesheets).set({ writingPartyId: user.partyId, updatedAt: new Date() }).where(eq(timesheets.id, id));
+		ids.push(id);
+	}
+	return { id: ids[0] };
+}
+
+/** Übernommene Woche zurückgeben – dann schreibt wieder die eigene Partie */
+export async function handBackWeek(personId: number, weekStart: string): Promise<string | null> {
+	const parts = await db
+		.select({ status: timesheets.status })
+		.from(timesheets)
+		.where(and(eq(timesheets.userId, personId), eq(timesheets.weekStart, weekStart)))
+		.all();
+	if (parts.some((p) => p.status !== 'entwurf')) return 'Ein Teil der Woche ist schon freigegeben – zurückgeben geht nicht mehr.';
+	await db
+		.update(timesheets)
+		.set({ writingPartyId: null, updatedAt: new Date() })
+		.where(and(eq(timesheets.userId, personId), eq(timesheets.weekStart, weekStart)));
+	return null;
 }
 
 /**
  * Darf diese Person Zeilen ändern? Nach dem Freigeben nur noch, wer prüfen
  * darf – der Partieführer selbst nicht mehr. Geprüfte Wochen sind zu.
  */
-export function mayEdit(user: SessionUser, sheet: { userId: number; partyId: number | null; status: string }): boolean {
+export function mayEdit(user: SessionUser, sheet: SheetParties & { userId: number; status: string }): boolean {
 	if (sheet.status === 'geprueft') return false;
 	if (sheet.status === 'freigegeben') return can(user.role, 'stunden.pruefen');
 	return mayRecordFor(user, sheet);

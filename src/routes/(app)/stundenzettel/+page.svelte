@@ -5,10 +5,23 @@
 	import ChevronRight from '@lucide/svelte/icons/chevron-right';
 	import Clock from '@lucide/svelte/icons/clock';
 	import CircleCheck from '@lucide/svelte/icons/circle-check';
+	import UserPlus from '@lucide/svelte/icons/user-plus';
+	import Dialog from '$lib/components/Dialog.svelte';
 	import { addDays, hoursLabel, mondayOf, monthLabel, monthsOfWeek, segmentLabel, today, weekLabel } from '$lib/modules/stunden/week';
 	import { fullName } from '$lib/format';
 
-	let { data } = $props();
+	let { data, form } = $props();
+	let borrowOpen = $state(false);
+	let borrowId = $state<number | null>(null);
+	let borrowing = $state(false);
+
+	/** Partie in der Zeile – bei Aushilfe mit Hinweis, wer die Woche schreibt */
+	function partyLine(row: (typeof data.rows)[number]): string {
+		const own = row.user.partyName ?? 'Ohne Partie';
+		if (!row.writingPartyId) return own;
+		if (row.writingPartyId === data.ownPartyId) return `Aushilfe aus ${own}`;
+		return `${own} · diese Woche bei ${row.writingPartyName ?? 'einer anderen Partie'}`;
+	}
 
 	const prev = $derived(addDays(data.weekStart, -7));
 	const next = $derived(addDays(data.weekStart, 7));
@@ -33,11 +46,16 @@
 			Eine Woche je Person – Montag bis Sonntag. Geht die Woche über den Monatswechsel, gibt es je Monat einen eigenen Zettel.
 		</p>
 	</div>
-	<div class="flex items-center gap-2">
+	<div class="flex flex-wrap items-center gap-2">
 		<a href="/stundenzettel?woche={prev}" class="btn btn-secondary btn-icon" aria-label="Woche zurück"><ChevronLeft size={18} /></a>
 		<span class="num min-w-[13rem] text-center font-medium">{weekLabel(data.weekStart)}</span>
 		<a href="/stundenzettel?woche={next}" class="btn btn-secondary btn-icon" aria-label="Woche vor"><ChevronRight size={18} /></a>
 		{#if !isCurrent}<a href="/stundenzettel" class="btn btn-ghost btn-sm">Diese Woche</a>{/if}
+		{#if data.candidates.length}
+			<button type="button" class="btn btn-secondary" onclick={() => ((borrowId = null), (borrowOpen = true))}>
+				<UserPlus size={18} aria-hidden="true" />Aushilfe übernehmen
+			</button>
+		{/if}
 	</div>
 </div>
 
@@ -52,7 +70,7 @@
 				<span class="min-w-0 flex-1">
 					<span class="block truncate font-medium">{fullName(row.user)}</span>
 					<span class="block truncate text-[0.8125rem] text-ink-3">
-						{row.user.partyName ?? 'Ohne Partie'}{row.allowanceDays ? ` · Auslöse ${hoursLabel(row.allowanceDays)} Tage` : ''}{row.user.timesheetExempt ? ' · sonst keine Stundenzettel' : ''}
+						{partyLine(row)}{row.allowanceDays ? ` · Auslöse ${hoursLabel(row.allowanceDays)} Tage` : ''}{row.user.timesheetExempt ? ' · sonst keine Stundenzettel' : ''}
 					</span>
 				</span>
 				{#if status}
@@ -93,3 +111,40 @@
 <p class="field-hint mt-3">
 	Ein Klick öffnet den Zettel – gibt es ihn noch nicht, wird er angelegt. Die Stunden ergeben sich aus Beginn, Pause, Pauseende und Ende.
 </p>
+
+<Dialog bind:open={borrowOpen} title="Aushilfe übernehmen">
+	<p class="text-ink-2">
+		War jemand aus einer anderen Partie diese Woche <span class="font-medium text-ink">mehr Tage bei dir</span> als bei seiner eigenen,
+		schreibst du seinen Zettel für die ganze Woche – auch für die Tage bei seiner Partie. War er weniger Tage bei dir, schreibt ihn
+		seine eigene Partie.
+	</p>
+	<form
+		method="POST"
+		action="?/aushilfe"
+		class="mt-4 space-y-4"
+		use:enhance={() => {
+			borrowing = true;
+			return async ({ update }) => {
+				borrowing = false;
+				await update();
+			};
+		}}
+	>
+		<input type="hidden" name="weekStart" value={data.weekStart} />
+		<label class="block">
+			<span class="field-label">Wer – {weekLabel(data.weekStart)}</span>
+			<select name="userId" class="select" required bind:value={borrowId}>
+				<option value={null}>Person wählen</option>
+				{#each data.candidates as c (c.id)}
+					<option value={c.id}>{fullName(c)} · {c.partyName ?? 'ohne Partie'}</option>
+				{/each}
+			</select>
+		</label>
+		<p class="field-hint">Seine eigene Partie sieht den Zettel danach nur noch. Was sie schon eingetragen hat, bleibt stehen.</p>
+		{#if form && 'message' in form && form.message}<p class="field-error" role="alert">{form.message}</p>{/if}
+		<div class="flex justify-end gap-2">
+			<button type="button" class="btn btn-ghost" onclick={() => (borrowOpen = false)}>Abbrechen</button>
+			<button class="btn btn-primary" disabled={!borrowId || borrowing}><UserPlus size={18} aria-hidden="true" />Woche übernehmen</button>
+		</div>
+	</form>
+</Dialog>
