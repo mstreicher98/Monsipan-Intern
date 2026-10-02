@@ -15,12 +15,35 @@
 	let borrowId = $state<number | null>(null);
 	let borrowing = $state(false);
 
-	/** Partie in der Zeile – bei Aushilfe mit Hinweis, wer die Woche schreibt */
-	function partyLine(row: (typeof data.rows)[number]): string {
-		const own = row.user.partyName ?? 'Ohne Partie';
-		if (!row.writingPartyId) return own;
-		if (row.writingPartyId === data.ownPartyId) return `Aushilfe aus ${own}`;
-		return `${own} · diese Woche bei ${row.writingPartyName ?? 'einer anderen Partie'}`;
+	type Row = (typeof data.rows)[number];
+
+	/** Zusatz unter dem Namen: Aushilfe, Auslöse, Ausnahme – die Partie steht schon in der Überschrift */
+	function details(row: Row): string {
+		return [
+			row.writingPartyId ? `Aushilfe aus ${row.user.partyName ?? 'keiner Partie'}` : '',
+			row.allowanceDays ? `Auslöse ${hoursLabel(row.allowanceDays)} Tage` : '',
+			row.user.timesheetExempt ? 'sonst keine Stundenzettel' : ''
+		]
+			.filter(Boolean)
+			.join(' · ');
+	}
+
+	/**
+	 * Zeilen nach Partie gruppieren – nach der, die den Zettel schreibt. Eine
+	 * übernommene Aushilfe steht also bei der Partie, die sie übernommen hat.
+	 * Die eigene Partie kommt zuerst, „Ohne Partie" zuletzt.
+	 */
+	function byParty(rows: Row[]) {
+		const groups = new Map<number, { id: number; name: string; rows: Row[] }>();
+		for (const r of rows) {
+			const id = r.writingPartyId ?? r.user.partyId ?? 0;
+			const name = r.writingPartyId ? (r.writingPartyName ?? 'Andere Partie') : (r.user.partyName ?? 'Ohne Partie');
+			const group = groups.get(id) ?? { id, name, rows: [] };
+			group.rows.push(r);
+			groups.set(id, group);
+		}
+		const rank = (g: { id: number }) => (g.id === data.ownPartyId ? 0 : g.id === 0 ? 2 : 1);
+		return [...groups.values()].sort((a, b) => rank(a) - rank(b) || a.name.localeCompare(b.name, 'de'));
 	}
 
 	const prev = $derived(addDays(data.weekStart, -7));
@@ -28,7 +51,9 @@
 	const isCurrent = $derived(data.weekStart === mondayOf(today()));
 	/** Über den Monatswechsel gibt es je Monat einen eigenen Zettel */
 	const split = $derived(monthsOfWeek(data.weekStart).length > 1);
-	const groups = $derived(monthsOfWeek(data.weekStart).map((month) => ({ month, rows: data.rows.filter((r) => r.month === month) })));
+	const groups = $derived(
+		monthsOfWeek(data.weekStart).map((month) => ({ month, parties: byParty(data.rows.filter((r) => r.month === month)) }))
+	);
 
 	const STATUS: Record<string, { label: string; tone: string }> = {
 		entwurf: { label: 'In Arbeit', tone: '' },
@@ -59,7 +84,7 @@
 	</div>
 </div>
 
-{#snippet entry(row: (typeof data.rows)[number])}
+{#snippet entry(row: Row)}
 	{@const status = row.status ? STATUS[row.status] : null}
 	<li class="border-b border-line last:border-0">
 		<form method="POST" action="?/open" use:enhance>
@@ -69,9 +94,7 @@
 			<button class="flex w-full items-center gap-3 px-4 py-3 text-left hover:bg-surface-2">
 				<span class="min-w-0 flex-1">
 					<span class="block truncate font-medium">{fullName(row.user)}</span>
-					<span class="block truncate text-[0.8125rem] text-ink-3">
-						{partyLine(row)}{row.allowanceDays ? ` · Auslöse ${hoursLabel(row.allowanceDays)} Tage` : ''}{row.user.timesheetExempt ? ' · sonst keine Stundenzettel' : ''}
-					</span>
+					{#if details(row)}<span class="block truncate text-[0.8125rem] text-ink-3">{details(row)}</span>{/if}
 				</span>
 				{#if status}
 					<span class="badge {status.tone}">
@@ -87,24 +110,38 @@
 	</li>
 {/snippet}
 
-<!-- Über den Monatswechsel: je Monat ein eigener Block, weil der Lohn monatlich abgerechnet wird -->
+<!--
+	Über den Monatswechsel: je Monat ein eigener Block, weil der Lohn monatlich
+	abgerechnet wird. Darin je Partie eine eigene Liste.
+-->
 {#each groups as group (group.month)}
-	<section class="mb-4">
+	<section class="mb-6">
 		{#if split}
-			<h2 class="mb-2 flex flex-wrap items-baseline gap-x-2 text-lg">
+			<h2 class="mb-3 flex flex-wrap items-baseline gap-x-2 text-lg">
 				{monthLabel(group.month)}
 				<span class="num text-sm font-normal text-ink-3">{segmentLabel(data.weekStart, group.month)}</span>
 			</h2>
 		{/if}
-		<div class="card overflow-hidden">
-			<ul>
-				{#each group.rows as row (`${row.user.id}-${row.month}`)}
-					{@render entry(row)}
-				{:else}
-					<li class="p-8 text-center text-ink-3">Für diese Woche gibt es niemanden, dessen Stunden du erfassen darfst.</li>
-				{/each}
-			</ul>
-		</div>
+		{#each group.parties as party (party.id)}
+			<div class="mb-4">
+				<h3 class="mb-1.5 flex items-baseline gap-2 px-1 text-[0.9375rem] font-semibold">
+					{party.name}
+					<span class="num text-[0.8125rem] font-normal text-ink-3">
+						{party.rows.length}
+						{party.rows.length === 1 ? 'Person' : 'Personen'}
+					</span>
+				</h3>
+				<div class="card overflow-hidden">
+					<ul>
+						{#each party.rows as row (`${row.user.id}-${row.month}`)}
+							{@render entry(row)}
+						{/each}
+					</ul>
+				</div>
+			</div>
+		{:else}
+			<div class="card p-8 text-center text-ink-3">Für diese Woche gibt es niemanden, dessen Stunden du erfassen darfst.</div>
+		{/each}
 	</section>
 {/each}
 

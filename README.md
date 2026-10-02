@@ -125,6 +125,10 @@ und 100 %, Urlaub, Feiertag, Regen und Efzg (Entgeltfortzahlung). Dazu Auslöse 
 Betrag) und VAZ mit Prozentsatz. Die Summen je Spalte und die Gesamtstunden rechnet die
 Seite mit, während getippt wird.
 
+**Wochenübersicht:** nach Partien gegliedert – die eigene Partie zuerst, „Ohne Partie“
+zuletzt. Maßgeblich ist die Partie, die den Zettel schreibt: Eine übernommene Aushilfe
+steht bei der Partie, die sie übernommen hat, mit dem Zusatz „Aushilfe aus …“.
+
 **Arbeitszeit:** je Tag beliebig viele Zeiten von **Beginn** bis **Ende** – mit **+ Zeit**
 kommt eine dazu, mit × fällt eine weg (z. B. 07:00 – 13:00 und 18:00 – 04:00). Pausen
 sind einfach die Lücken dazwischen. Endet eine Zeit vor ihrem Beginn, geht sie über
