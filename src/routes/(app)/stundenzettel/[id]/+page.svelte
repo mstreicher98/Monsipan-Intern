@@ -61,14 +61,20 @@
 	let confirmDelete = $state(false);
 
 	const HOUR_FIELDS = [
-		{ key: 'normalHours', name: 'norm', label: 'Norm-Std.' },
-		{ key: 'overtime50', name: 'ue50', label: 'ÜS 50 %' },
-		{ key: 'overtime100', name: 'ue100', label: 'ÜS 100 %' },
-		{ key: 'vacationHours', name: 'urlaub', label: 'Urlaub' },
-		{ key: 'holidayHours', name: 'feiertag', label: 'Feiertag' },
-		{ key: 'rainHours', name: 'regen', label: 'Regen' },
-		{ key: 'sickHours', name: 'efzg', label: 'Efzg' }
+		{ key: 'normalHours', name: 'norm', label: 'Norm-Std.', short: 'Norm' },
+		{ key: 'overtime50', name: 'ue50', label: 'ÜS 50 %', short: 'ÜS 50' },
+		{ key: 'overtime100', name: 'ue100', label: 'ÜS 100 %', short: 'ÜS 100' },
+		{ key: 'vacationHours', name: 'urlaub', label: 'Urlaub', short: 'Urlaub' },
+		{ key: 'holidayHours', name: 'feiertag', label: 'Feiertag', short: 'Feiertag' },
+		{ key: 'rainHours', name: 'regen', label: 'Regen', short: 'Regen' },
+		{ key: 'sickHours', name: 'efzg', label: 'Efzg', short: 'Efzg' }
 	] as const;
+
+	/** Kurzes Datum für die Tageszeile am Handy */
+	const dayShort = (iso: string) => {
+		const [, m, d] = iso.split('-');
+		return `${d}.${m}.`;
+	};
 
 	const rowTotal = (r: Row) => HOUR_FIELDS.reduce((s, f) => s + parseHours(r[f.key]), 0);
 	const columnTotal = (key: (typeof HOUR_FIELDS)[number]['key']) => rows.reduce((s, r) => s + parseHours(r[key]), 0);
@@ -118,12 +124,16 @@
 	}}
 >
 	<fieldset disabled={!data.editable} class="contents">
-		<div class="card overflow-x-auto">
-			<!-- Spaltenköpfe nur am großen Bildschirm; am Handy steht die Beschriftung im Feld -->
-			<div class="hidden min-w-[62rem] gap-1.5 border-b border-line px-3 py-2 text-[0.75rem] text-ink-3 lg:grid lg:grid-cols-[4.5rem_6.5rem_minmax(10rem,1fr)_4.5rem_4.5rem_repeat(7,4.25rem)_4rem]">
+		<div class="card lg:overflow-x-auto">
+			<!--
+				Am Handy ist jeder Tag eine kleine Karte: Baustelle breit, darunter
+				Kostenstelle/Zeit und die Stunden als Raster. Ab lg klappen die
+				Zwischenebenen per `contents` weg und alles steht in einer Zeile.
+			-->
+			<div class="hidden min-w-[62rem] gap-1.5 border-b border-line px-3 py-2 text-[0.75rem] text-ink-3 lg:grid lg:grid-cols-[4.5rem_minmax(10rem,1fr)_6rem_4.25rem_4.25rem_repeat(7,4rem)_3.5rem]">
 				<span>Tag</span>
-				<span>Kostenstelle</span>
 				<span>Baustelle / Tätigkeit</span>
+				<span>Kostenstelle</span>
 				<span>von</span>
 				<span>bis</span>
 				{#each HOUR_FIELDS as f (f.key)}<span class="text-center">{f.label}</span>{/each}
@@ -132,57 +142,62 @@
 
 			{#each rows as row, i (row.date)}
 				<div
-					class="grid min-w-[62rem] gap-2 border-b border-line px-3 py-3 last:border-0 lg:grid-cols-[4.5rem_6.5rem_minmax(10rem,1fr)_4.5rem_4.5rem_repeat(7,4.25rem)_4rem] lg:items-center lg:gap-1.5 lg:py-2"
+					class="grid gap-2 border-b border-line px-3 py-3 last:border-0 lg:min-w-[62rem] lg:grid-cols-[4.5rem_minmax(10rem,1fr)_6rem_4.25rem_4.25rem_repeat(7,4rem)_3.5rem] lg:items-center lg:gap-1.5 lg:py-2"
 				>
-					<span class="font-medium lg:text-[0.9375rem]">{WEEKDAY_LABELS[i]}</span>
-
-					<label class="block">
-						<span class="field-label lg:sr-only">Kostenstelle</span>
-						<input class="input input-sm" name="kostenstelle.{row.date}" maxlength="60" bind:value={row.costCenter} />
-					</label>
+					<div class="flex items-baseline justify-between gap-2 lg:block">
+						<span class="font-semibold lg:text-[0.9375rem] lg:font-medium">{WEEKDAY_LABELS[i]}</span>
+						<span class="num text-sm text-ink-3 lg:hidden">
+							{dayShort(row.date)}{rowTotal(row) ? ` · ${hoursLabel(rowTotal(row))} Std` : ''}
+						</span>
+					</div>
 
 					<label class="block">
 						<span class="field-label lg:sr-only">Baustelle / Tätigkeit</span>
 						<input class="input input-sm" name="baustelle.{row.date}" maxlength="200" list="baustellen" bind:value={row.site} />
 					</label>
 
-					<label class="block">
-						<span class="field-label lg:sr-only">von</span>
-						<input class="input input-sm num" name="von.{row.date}" inputmode="numeric" placeholder="07:00" bind:value={row.fromTime} />
-					</label>
-
-					<label class="block">
-						<span class="field-label lg:sr-only">bis</span>
-						<input class="input input-sm num" name="bis.{row.date}" inputmode="numeric" placeholder="16:30" bind:value={row.toTime} />
-					</label>
-
-					{#each HOUR_FIELDS as f (f.key)}
+					<div class="grid grid-cols-[1fr_4.5rem_4.5rem] gap-2 lg:contents">
 						<label class="block">
-							<span class="field-label lg:sr-only">{f.label}</span>
-							<input
-								class="input input-sm num text-center"
-								name="{f.name}.{row.date}"
-								inputmode="decimal"
-								bind:value={rows[i][f.key]}
-								aria-label="{WEEKDAY_LABELS[i]} {f.label}"
-							/>
+							<span class="field-label lg:sr-only">Kostenstelle</span>
+							<input class="input input-sm" name="kostenstelle.{row.date}" maxlength="60" bind:value={row.costCenter} />
 						</label>
-					{/each}
+						<label class="block">
+							<span class="field-label lg:sr-only">von</span>
+							<input class="input input-sm num" name="von.{row.date}" inputmode="numeric" placeholder="07:00" bind:value={row.fromTime} />
+						</label>
+						<label class="block">
+							<span class="field-label lg:sr-only">bis</span>
+							<input class="input input-sm num" name="bis.{row.date}" inputmode="numeric" placeholder="16:30" bind:value={row.toTime} />
+						</label>
+					</div>
 
-					<span class="num text-right font-semibold lg:text-[0.9375rem]">{hoursLabel(rowTotal(row)) || '–'}</span>
+					<div class="grid grid-cols-4 gap-2 lg:contents">
+						{#each HOUR_FIELDS as f (f.key)}
+							<label class="block">
+								<span class="field-label truncate lg:sr-only">{f.short}</span>
+								<input
+									class="input input-sm num text-center"
+									name="{f.name}.{row.date}"
+									inputmode="decimal"
+									bind:value={rows[i][f.key]}
+									aria-label="{WEEKDAY_LABELS[i]} {f.label}"
+								/>
+							</label>
+						{/each}
+					</div>
+
+					<span class="num hidden text-right font-semibold lg:block lg:text-[0.9375rem]">{hoursLabel(rowTotal(row)) || '–'}</span>
 				</div>
 			{/each}
 
 			<div
-				class="grid min-w-[62rem] gap-1.5 bg-surface-2 px-3 py-2.5 font-semibold lg:grid-cols-[4.5rem_6.5rem_minmax(10rem,1fr)_4.5rem_4.5rem_repeat(7,4.25rem)_4rem] lg:items-center"
+				class="flex items-center justify-between gap-2 bg-surface-2 px-3 py-2.5 font-semibold lg:grid lg:min-w-[62rem] lg:grid-cols-[4.5rem_minmax(10rem,1fr)_6rem_4.25rem_4.25rem_repeat(7,4rem)_3.5rem] lg:items-center lg:gap-1.5"
 			>
-				<span class="lg:col-span-3">Gesamtstunden</span>
-				<span class="hidden lg:block"></span>
-				<span class="hidden lg:block"></span>
+				<span class="lg:col-span-5">Gesamtstunden</span>
 				{#each HOUR_FIELDS as f (f.key)}
-					<span class="num text-center">{hoursLabel(columnTotal(f.key)) || '–'}</span>
+					<span class="num hidden text-center lg:block">{hoursLabel(columnTotal(f.key)) || '–'}</span>
 				{/each}
-				<span class="num text-right">{hoursLabel(grandTotal) || '–'}</span>
+				<span class="num lg:text-right">{hoursLabel(grandTotal) || '–'}</span>
 			</div>
 		</div>
 
