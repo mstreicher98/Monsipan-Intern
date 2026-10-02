@@ -6,11 +6,12 @@
  * Datenbank und wird beim Start in `current` geladen – auf dem Server wie im
  * Browser. `can()` bleibt dadurch eine einfache, synchrone Abfrage.
  */
-export const ROLES = ['admin', 'bauleiter', 'buchhaltung', 'partiefuehrer', 'arbeiter', 'viewer'] as const;
+export const ROLES = ['admin', 'geschaeftsfuehrer', 'bauleiter', 'buchhaltung', 'partiefuehrer', 'arbeiter', 'viewer'] as const;
 export type Role = (typeof ROLES)[number];
 
 export const ROLE_LABELS: Record<Role, string> = {
 	admin: 'Admin',
+	geschaeftsfuehrer: 'Geschäftsführer',
 	bauleiter: 'Bauleiter',
 	buchhaltung: 'Buchhaltung/Sekretariat',
 	partiefuehrer: 'Partieführer',
@@ -20,6 +21,7 @@ export const ROLE_LABELS: Record<Role, string> = {
 
 export const ROLE_DESCRIPTIONS: Record<Role, string> = {
 	admin: 'Alles, inklusive Benutzer, Berechtigungen und Einstellungen',
+	geschaeftsfuehrer: 'Sieht und prüft alles – Lager, Stunden, Tagesberichte, Berichte; Benutzer und Einstellungen bleiben beim Admin',
 	bauleiter: 'Buchen, Inventur, Korrekturen, Artikel und Stammdaten pflegen, Berichte, Stunden und Tagesberichte',
 	buchhaltung: 'Stundenzettel prüfen, Tagesberichte und Auswertungen einsehen, Stammdaten pflegen – ohne Lagerbuchungen',
 	partiefuehrer: 'Bestand und Bewegungen ansehen, buchen, Stundenzettel und Tagesberichte der eigenen Partie',
@@ -30,45 +32,54 @@ export const ROLE_DESCRIPTIONS: Record<Role, string> = {
 /** Diese Rollen gehören immer zu einer Partie; sie ist beim Buchen vorausgewählt. */
 export const PARTY_ROLES: readonly Role[] = ['partiefuehrer', 'arbeiter'];
 
+/** Diese Rollen können zusätzlich einer Partie angehören, müssen aber nicht */
+export const OPTIONAL_PARTY_ROLES: readonly Role[] = ['admin', 'geschaeftsfuehrer', 'bauleiter', 'buchhaltung'];
+
 export function needsParty(role: Role | undefined | null): boolean {
 	return !!role && PARTY_ROLES.includes(role);
+}
+
+/** Darf (oder muss) diese Rolle eine Partie haben? */
+export function mayHaveParty(role: Role | undefined | null): boolean {
+	return !!role && (PARTY_ROLES.includes(role) || OPTIONAL_PARTY_ROLES.includes(role));
 }
 
 /**
  * Standardrechte je Bereich. Ein neuer Bereich ergänzt nur seinen eigenen Block;
  * fehlende Einträge werden beim Start aus dieser Tabelle in die Datenbank übernommen.
+ * Der Geschäftsführer hat von Haus aus alles, was Bauleitung oder Buchhaltung haben.
  */
 export const DEFAULT_PERMISSIONS = {
 	// Lager
-	'lager.stock.book': ['admin', 'bauleiter', 'partiefuehrer', 'arbeiter'],
-	'lager.stock.inventory': ['admin', 'bauleiter'],
-	'lager.movements.view': ['admin', 'bauleiter', 'buchhaltung', 'partiefuehrer', 'viewer'],
-	'lager.movements.correct': ['admin', 'bauleiter'],
-	'lager.products.manage': ['admin', 'bauleiter'],
-	'lager.reports.view': ['admin', 'bauleiter', 'buchhaltung', 'viewer'],
-	'lager.alerts.view': ['admin', 'bauleiter', 'buchhaltung', 'viewer'],
+	'lager.stock.book': ['admin', 'geschaeftsfuehrer', 'bauleiter', 'partiefuehrer', 'arbeiter'],
+	'lager.stock.inventory': ['admin', 'geschaeftsfuehrer', 'bauleiter'],
+	'lager.movements.view': ['admin', 'geschaeftsfuehrer', 'bauleiter', 'buchhaltung', 'partiefuehrer', 'viewer'],
+	'lager.movements.correct': ['admin', 'geschaeftsfuehrer', 'bauleiter'],
+	'lager.products.manage': ['admin', 'geschaeftsfuehrer', 'bauleiter'],
+	'lager.reports.view': ['admin', 'geschaeftsfuehrer', 'bauleiter', 'buchhaltung', 'viewer'],
+	'lager.alerts.view': ['admin', 'geschaeftsfuehrer', 'bauleiter', 'buchhaltung', 'viewer'],
 
 	// Stundenzettel
-	'stunden.erfassen': ['admin', 'bauleiter', 'partiefuehrer'],
-	'stunden.freigeben': ['admin', 'bauleiter', 'partiefuehrer'],
-	'stunden.pruefen': ['admin', 'bauleiter', 'buchhaltung'],
+	'stunden.erfassen': ['admin', 'geschaeftsfuehrer', 'bauleiter', 'partiefuehrer'],
+	'stunden.freigeben': ['admin', 'geschaeftsfuehrer', 'bauleiter', 'partiefuehrer'],
+	'stunden.pruefen': ['admin', 'geschaeftsfuehrer', 'bauleiter', 'buchhaltung'],
 	// Status zurücksetzen – die Unterschriften verfallen dabei
-	'stunden.oeffnen.freigegeben': ['admin', 'bauleiter', 'buchhaltung'],
-	'stunden.oeffnen.geprueft': ['admin', 'bauleiter', 'buchhaltung'],
-	'stunden.pruefung.zuruecknehmen': ['admin', 'bauleiter', 'buchhaltung'],
+	'stunden.oeffnen.freigegeben': ['admin', 'geschaeftsfuehrer', 'bauleiter', 'buchhaltung'],
+	'stunden.oeffnen.geprueft': ['admin', 'geschaeftsfuehrer', 'bauleiter', 'buchhaltung'],
+	'stunden.pruefung.zuruecknehmen': ['admin', 'geschaeftsfuehrer', 'bauleiter', 'buchhaltung'],
 	// Ohne diese beiden Rechte sieht und bearbeitet man nur die eigene Partie
-	'stunden.alle.sehen': ['admin', 'bauleiter', 'buchhaltung'],
-	'stunden.alle.bearbeiten': ['admin', 'bauleiter'],
+	'stunden.alle.sehen': ['admin', 'geschaeftsfuehrer', 'bauleiter', 'buchhaltung'],
+	'stunden.alle.bearbeiten': ['admin', 'geschaeftsfuehrer', 'bauleiter'],
 	// Arbeiter einer anderen Partie für eine Woche übernehmen
-	'stunden.aushilfe': ['admin', 'bauleiter', 'partiefuehrer'],
+	'stunden.aushilfe': ['admin', 'geschaeftsfuehrer', 'bauleiter', 'partiefuehrer'],
 
 	// Tagesberichte
-	'tagesberichte.erfassen': ['admin', 'bauleiter', 'partiefuehrer'],
-	'tagesberichte.abschliessen': ['admin', 'bauleiter'],
-	'tagesberichte.alle.sehen': ['admin', 'bauleiter', 'buchhaltung', 'viewer'],
+	'tagesberichte.erfassen': ['admin', 'geschaeftsfuehrer', 'bauleiter', 'partiefuehrer'],
+	'tagesberichte.abschliessen': ['admin', 'geschaeftsfuehrer', 'bauleiter'],
+	'tagesberichte.alle.sehen': ['admin', 'geschaeftsfuehrer', 'bauleiter', 'buchhaltung', 'viewer'],
 
 	// Verwaltung
-	'verwaltung.masterdata.manage': ['admin', 'bauleiter', 'buchhaltung'],
+	'verwaltung.masterdata.manage': ['admin', 'geschaeftsfuehrer', 'bauleiter', 'buchhaltung'],
 	'verwaltung.users.manage': ['admin'],
 	'verwaltung.permissions.manage': ['admin'],
 	'verwaltung.settings.manage': ['admin']

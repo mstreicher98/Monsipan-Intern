@@ -11,7 +11,7 @@
 	import Dialog from '$lib/components/Dialog.svelte';
 	import PasswordInput from '$lib/components/PasswordInput.svelte';
 	import { fullName, initials, relativeDateTime } from '$lib/format';
-	import { needsParty, ROLE_DESCRIPTIONS, ROLE_LABELS, ROLES, type Role } from '$lib/permissions';
+	import { mayHaveParty, needsParty, ROLE_DESCRIPTIONS, ROLE_LABELS, ROLES, type Role } from '$lib/permissions';
 	import { canBecomeOwner, denyReason, OWNER_HINT, OWNER_LABEL, type UserAction } from '$lib/user-rules';
 	import { toast } from '$lib/stores/toast.svelte';
 
@@ -71,6 +71,7 @@
 
 	const roleTone: Record<Role, string> = {
 		admin: 'badge-brand',
+		geschaeftsfuehrer: 'badge-brand',
 		bauleiter: 'badge-info',
 		buchhaltung: 'badge-info',
 		partiefuehrer: '',
@@ -242,15 +243,23 @@
 			</div>
 		</fieldset>
 
-		{#if needsParty(role)}
+		<!-- Partieführer und Arbeiter brauchen eine Partie, Leitung und Büro können eine haben -->
+		{#if mayHaveParty(role)}
+			{@const required = needsParty(role)}
 			<div class="sm:col-span-2">
-				<label for="u-party" class="field-label">Partie *</label>
-				<select id="u-party" name="partyId" class="select" required bind:value={partyId}>
-					<option value={null}>Partie wählen</option>
+				<label for="u-party" class="field-label">Partie{required ? ' *' : ' (optional)'}</label>
+				<select id="u-party" name="partyId" class="select" {required} bind:value={partyId}>
+					<option value={null}>{required ? 'Partie wählen' : 'Keine Partie'}</option>
 					{#each data.parties as p (p.id)}<option value={p.id}>{p.name}</option>{/each}
 				</select>
 				<p class="field-hint">
-					{#if data.parties.length}Wird beim Ausbuchen und bei Rückgaben automatisch eingesetzt und lässt sich dort ändern.{:else}Noch keine Partien angelegt – das geht unter Stammdaten.{/if}
+					{#if !data.parties.length}
+						Noch keine Partien angelegt – das geht unter Stammdaten.
+					{:else if required}
+						Wird beim Ausbuchen und bei Rückgaben automatisch eingesetzt und lässt sich dort ändern.
+					{:else}
+						Nur, wenn die Person selbst in einer Partie mitarbeitet – dann steht sie dort auch bei den Stundenzetteln.
+					{/if}
 				</p>
 			</div>
 		{/if}

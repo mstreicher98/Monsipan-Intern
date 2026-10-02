@@ -16,7 +16,7 @@ import { intOrNull, requirePermission } from '$lib/server/guard';
 import { inviteMail, isMailConfigured, passwordResetMail, sendMail } from '$lib/server/mail';
 import { partyOptions } from '$lib/server/options';
 import { fullName } from '$lib/format';
-import { needsParty, ROLE_LABELS, ROLES, type Role } from '$lib/permissions';
+import { mayHaveParty, needsParty, ROLE_LABELS, ROLES, type Role } from '$lib/permissions';
 import { canBecomeOwner, denyReason, type UserAction, type UserRef } from '$lib/user-rules';
 import type { Actions, PageServerLoad } from './$types';
 
@@ -83,13 +83,15 @@ async function readUser(f: FormData, currentRole: Role = 'arbeiter') {
 		role: f.get('role') ?? currentRole
 	});
 	if (!parsed.success) return { ok: false as const, message: parsed.error.issues[0].message };
+	// Partieführer und Arbeiter brauchen eine Partie; Leitung und Büro dürfen eine haben
 	let partyId: number | null = null;
-	if (needsParty(parsed.data.role)) {
+	if (mayHaveParty(parsed.data.role)) {
 		partyId = intOrNull(f.get('partyId'));
 		const party = partyId
 			? await db.select({ active: parties.active }).from(parties).where(eq(parties.id, partyId)).get()
 			: null;
-		if (!party?.active) {
+		if (partyId && !party?.active) return { ok: false as const, message: 'Diese Partie gibt es nicht (mehr).' };
+		if (needsParty(parsed.data.role) && !party?.active) {
 			return { ok: false as const, message: `${ROLE_LABELS[parsed.data.role]} müssen einer Partie zugeordnet sein.` };
 		}
 	}

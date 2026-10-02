@@ -84,6 +84,7 @@ weiter. Die Weiterleitung steht in [`src/hooks.server.ts`](src/hooks.server.ts).
 | Rolle | Darf |
 |---|---|
 | Admin | alles, zusätzlich Benutzer, Berechtigungen und Einstellungen |
+| Geschäftsführer | sieht und prüft alles – von Haus aus alles, was Bauleitung oder Buchhaltung dürfen; Benutzer, Berechtigungen und Einstellungen bleiben beim Admin |
 | Bauleiter | buchen, Inventur, Korrekturen, Artikel und Stammdaten pflegen, Berichte, Stunden und Tagesberichte |
 | Buchhaltung/Sekretariat | Stundenzettel prüfen, Tagesberichte und Berichte einsehen, Stammdaten pflegen – ohne Lagerbuchungen |
 | Partieführer | Bestand und Bewegungen ansehen, buchen, Stundenzettel und Tagesberichte der eigenen Partie |
@@ -91,9 +92,11 @@ weiter. Die Weiterleitung steht in [`src/hooks.server.ts`](src/hooks.server.ts).
 | Nur ansehen | alles ansehen außer Stammdaten, Benutzer und Einstellungen – keine Änderungen |
 
 **Partieführer und Arbeiter** gehören immer zu einer Partie (Pflichtfeld unter Benutzer).
-Beim Ausbuchen („Ausgabe an“) und bei Rückgaben („Zurück von“) ist ihre Partie vorausgewählt.
-Wer zu keiner Partie gehört (z. B. Bauleiter, Admin), bucht standardmäßig auf sich selbst –
-in der Bewegungsliste steht dann der eigene Name. Eine Partie lässt sich jederzeit auswählen.
+**Admin, Geschäftsführer, Bauleiter und Buchhaltung** können einer Partie angehören, wenn
+sie dort mitarbeiten – dann stehen sie auch bei den Stundenzetteln dieser Partie.
+Beim Ausbuchen („Ausgabe an“) und bei Rückgaben („Zurück von“) ist die eigene Partie vorausgewählt.
+Wer zu keiner Partie gehört, bucht standardmäßig auf sich selbst – in der Bewegungsliste
+steht dann der eigene Name. Eine Partie lässt sich jederzeit auswählen.
 
 **Benutzer löschen:** Wer nie gebucht hat, wird vollständig entfernt. Wer schon gebucht hat,
 kann sich danach nicht mehr anmelden und verschwindet aus der Liste; der Name bleibt in der
