@@ -3,6 +3,8 @@
 	import Download from '@lucide/svelte/icons/download';
 	import Printer from '@lucide/svelte/icons/printer';
 	import FileText from '@lucide/svelte/icons/file-text';
+	import PdfButton from '$lib/components/PdfButton.svelte';
+	import { printPage } from '$lib/native';
 	import CircleCheck from '@lucide/svelte/icons/circle-check';
 	import ProductAvatar from '$lib/modules/lager/components/ProductAvatar.svelte';
 	import { amountLabel, date, int, packageLabel } from '$lib/format';
@@ -46,8 +48,8 @@
 	</div>
 	{#if data.items.length}
 		<div class="no-print flex gap-2">
-			<button class="btn btn-secondary" onclick={() => window.print()}><Printer size={18} aria-hidden="true" />Drucken</button>
-			<a href={pdfHref} class="btn btn-secondary" download><FileText size={18} aria-hidden="true" />Als PDF</a>
+			<button class="btn btn-secondary" onclick={printPage}><Printer size={18} aria-hidden="true" />Drucken</button>
+			<PdfButton href={pdfHref}><FileText size={18} aria-hidden="true" />Als PDF</PdfButton>
 			<a href={exportHref} class="btn btn-primary" download><Download size={18} aria-hidden="true" />Als CSV</a>
 		</div>
 	{/if}

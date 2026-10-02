@@ -13,7 +13,7 @@
 
 <svelte:head><title>{pageTitle('Bewegungen drucken')}</title></svelte:head>
 
-<PrintSheet title="Bewegungen" facts={data.facts} notice={data.notice} {back}>
+<PrintSheet title="Bewegungen" facts={data.facts} notice={data.notice} {back} pdf="/export/bewegungen.pdf{page.url.search}">
 	<table class="print-table mt-3">
 		<colgroup>
 			<col style="width: 8.5rem" />

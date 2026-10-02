@@ -5,6 +5,8 @@
 	import Download from '@lucide/svelte/icons/download';
 	import Printer from '@lucide/svelte/icons/printer';
 	import FileText from '@lucide/svelte/icons/file-text';
+	import PdfButton from '$lib/components/PdfButton.svelte';
+	import { printPage } from '$lib/native';
 	import BarChart from '$lib/components/BarChart.svelte';
 	import ProductAvatar from '$lib/modules/lager/components/ProductAvatar.svelte';
 	import { amountLabel, date, int, monthLong, monthShort, packageLabel } from '$lib/format';
@@ -45,14 +47,10 @@
 		</p>
 	</div>
 	<div class="no-print flex gap-2">
-		<button class="btn btn-secondary" onclick={() => window.print()}><Printer size={18} aria-hidden="true" />Drucken</button>
-		<a
-			class="btn btn-secondary"
-			download
-			href={data.view === 'bestand' ? '/export/bestand.pdf?status=alle' : `/export/verbrauch.pdf${page.url.search}`}
-		>
+		<button class="btn btn-secondary" onclick={printPage}><Printer size={18} aria-hidden="true" />Drucken</button>
+		<PdfButton href={data.view === 'bestand' ? '/export/bestand.pdf?status=alle' : `/export/verbrauch.pdf${page.url.search}`}>
 			<FileText size={18} aria-hidden="true" />Als PDF
-		</a>
+		</PdfButton>
 		<a
 			class="btn btn-primary"
 			download

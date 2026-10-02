@@ -2,4 +2,7 @@
 <paths xmlns:android="http://schemas.android.com/apk/res/android">
     <external-path name="my_images" path="." />
     <cache-path name="my_cache_images" path="." />
+    <!-- PDFs auf Geräten vor Android 10 (siehe NativePlugin) -->
+    <external-files-path name="downloads" path="Download/" />
+    <cache-path name="pdf" path="pdf/" />
 </paths>

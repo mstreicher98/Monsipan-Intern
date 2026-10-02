@@ -18,6 +18,34 @@ function systemBars(): SystemBarsPlugin | null {
 /** Läuft die Seite in der Android-App? */
 export const inNativeApp = () => typeof window !== 'undefined' && 'Capacitor' in window;
 
+/** App-eigenes Plugin (NativePlugin.java) – fehlt in älteren App-Versionen */
+interface MonsipanNativePlugin {
+	print(options: { title: string }): Promise<void>;
+	savePdf(options: { name: string; data: string }): Promise<{ opened: boolean }>;
+}
+
+export function nativePlugin(): MonsipanNativePlugin | null {
+	if (typeof window === 'undefined') return null;
+	const cap = (window as { Capacitor?: { Plugins?: { MonsipanNative?: MonsipanNativePlugin } } }).Capacitor;
+	return cap?.Plugins?.MonsipanNative ?? null;
+}
+
+/**
+ * Drucken: im Browser wie gewohnt, in der App über den Android-Druckdienst –
+ * window.print() tut in der WebView nichts. Gibt false zurück, wenn es in
+ * dieser Umgebung nicht geht (ältere App ohne Plugin).
+ */
+export function printPage(): boolean {
+	const plugin = nativePlugin();
+	if (plugin) {
+		plugin.print({ title: document.title }).catch(() => {});
+		return true;
+	}
+	if (inNativeApp()) return false;
+	window.print();
+	return true;
+}
+
 /**
  * Systemleisten an die Darstellung anpassen und bei jedem Wechsel nachziehen.
  * Gibt die Aufräumfunktion zurück; außerhalb der App passiert nichts.

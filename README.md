@@ -400,6 +400,21 @@ Jede Seite hat Kopf (Titel, Filter) und Fuß (Anwendung, Ausdruckzeitpunkt, Seit
 der Tabellenkopf wiederholt sich beim Seitenumbruch. Lohnzettel und Tagesbericht bringen
 ihre Unterschriftszeilen mit. **CSV** gibt es unverändert daneben – für Excel.
 
+**Am Handy:** Jede Druckansicht hat neben **Drucken** auch **PDF**.
+
+- **Android-App:** **Drucken** öffnet den Android-Druckdienst (dort geht auch „Als PDF
+  speichern“), **PDF** legt die Datei in „Downloads“ ab und öffnet sie. Beides übernimmt
+  ein kleines Plugin der App ([`NativePlugin.java`](android/app/src/main/java/at/monsipan/intern/NativePlugin.java)),
+  weil die WebView weder `window.print()` noch Downloads kann – dafür braucht es die
+  aktuelle APK.
+- **iPhone/iPad** (Safari und vom Home-Bildschirm): **PDF** öffnet das Teilen-Menü mit
+  „In Dateien sichern“, „Drucken“ und Verschicken. Kommt beim Drucken kein Druckfenster,
+  ist das der Weg.
+- **Android-Browser:** Drucken und PDF wie am Computer.
+
+Der **Lohnzettel** erscheint am Handy in einer lesbaren Fassung nach Tagen; gedruckt und
+im PDF bleibt er im Aufbau des Vordrucks.
+
 ## Materialbeschreibungen (PDF)
 
 Am Artikel lassen sich PDFs hinterlegen – Materialbeschreibungen, Sicherheitsdatenblätter

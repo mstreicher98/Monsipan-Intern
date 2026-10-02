@@ -4,6 +4,7 @@
 	import ArrowLeft from '@lucide/svelte/icons/arrow-left';
 	import Printer from '@lucide/svelte/icons/printer';
 	import FileText from '@lucide/svelte/icons/file-text';
+	import PdfButton from '$lib/components/PdfButton.svelte';
 	import Check from '@lucide/svelte/icons/check';
 	import Lock from '@lucide/svelte/icons/lock';
 	import LockOpen from '@lucide/svelte/icons/lock-open';
@@ -171,7 +172,7 @@
 	</div>
 	<div class="flex flex-wrap items-center gap-2">
 		<span class="badge {status.tone}">{status.label}</span>
-		<a href="/stundenzettel/{sheet.id}/pdf" class="btn btn-secondary" download><FileText size={18} aria-hidden="true" />PDF</a>
+		<PdfButton href="/stundenzettel/{sheet.id}/pdf"><FileText size={18} aria-hidden="true" />PDF</PdfButton>
 		<a href="/stundenzettel/{sheet.id}/druck" class="btn btn-secondary"><Printer size={18} aria-hidden="true" />Drucken</a>
 	</div>
 </div>

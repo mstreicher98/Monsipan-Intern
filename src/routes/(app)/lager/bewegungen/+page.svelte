@@ -6,6 +6,7 @@
 	import Download from '@lucide/svelte/icons/download';
 	import Printer from '@lucide/svelte/icons/printer';
 	import FileText from '@lucide/svelte/icons/file-text';
+	import PdfButton from '$lib/components/PdfButton.svelte';
 	import Search from '@lucide/svelte/icons/search';
 	import ListFilter from '@lucide/svelte/icons/list-filter';
 	import Pencil from '@lucide/svelte/icons/pencil';
@@ -80,7 +81,7 @@
 	</div>
 	<div class="flex gap-2">
 		<a href="/lager/bewegungen/druck{page.url.search}" class="btn btn-secondary"><Printer size={18} aria-hidden="true" />Drucken</a>
-		<a href="/export/bewegungen.pdf{page.url.search}" class="btn btn-secondary" download><FileText size={18} aria-hidden="true" />PDF</a>
+		<PdfButton href="/export/bewegungen.pdf{page.url.search}"><FileText size={18} aria-hidden="true" />PDF</PdfButton>
 		<a href="/export/bewegungen.csv{page.url.search}" class="btn btn-secondary" download><Download size={18} aria-hidden="true" />CSV</a>
 	</div>
 </div>

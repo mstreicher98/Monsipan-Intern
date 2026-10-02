@@ -12,7 +12,7 @@
 
 <svelte:head><title>{pageTitle('Bestandsliste drucken')}</title></svelte:head>
 
-<PrintSheet title="Bestandsliste" facts={data.facts} notice={data.notice} {back}>
+<PrintSheet title="Bestandsliste" facts={data.facts} notice={data.notice} {back} pdf="/export/bestand.pdf{page.url.search}">
 	<table class="print-table mt-3">
 		<colgroup>
 			<col />

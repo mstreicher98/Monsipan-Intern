@@ -28,24 +28,51 @@
 	const checked = $derived(sheet.status === 'geprueft' && !!sheet.checkSignature && !!sheet.checkedAt);
 
 	const HOURS = [
-		{ key: 'normalHours', total: 'normal' },
-		{ key: 'overtime50', total: 'o50' },
-		{ key: 'overtime100', total: 'o100' },
-		{ key: 'vacationHours', total: 'vacation' },
-		{ key: 'holidayHours', total: 'holiday' },
-		{ key: 'rainHours', total: 'rain' },
-		{ key: 'sickHours', total: 'sick' }
+		{ key: 'normalHours', total: 'normal', label: 'Norm' },
+		{ key: 'overtime50', total: 'o50', label: 'ÜS 50 %' },
+		{ key: 'overtime100', total: 'o100', label: 'ÜS 100 %' },
+		{ key: 'vacationHours', total: 'vacation', label: 'Urlaub' },
+		{ key: 'holidayHours', total: 'holiday', label: 'Feiertag' },
+		{ key: 'rainHours', total: 'rain', label: 'Regen' },
+		{ key: 'sickHours', total: 'sick', label: 'Efzg' }
 	] as const;
 
 	const date = (iso: string) => {
 		const [y, m, d] = iso.split('-');
 		return `${d}.${m}.${y}`;
 	};
+
+	type Day = (typeof data.sheet.days)[number];
+	const dayTotal = (d: Day) => HOURS.reduce((s, h) => s + d[h.key], 0);
+	/** "Norm 8,5 · ÜS 50 % 1" – nur Stundenarten, die vorkommen */
+	const dayHours = (d: Day) =>
+		HOURS.filter((h) => d[h.key])
+			.map((h) => `${h.label} ${hoursLabel(d[h.key])}`)
+			.join(' · ');
+	const sumHours = $derived(
+		HOURS.filter((h) => t[h.total])
+			.map((h) => `${h.label} ${hoursLabel(t[h.total])}`)
+			.join(' · ')
+	);
 </script>
 
 <svelte:head><title>{pageTitle(`Lohnzettel ${fullName(sheet)}`)}</title></svelte:head>
 
-<PrintSheet title="Lohnzettel" back="/stundenzettel/{sheet.id}" bare>
+{#snippet signed(label: string, path: string | null, who: string, at: Date | null)}
+	<div class="flex-1 rounded-xl border border-line p-3">
+		<p class="text-[0.8125rem] text-ink-3">{label}</p>
+		{#if path && at}
+			<svg viewBox="0 0 {SIGNATURE_WIDTH} {SIGNATURE_HEIGHT}" class="mt-1 h-14 w-full rounded-lg bg-white" role="img" aria-label="Unterschrift {who}">
+				<path d={path} fill="none" stroke="#1d2127" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" />
+			</svg>
+			<p class="mt-1 text-[0.8125rem]">{who}, {dateTime(at)}</p>
+		{:else}
+			<p class="mt-1 text-sm text-ink-3">noch nicht</p>
+		{/if}
+	</div>
+{/snippet}
+
+<PrintSheet title="Lohnzettel" back="/stundenzettel/{sheet.id}" pdf="/stundenzettel/{sheet.id}/pdf" bare>
 	<div class="form">
 		<header class="kopf">
 			<span class="marke">MONSIPAN</span>
@@ -164,6 +191,66 @@
 				{/if}
 			</div>
 		</footer>
+	</div>
+
+	<!--
+		Am Handy wäre der Vordruck unlesbar klein. Dort stehen dieselben Angaben
+		untereinander; gedruckt wird immer der Vordruck (beim Drucken zählt die
+		Papierbreite, nicht die des Handys).
+	-->
+	<div class="handy space-y-4">
+		<p class="text-[0.8125rem] text-ink-3">Am Handy vereinfacht dargestellt – gedruckt und im PDF steht der Lohnzettel im Aufbau des Vordrucks.</p>
+		<div>
+			<h2 class="text-xl">Lohnzettel · {fullName(sheet)}</h2>
+			<p class="num text-sm text-ink-2">
+				{split ? `KW ${week.week} · ${monthLabel(sheet.month)}` : `KW ${week.week} / ${week.year}`} ·
+				{date(sheet.days[0]?.date ?? sheet.weekStart)} – {date(sheet.days.at(-1)?.date ?? sheet.weekStart)}
+			</p>
+		</div>
+
+		<ul class="divide-y divide-line rounded-xl border border-line">
+			{#each sheet.days as day (day.date)}
+				{@const total = dayTotal(day)}
+				<li class="px-3 py-2.5" class:text-ink-3={!total && !day.site && !day.times.length}>
+					<div class="flex items-baseline justify-between gap-2">
+						<span class="font-semibold">{WEEKDAY_LABELS[weekdayIndex(day.date)]} <span class="num font-normal text-ink-3">{date(day.date).slice(0, 6)}</span></span>
+						<span class="num font-semibold">{total ? `${hoursLabel(total)} Std.` : '–'}</span>
+					</div>
+					{#if day.site || day.costCenter}
+						<p class="text-sm">{day.site}{day.site && day.costCenter ? ' · ' : ''}{day.costCenter ? `KSt ${day.costCenter}` : ''}</p>
+					{/if}
+					{#if day.times.length}<p class="num text-sm text-ink-2">{timeRangeLabel(day.times)}</p>{/if}
+					{#if dayHours(day)}<p class="num text-[0.8125rem] text-ink-3">{dayHours(day)}</p>{/if}
+				</li>
+			{/each}
+		</ul>
+
+		<div class="rounded-xl bg-surface-2 px-3 py-2.5">
+			<div class="flex items-baseline justify-between gap-2 font-semibold">
+				<span>Gesamtstunden</span><span class="num">{hoursLabel(t.total) || '0'} Std.</span>
+			</div>
+			{#if sumHours}<p class="num text-[0.8125rem] text-ink-2">{sumHours}</p>{/if}
+		</div>
+
+		<dl class="grid grid-cols-[6rem_1fr] gap-x-4 gap-y-1 text-sm">
+			<dt class="text-ink-3">VAZ</dt>
+			<dd class="num">{[sheet.vaz, sheet.vazPercent ? `${hoursLabel(sheet.vazPercent)} %` : ''].filter(Boolean).join(' · ') || '–'}</dd>
+			<dt class="text-ink-3">Auslöse</dt>
+			<dd class="num">
+				{[sheet.allowanceDays ? `${hoursLabel(sheet.allowanceDays)} Tage` : '', sheet.allowanceAmount ? `${hoursLabel(sheet.allowanceAmount)} €` : '']
+					.filter(Boolean)
+					.join(' · ') || '–'}
+			</dd>
+			{#if sheet.note}
+				<dt class="text-ink-3">Notiz</dt>
+				<dd>{sheet.note}</dd>
+			{/if}
+		</dl>
+
+		<div class="flex flex-col gap-3">
+			{@render signed('Unterschrift Vorarbeiter', sheet.releaseSignature, releaser, sheet.releasedAt)}
+			{@render signed('überprüft', checked ? sheet.checkSignature : null, checker, sheet.checkedAt)}
+		</div>
 	</div>
 </PrintSheet>
 
@@ -390,6 +477,19 @@
 			color: #000;
 			--rahmen: #000;
 			font-size: 10pt;
+		}
+	}
+
+	/* Am Handy die lesbare Fassung statt des Vordrucks – beim Drucken nie */
+	.handy {
+		display: none;
+	}
+	@media screen and (max-width: 700px) {
+		.form {
+			display: none;
+		}
+		.handy {
+			display: block;
 		}
 	}
 </style>

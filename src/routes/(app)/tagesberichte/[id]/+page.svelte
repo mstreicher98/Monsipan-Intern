@@ -4,6 +4,7 @@
 	import ArrowLeft from '@lucide/svelte/icons/arrow-left';
 	import Printer from '@lucide/svelte/icons/printer';
 	import FileText from '@lucide/svelte/icons/file-text';
+	import PdfButton from '$lib/components/PdfButton.svelte';
 	import Plus from '@lucide/svelte/icons/plus';
 	import X from '@lucide/svelte/icons/x';
 	import Check from '@lucide/svelte/icons/check';
@@ -72,7 +73,7 @@
 		<span class="badge {report.status === 'abgeschlossen' ? 'badge-ok' : ''}">
 			{report.status === 'abgeschlossen' ? 'Abgeschlossen' : 'In Arbeit'}
 		</span>
-		<a href="/tagesberichte/{report.id}/pdf" class="btn btn-secondary" download><FileText size={18} aria-hidden="true" />PDF</a>
+		<PdfButton href="/tagesberichte/{report.id}/pdf"><FileText size={18} aria-hidden="true" />PDF</PdfButton>
 		<a href="/tagesberichte/{report.id}/druck" class="btn btn-secondary"><Printer size={18} aria-hidden="true" />Drucken</a>
 	</div>
 </div>

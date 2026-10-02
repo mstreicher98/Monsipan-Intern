@@ -29,6 +29,7 @@
 	title="Tagesbericht {report.number}"
 	facts={[dayLabel(report.date), report.road, report.site, report.partyName ?? ''].filter(Boolean)}
 	back="/tagesberichte/{report.id}"
+	pdf="/tagesberichte/{report.id}/pdf"
 >
 	<table class="mt-4 w-full border-collapse text-[0.8125rem]">
 		<thead>

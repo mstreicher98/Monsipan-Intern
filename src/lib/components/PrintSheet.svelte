@@ -3,7 +3,11 @@
 	import { page } from '$app/state';
 	import Printer from '@lucide/svelte/icons/printer';
 	import ArrowLeft from '@lucide/svelte/icons/arrow-left';
+	import FileText from '@lucide/svelte/icons/file-text';
+	import PdfButton from '$lib/components/PdfButton.svelte';
 	import { dateTime } from '$lib/format';
+	import { inNativeApp, nativePlugin, printPage } from '$lib/native';
+	import { isIOS } from '$lib/pdf-download';
 
 	interface Props {
 		title: string;
@@ -13,23 +17,37 @@
 		notice?: string | null;
 		/** Zurück zur Liste */
 		back: string;
+		/** Dasselbe als PDF – am Handy der sichere Weg zum Speichern und Drucken */
+		pdf?: string;
 		/** Ohne Standardkopf – für Formulare mit eigenem Briefkopf (z. B. Lohnzettel) */
 		bare?: boolean;
 		children: Snippet;
 	}
-	let { title, facts = [], notice = null, back, bare = false, children }: Props = $props();
+	let { title, facts = [], notice = null, back, pdf, bare = false, children }: Props = $props();
 
 	const printed = new Date();
 
+	/** Hinweis je nach Gerät – erst im Browser bekannt */
+	let hint = $state('Öffnet sich das Druckfenster nicht von selbst, hier klicken.');
+	/** Ältere App ohne Druck-Plugin: Drucken geht dort gar nicht */
+	let canPrint = $state(true);
+
 	onMount(() => {
+		if (inNativeApp() && !nativePlugin()) {
+			canPrint = false;
+			hint = pdf ? 'Diese App-Version kann noch nicht drucken – bitte die App aktualisieren oder das PDF nehmen.' : 'Diese App-Version kann noch nicht drucken – bitte die App aktualisieren.';
+		} else if (isIOS() && pdf) {
+			hint = 'Am iPhone/iPad: Kommt kein Druckfenster, „PDF“ tippen und im Teilen-Menü „Drucken“ wählen.';
+		}
+
 		// Mit ?nodruck=1 lässt sich die Ansicht ohne Druckfenster anschauen
-		if (page.url.searchParams.has('nodruck')) return;
+		if (page.url.searchParams.has('nodruck') || !canPrint) return;
 		// Erst drucken, wenn die Schriften geladen sind – sonst stimmen die Umbrüche nicht
 		let done = false;
 		const go = () => {
 			if (done) return;
 			done = true;
-			window.print();
+			printPage();
 		};
 		const timer = setTimeout(go, 800);
 		document.fonts?.ready.then(() => setTimeout(go, 120));
@@ -38,9 +56,14 @@
 </script>
 
 <div class="mb-4 flex flex-wrap items-center gap-2 print:hidden">
-	<a href={back} class="btn btn-secondary btn-sm"><ArrowLeft size={16} aria-hidden="true" />Zurück zur Liste</a>
-	<button class="btn btn-primary btn-sm" onclick={() => window.print()}><Printer size={16} aria-hidden="true" />Drucken</button>
-	<p class="text-sm text-ink-3">Öffnet sich das Druckfenster nicht von selbst, hier klicken.</p>
+	<a href={back} class="btn btn-secondary btn-sm"><ArrowLeft size={16} aria-hidden="true" />Zurück</a>
+	{#if canPrint}
+		<button class="btn btn-primary btn-sm" onclick={printPage}><Printer size={16} aria-hidden="true" />Drucken</button>
+	{/if}
+	{#if pdf}
+		<PdfButton href={pdf} class="btn btn-secondary btn-sm"><FileText size={16} aria-hidden="true" />PDF</PdfButton>
+	{/if}
+	<p class="basis-full text-sm text-ink-3 sm:basis-auto">{hint}</p>
 </div>
 
 <div class="print-sheet card p-5 lg:p-6">
