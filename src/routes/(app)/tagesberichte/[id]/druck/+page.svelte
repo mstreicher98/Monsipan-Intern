@@ -256,24 +256,26 @@
 		height: 20mm;
 		display: flex;
 		flex-direction: column;
-		justify-content: flex-end;
-		padding: 0 2mm 1mm 0;
+		/* Oben ausgerichtet: was nicht ganz hineinpasst, ragt nach unten statt über den Seitenrand */
+		justify-content: flex-start;
+		padding: 0 2mm 0 0;
 		border-right: 1px solid var(--rahmen);
 		border-bottom: 1px solid var(--rahmen);
 		font-size: 8.5pt;
-		line-height: 1.2;
+		line-height: 1.12;
 	}
 	.marke {
 		font-size: 12.5pt;
+		line-height: 1;
 		letter-spacing: 0.62em;
-		margin-bottom: 0.6mm;
+		margin-bottom: 0.8mm;
 	}
 	.zeile {
 		white-space: nowrap;
 	}
 	.titel {
 		position: absolute;
-		top: -1mm;
+		top: 0;
 		left: 38.6%;
 		margin: 0;
 		font-family: inherit;
