@@ -22,7 +22,7 @@
 	}
 </script>
 
-<!-- pt-[env(...)]: in der App liegt die Seite unter der Statusleiste -->
+<!-- Abstand oben um safe-area-inset-top: in der App liegt die Seite unter der Statusleiste -->
 <header class="no-print sticky top-0 z-20 border-b border-line bg-bg/85 pt-[env(safe-area-inset-top)] backdrop-blur-lg lg:border-b-0">
 	<div class="flex h-16 items-center gap-3 px-4 sm:px-6 lg:px-8">
 		<a href="/" class="rounded-lg lg:hidden" aria-label="Zur Übersicht"><Logo /></a>
