@@ -222,7 +222,7 @@ zum Papierblock.
 
 Den Link kann man kopieren, am Handy teilen (WhatsApp, Mail-App …) oder direkt aus der App
 per E-Mail schicken – dafür muss der Mailversand (SMTP) eingerichtet sein. Die Seite des
-Kunden (`/bericht/<link>`) braucht keine Anmeldung; der Link besteht aus 128 Bit Zufall,
+Kunden (`/bericht/<link>`) zeigt den Bericht im Aufbau des Vordrucks (am Handy verkleinert, umschaltbar auf eine Liste) und braucht keine Anmeldung; der Link besteht aus 128 Bit Zufall,
 wird von Suchmaschinen nicht erfasst und zeigt weder Kostenstelle noch Notiz – beides
 fehlt auch im PDF für den Kunden. Ist der Bericht gerade wieder geöffnet, steht dort nur
 „wird gerade überarbeitet".

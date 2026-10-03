@@ -5,10 +5,18 @@
 	import PenLine from '@lucide/svelte/icons/pen-line';
 	import PdfButton from '$lib/components/PdfButton.svelte';
 	import SignaturePad from '$lib/modules/stunden/components/SignaturePad.svelte';
+	import ReportSheet from '$lib/modules/tagesberichte/components/ReportSheet.svelte';
 	import ReportSummary from '$lib/modules/tagesberichte/components/ReportSummary.svelte';
 	import { dateTime } from '$lib/format';
 
 	let { data, form } = $props();
+
+	/** Vordruck oder Liste – die Liste ist am Handy ohne Zoomen lesbar */
+	let view = $state<'formular' | 'liste'>('formular');
+	/** Der Vordruck ist für 200 mm (≈ 756 px) gebaut; schmalere Flächen verkleinern ihn */
+	const SHEET_PX = (200 / 25.4) * 96;
+	let paperWidth = $state(0);
+	const scale = $derived(paperWidth ? Math.min(1, paperWidth / SHEET_PX) : 1);
 
 	// svelte-ignore state_referenced_locally
 	let name = $state(form && 'name' in form ? String(form.name ?? '') : '');
@@ -44,9 +52,37 @@
 		<p class="mt-1 text-ink-2">Bitte prüfen Sie den Bericht und unterschreiben Sie unten für den Auftraggeber. Danach können Sie ihn als PDF herunterladen.</p>
 	{/if}
 
-	<section class="card mt-4 p-4 sm:p-5">
-		<ReportSummary report={data.report} internal={false} />
-	</section>
+	<div class="mt-4 flex flex-wrap items-center justify-between gap-2">
+		<div class="inline-flex rounded-xl border border-line bg-surface p-1" role="tablist" aria-label="Ansicht">
+			{#each [['formular', 'Formular'], ['liste', 'Liste']] as [key, label] (key)}
+				<button
+					type="button"
+					role="tab"
+					aria-selected={view === key}
+					class="rounded-lg px-3.5 py-1.5 text-sm font-medium transition-colors {view === key ? 'bg-ink text-surface' : 'text-ink-2 hover:bg-surface-3'}"
+					onclick={() => (view = key as 'formular' | 'liste')}
+				>
+					{label}
+				</button>
+			{/each}
+		</div>
+		{#if view === 'formular' && scale < 0.9}<p class="text-[0.8125rem] text-ink-3">Mit zwei Fingern vergrößern</p>{/if}
+	</div>
+
+	{#if view === 'formular'}
+		<!-- Der Vordruck als weißes Blatt; ist der Bildschirm schmaler, wird er verkleinert statt umgebrochen -->
+		<div class="papier mt-3">
+			<div bind:clientWidth={paperWidth}>
+				<div class="papier-blatt" style:zoom={scale}>
+					<ReportSheet report={data.report} internal={false} />
+				</div>
+			</div>
+		</div>
+	{:else}
+		<section class="card mt-3 p-4 sm:p-5">
+			<ReportSummary report={data.report} internal={false} />
+		</section>
+	{/if}
 
 	{#if !data.signed}
 		<form
@@ -76,3 +112,21 @@
 		</form>
 	{/if}
 {/if}
+
+<style>
+	/* Weißes Blatt wie das PDF – unabhängig vom hellen oder dunklen Design */
+	.papier {
+		--c-ink: #1d2127;
+		--c-line-strong: #1d2127;
+		color: #1d2127;
+		background: #fff;
+		border: 1px solid var(--c-line);
+		border-radius: var(--radius-card);
+		box-shadow: var(--shadow-1);
+		padding: clamp(0.5rem, 3vw, 1.75rem);
+		overflow: hidden;
+	}
+	.papier-blatt {
+		width: 200mm;
+	}
+</style>
