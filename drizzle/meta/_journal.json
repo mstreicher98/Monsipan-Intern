@@ -141,6 +141,20 @@
       "when": 1791045983285,
       "tag": "0019_tagesbericht_alte_spalten_weg",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "6",
+      "when": 1791062363364,
+      "tag": "0020_tagesbericht_freigabe_kunde",
+      "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "6",
+      "when": 1791062379051,
+      "tag": "0021_tagesbericht_abschluss_weg",
+      "breakpoints": true
     }
   ]
 }

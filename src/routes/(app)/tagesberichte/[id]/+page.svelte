@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { pageTitle } from '$lib/app';
 	import { enhance } from '$app/forms';
-	import { tick } from 'svelte';
+	import { onMount, tick } from 'svelte';
 	import ArrowLeft from '@lucide/svelte/icons/arrow-left';
 	import Printer from '@lucide/svelte/icons/printer';
 	import FileText from '@lucide/svelte/icons/file-text';
@@ -12,6 +12,12 @@
 	import LockOpen from '@lucide/svelte/icons/lock-open';
 	import PenLine from '@lucide/svelte/icons/pen-line';
 	import Trash from '@lucide/svelte/icons/trash';
+	import Undo from '@lucide/svelte/icons/undo-2';
+	import LinkIcon from '@lucide/svelte/icons/link';
+	import Copy from '@lucide/svelte/icons/copy';
+	import Share from '@lucide/svelte/icons/share-2';
+	import Send from '@lucide/svelte/icons/send';
+	import CircleCheck from '@lucide/svelte/icons/circle-check';
 	import Dialog from '$lib/components/Dialog.svelte';
 	import SignaturePad from '$lib/modules/stunden/components/SignaturePad.svelte';
 	import { SIGNATURE_HEIGHT, SIGNATURE_WIDTH } from '$lib/modules/stunden/signature';
@@ -58,8 +64,14 @@
 	let busy = $state(false);
 	let confirmDelete = $state(false);
 	let confirmReopen = $state(false);
-	let closeOpen = $state(false);
+	let confirmUncheck = $state(false);
+	let releaseOpen = $state(false);
+	let checkOpen = $state(false);
 	let signature = $state('');
+	let sending = $state(false);
+	/** Teilen gibt es vor allem am Handy – erst im Browser bekannt */
+	let canShare = $state(false);
+	onMount(() => (canShare = typeof navigator.share === 'function'));
 	let confirmColumn = $state<number | null>(null);
 	let tableBox = $state<HTMLDivElement>();
 
@@ -127,8 +139,62 @@
 		return Number.isFinite(n) ? n : 0;
 	};
 	const sums = $derived(positions.map((_, c) => rows.reduce((s, r) => s + parse(r.q[c] ?? ''), 0)));
-	const closer = $derived([report.closedByFirst, report.closedByLast].filter(Boolean).join(' '));
+
+	const name = (first: string | null, last: string | null) => [first, last].filter(Boolean).join(' ');
+	const releaser = $derived(name(report.releasedByFirst, report.releasedByLast));
+	const checker = $derived(name(report.checkedByFirst, report.checkedByLast));
+
+	const STATUS: Record<string, { label: string; tone: string; hint: string }> = {
+		entwurf: { label: 'In Arbeit', tone: '', hint: '' },
+		freigegeben: { label: 'Freigegeben', tone: 'badge-info', hint: 'Freigegeben – wartet auf die Prüfung.' },
+		geprueft: { label: 'Geprüft', tone: 'badge-warn', hint: 'Geprüft – wartet auf die Unterschrift des Kunden.' },
+		abgeschlossen: { label: 'Abgeschlossen', tone: 'badge-ok', hint: 'Vom Kunden unterschrieben und abgeschlossen.' }
+	};
+	const status = $derived(STATUS[report.status] ?? STATUS.entwurf);
+
+	/** Was beim Wieder öffnen verfällt – je nach Stand */
+	const reopenLoss = $derived(
+		report.status === 'abgeschlossen'
+			? 'Die Unterschriften der Freigabe und des Kunden verfallen. Der Kunde unterschreibt danach über denselben Link neu, sobald der Bericht wieder freigegeben und geprüft ist.'
+			: report.status === 'geprueft'
+				? 'Freigabe und Prüfung verfallen. Der Kunde kann erst wieder unterschreiben, wenn der Bericht neu freigegeben und geprüft ist.'
+				: 'Die Unterschrift der Freigabe verfällt – er muss danach neu freigegeben werden.'
+	);
+
+	async function copyLink() {
+		if (!data.customerUrl) return;
+		try {
+			await navigator.clipboard.writeText(data.customerUrl);
+			toast.success('Link kopiert');
+		} catch {
+			toast.info('Kopieren ging nicht – bitte den Link im Feld markieren und kopieren.');
+		}
+	}
+	async function shareLink() {
+		if (!data.customerUrl) return;
+		try {
+			await navigator.share({
+				title: `Tagesbericht ${report.number}`.trim(),
+				text: report.status === 'abgeschlossen' ? 'Ihr unterschriebener Tagesbericht:' : 'Bitte den Tagesbericht ansehen und unterschreiben:',
+				url: data.customerUrl
+			});
+		} catch {
+			/* abgebrochen */
+		}
+	}
 </script>
+
+{#snippet signed(label: string, path: string | null, text: string)}
+	<div>
+		<p class="text-[0.75rem] font-medium tracking-wide text-ink-3 uppercase">{label}</p>
+		{#if path}
+			<svg viewBox="0 0 {SIGNATURE_WIDTH} {SIGNATURE_HEIGHT}" class="mt-1.5 h-14 w-40 rounded-lg bg-white" role="img" aria-label="Unterschrift – {label}">
+				<path d={path} fill="none" stroke="#1d2127" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" />
+			</svg>
+		{/if}
+		<p class="mt-1 text-sm text-ink-2">{text}</p>
+	</div>
+{/snippet}
 
 <svelte:head><title>{pageTitle(`Tagesbericht ${report.number || ''}`.trim())}</title></svelte:head>
 
@@ -144,8 +210,8 @@
 		</p>
 	</div>
 	<div class="flex flex-wrap items-center gap-2">
-		<span class="badge {report.status === 'abgeschlossen' ? 'badge-ok' : ''}">
-			{report.status === 'abgeschlossen' ? 'Abgeschlossen' : 'In Arbeit'}
+		<span class="badge {status.tone}">
+			{#if report.status === 'abgeschlossen'}<CircleCheck size={13} aria-hidden="true" />{/if}{status.label}
 		</span>
 		<PdfButton href="/tagesberichte/{report.id}/pdf"><FileText size={18} aria-hidden="true" />PDF</PdfButton>
 		<a href="/tagesberichte/{report.id}/druck" class="btn btn-secondary"><Printer size={18} aria-hidden="true" />Drucken</a>
@@ -156,17 +222,89 @@
 	<p class="card mb-4 border-danger/40 p-3 text-sm text-danger" role="alert">{form.message}</p>
 {/if}
 
-{#if report.status === 'abgeschlossen' && report.closedAt}
-	<section class="card mb-4 flex flex-wrap items-center gap-4 p-4">
-		{#if report.closeSignature}
-			<svg viewBox="0 0 {SIGNATURE_WIDTH} {SIGNATURE_HEIGHT}" class="h-16 w-48 shrink-0 rounded-lg bg-white" role="img" aria-label="Unterschrift {closer}">
-				<path d={report.closeSignature} fill="none" stroke="#1d2127" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" />
-			</svg>
-		{/if}
-		<p class="text-sm text-ink-2">
-			Abgeschlossen{report.closeSignature ? ' und unterschrieben' : ''}{closer ? ' von ' : ''}<span class="font-medium text-ink">{closer}</span>
-			am {dateTime(report.closedAt)} – im Ausdruck bei „Für den Auftragnehmer".
+{#if report.status !== 'entwurf'}
+	<!-- Wer wann freigegeben, geprüft und (als Kunde) unterschrieben hat -->
+	<section class="card mb-4 grid gap-4 p-4 lg:grid-cols-3 lg:p-5">
+		{@render signed(
+			'Freigabe · für den Auftragnehmer',
+			report.releaseSignature,
+			report.releasedAt ? `${releaser || 'Unbekannt'}, ${dateTime(report.releasedAt)}` : '–'
+		)}
+		{@render signed('Prüfung', null, report.checkedAt ? `${checker || 'Unbekannt'}, ${dateTime(report.checkedAt)}` : 'noch nicht geprüft')}
+		{@render signed(
+			'Kunde · für den Auftraggeber',
+			report.customerSignature,
+			report.customerSignedAt
+				? `${report.customerName ?? ''}, ${dateTime(report.customerSignedAt)}`
+				: report.status === 'geprueft'
+					? 'wartet auf die Unterschrift'
+					: 'nach der Prüfung'
+		)}
+	</section>
+{/if}
+
+{#if data.canLink}
+	<section class="card mb-4 p-4 lg:p-5">
+		<h2 class="flex items-center gap-2 text-lg"><LinkIcon size={18} aria-hidden="true" />Link für den Kunden</h2>
+		<p class="mt-1 text-sm text-ink-2">
+			{report.status === 'abgeschlossen'
+				? 'Der Kunde hat unterschrieben. Über denselben Link kann er den fertigen Bericht jederzeit wieder als PDF laden.'
+				: 'Über diesen Link sieht der Kunde den Bericht, trägt seinen Namen ein und unterschreibt. Danach kann er ihn jederzeit als PDF laden – der Link bleibt dauerhaft gleich.'}
 		</p>
+		{#if data.customerUrl}
+			<div class="mt-3 flex flex-wrap gap-2">
+				<input
+					class="input min-w-0 flex-[1_1_18rem] font-mono text-sm"
+					readonly
+					value={data.customerUrl}
+					onfocus={(e) => e.currentTarget.select()}
+					aria-label="Link für den Kunden"
+				/>
+				<button type="button" class="btn btn-secondary" onclick={copyLink}><Copy size={18} aria-hidden="true" />Kopieren</button>
+				{#if canShare}
+					<button type="button" class="btn btn-secondary" onclick={shareLink}><Share size={18} aria-hidden="true" />Teilen</button>
+				{/if}
+			</div>
+			{#if data.mailConfigured}
+				<form
+					method="POST"
+					action="?/sendLink"
+					class="mt-3 flex flex-wrap items-end gap-2"
+					use:enhance={() => {
+						sending = true;
+						return async ({ result, update }) => {
+							sending = false;
+							if (result.type === 'success') toast.success('E-Mail an den Kunden verschickt');
+							await update({ reset: false });
+						};
+					}}
+				>
+					<label class="block min-w-0 flex-[1_1_16rem]">
+						<span class="field-label">Per E-Mail an den Kunden</span>
+						<input
+							class="input"
+							type="email"
+							name="email"
+							required
+							maxlength="200"
+							autocomplete="email"
+							placeholder="name@firma.at"
+							value={(form && 'email' in form && form.email) || report.customerEmail || ''}
+						/>
+					</label>
+					<button class="btn btn-secondary" disabled={sending}><Send size={18} aria-hidden="true" />{sending ? 'Wird gesendet …' : 'Senden'}</button>
+				</form>
+			{:else}
+				<p class="field-hint mt-2">Der E-Mail-Versand ist nicht eingerichtet – bitte den Link kopieren oder teilen.</p>
+			{/if}
+			{#if report.customerLinkSentAt && report.customerEmail}
+				<p class="field-hint mt-2">Zuletzt am {dateTime(report.customerLinkSentAt)} an {report.customerEmail} geschickt.</p>
+			{/if}
+		{:else}
+			<form method="POST" action="?/link" class="mt-3" use:enhance>
+				<button class="btn btn-secondary"><LinkIcon size={18} aria-hidden="true" />Link erzeugen</button>
+			</form>
+		{/if}
 	</section>
 {/if}
 
@@ -176,15 +314,18 @@
 	action="?/save"
 	use:enhance={({ action }) => {
 		busy = true;
-		const closing = action.search.includes('close');
+		const step = action.search.includes('release') ? 'release' : action.search.includes('check') ? 'check' : 'save';
 		return async ({ result, update }) => {
 			busy = false;
 			if (result.type === 'success') {
-				toast.success(closing ? 'Bericht abgeschlossen' : 'Gespeichert');
-				if (closing) {
-					closeOpen = false;
+				if (step === 'release') {
+					toast.success('Bericht freigegeben');
+					releaseOpen = false;
 					signature = '';
-				}
+				} else if (step === 'check') {
+					toast.success('Bericht geprüft', 'Der Link für den Kunden ist bereit.');
+					checkOpen = false;
+				} else toast.success('Gespeichert');
 			}
 			await update({ reset: false });
 		};
@@ -432,33 +573,39 @@
 		</div>
 	</fieldset>
 
-	{#if data.editable && report.status === 'entwurf'}
+	{#if data.editable}
 		<div class="card sticky bottom-24 mt-4 flex flex-wrap items-center gap-2 p-3 lg:bottom-6">
 			<button class="btn btn-primary" disabled={busy}>{busy ? 'Wird gespeichert …' : 'Speichern'}</button>
-			{#if data.canClose}
-				<button type="button" class="btn btn-secondary" disabled={busy} onclick={() => (closeOpen = true)}>
-					<Check size={18} aria-hidden="true" />Abschließen
+			{#if data.canRelease}
+				<button type="button" class="btn btn-secondary" disabled={busy} onclick={() => (releaseOpen = true)}>
+					<PenLine size={18} aria-hidden="true" />Freigeben
 				</button>
 			{/if}
-			<span class="ml-auto text-sm text-ink-2">{rows.length} Zeilen · {positions.length} LB-Pos.</span>
+			{#if data.canCheck}
+				<button type="button" class="btn btn-secondary" disabled={busy} onclick={() => (checkOpen = true)}>
+					<Check size={18} aria-hidden="true" />Geprüft
+				</button>
+			{/if}
+			<span class="ml-auto text-sm text-ink-2">
+				{report.status === 'freigegeben' ? 'Freigegeben – du kannst vor dem Prüfen noch korrigieren.' : `${rows.length} Zeilen · ${positions.length} LB-Pos.`}
+			</span>
 		</div>
-	{:else if data.editable}
-		<div class="card sticky bottom-24 mt-4 flex flex-wrap items-center gap-2 p-3 lg:bottom-6">
-			<button class="btn btn-primary" disabled={busy}>{busy ? 'Wird gespeichert …' : 'Speichern'}</button>
-			<span class="text-sm text-ink-2">Der Bericht ist abgeschlossen – du darfst ihn trotzdem ändern.</span>
-		</div>
-	{:else if report.status === 'abgeschlossen'}
-		<p class="field-hint mt-4">Dieser Bericht ist abgeschlossen. Zum Ändern muss er wieder geöffnet werden.</p>
 	{:else}
-		<p class="field-hint mt-4">Diesen Bericht kannst du nur ansehen.</p>
+		<p class="field-hint mt-4">
+			{status.hint || 'Diesen Bericht kannst du nur ansehen.'}
+			{#if report.status !== 'entwurf'}Ändern geht erst nach dem Wieder öffnen.{/if}
+		</p>
 	{/if}
 </form>
 
 <div class="mt-4 flex flex-wrap gap-2">
-	{#if report.status === 'entwurf' && data.canClose && !data.editable}
-		<button type="button" class="btn btn-secondary" onclick={() => (closeOpen = true)}><Check size={18} aria-hidden="true" />Abschließen</button>
+	{#if data.canCheck && !data.editable}
+		<button type="button" class="btn btn-secondary" onclick={() => (checkOpen = true)}><Check size={18} aria-hidden="true" />Geprüft</button>
 	{/if}
-	{#if report.status === 'abgeschlossen' && data.canClose}
+	{#if data.canUncheck}
+		<button type="button" class="btn btn-ghost" onclick={() => (confirmUncheck = true)}><Undo size={18} aria-hidden="true" />Zurück auf freigegeben</button>
+	{/if}
+	{#if data.canReopen}
 		<button type="button" class="btn btn-ghost" onclick={() => (confirmReopen = true)}><LockOpen size={18} aria-hidden="true" />Wieder öffnen</button>
 	{/if}
 	{#if report.status === 'entwurf' && data.editable}
@@ -468,29 +615,60 @@
 	{/if}
 </div>
 
-<Dialog bind:open={closeOpen} title="Bericht abschließen">
+<Dialog bind:open={releaseOpen} title="Bericht freigeben">
 	<p class="text-ink-2">
-		Mit deiner Unterschrift schließt du den Bericht {report.number} ab. Sie steht danach im Ausdruck bei
-		<span class="font-medium text-ink">„Für den Auftragnehmer"</span>. Was im Formular steht, wird vorher gespeichert.
+		Mit deiner Unterschrift gibst du den Bericht {report.number} frei. Sie steht im Ausdruck bei
+		<span class="font-medium text-ink">„Für den Auftragnehmer"</span>. Danach wird er geprüft – ändern kannst du ihn dann nicht mehr.
+		Was im Formular steht, wird vorher gespeichert.
 	</p>
 	<div class="mt-4">
 		<SignaturePad bind:path={signature} />
 	</div>
 	{#if form && 'message' in form && form.message}<p class="field-error" role="alert">{form.message}</p>{/if}
 	<div class="mt-4 flex flex-wrap justify-end gap-2">
-		<button type="button" class="btn btn-ghost" onclick={() => (closeOpen = false)}>Abbrechen</button>
-		<button type="submit" form="bericht" formaction="?/close" class="btn btn-primary" disabled={busy || !signature}>
-			<PenLine size={18} aria-hidden="true" />Unterschreiben und abschließen
+		<button type="button" class="btn btn-ghost" onclick={() => (releaseOpen = false)}>Abbrechen</button>
+		<button type="submit" form="bericht" formaction="?/release" class="btn btn-primary" disabled={busy || !signature}>
+			<PenLine size={18} aria-hidden="true" />Unterschreiben und freigeben
 		</button>
 	</div>
 </Dialog>
 
-<Dialog bind:open={confirmReopen} title="Bericht wieder öffnen?">
+<Dialog bind:open={checkOpen} title="Bericht prüfen">
 	<p class="text-ink-2">
-		Der Bericht {report.number} wird wieder bearbeitbar.{report.closeSignature
-			? ' Die Unterschrift verfällt – beim nächsten Abschließen muss neu unterschrieben werden.'
-			: ''}
+		Der Bericht {report.number} wird als geprüft markiert{data.editable ? ' – deine Änderungen werden vorher gespeichert' : ''}. Danach
+		kannst du dem Kunden den Link zum Unterschreiben schicken.
 	</p>
+	{#if form && 'message' in form && form.message}<p class="field-error" role="alert">{form.message}</p>{/if}
+	<div class="mt-5 flex flex-wrap justify-end gap-2">
+		<button type="button" class="btn btn-ghost" onclick={() => (checkOpen = false)}>Abbrechen</button>
+		<button type="submit" form="bericht" formaction="?/check" class="btn btn-primary" disabled={busy}>
+			<Check size={18} aria-hidden="true" />Als geprüft markieren
+		</button>
+	</div>
+</Dialog>
+
+<Dialog bind:open={confirmUncheck} title="Zurück auf freigegeben?">
+	<p class="text-ink-2">
+		Die Prüfung von Bericht {report.number} wird zurückgenommen, die Freigabe samt Unterschrift bleibt. Bis er wieder geprüft ist,
+		kann der Kunde nicht unterschreiben.
+	</p>
+	<form
+		method="POST"
+		action="?/uncheck"
+		class="mt-5 flex justify-end gap-2"
+		use:enhance={() => async ({ result, update }) => {
+			confirmUncheck = false;
+			if (result.type === 'success') toast.info('Zurück auf freigegeben');
+			await update();
+		}}
+	>
+		<button type="button" class="btn btn-ghost" onclick={() => (confirmUncheck = false)}>Abbrechen</button>
+		<button class="btn btn-primary"><Undo size={18} aria-hidden="true" />Zurück auf freigegeben</button>
+	</form>
+</Dialog>
+
+<Dialog bind:open={confirmReopen} title="Bericht wieder öffnen?">
+	<p class="text-ink-2">Der Bericht {report.number} wird wieder bearbeitbar. {reopenLoss}</p>
 	<form
 		method="POST"
 		action="?/reopen"

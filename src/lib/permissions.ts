@@ -75,7 +75,14 @@ export const DEFAULT_PERMISSIONS = {
 
 	// Tagesberichte
 	'tagesberichte.erfassen': ['admin', 'geschaeftsfuehrer', 'bauleiter', 'partiefuehrer'],
-	'tagesberichte.abschliessen': ['admin', 'geschaeftsfuehrer', 'bauleiter'],
+	'tagesberichte.freigeben': ['admin', 'geschaeftsfuehrer', 'bauleiter', 'partiefuehrer'],
+	'tagesberichte.pruefen': ['admin', 'geschaeftsfuehrer', 'bauleiter', 'buchhaltung'],
+	'tagesberichte.kundenlink': ['admin', 'geschaeftsfuehrer', 'bauleiter', 'buchhaltung'],
+	// Wieder öffnen je Status – den vom Kunden unterschriebenen Bericht nur die Leitung
+	'tagesberichte.oeffnen.freigegeben': ['admin', 'geschaeftsfuehrer', 'bauleiter', 'buchhaltung'],
+	'tagesberichte.oeffnen.geprueft': ['admin', 'geschaeftsfuehrer', 'bauleiter', 'buchhaltung'],
+	'tagesberichte.oeffnen.abgeschlossen': ['admin', 'geschaeftsfuehrer'],
+	'tagesberichte.pruefung.zuruecknehmen': ['admin', 'geschaeftsfuehrer', 'bauleiter', 'buchhaltung'],
 	'tagesberichte.alle.sehen': ['admin', 'geschaeftsfuehrer', 'bauleiter', 'buchhaltung', 'viewer'],
 
 	// Verwaltung
@@ -136,8 +143,30 @@ export const PERMISSION_GROUPS: { title: string; items: { key: Permission; label
 	{
 		title: 'Tagesberichte',
 		items: [
-			{ key: 'tagesberichte.erfassen', label: 'Erfassen' },
-			{ key: 'tagesberichte.abschliessen', label: 'Abschließen', hint: 'Bericht festschreiben' },
+			{ key: 'tagesberichte.erfassen', label: 'Erfassen', hint: 'Berichte der eigenen Partie anlegen und ausfüllen' },
+			{ key: 'tagesberichte.freigeben', label: 'Freigeben', hint: 'Bericht für den Auftragnehmer unterschreiben und einreichen' },
+			{ key: 'tagesberichte.pruefen', label: 'Prüfen', hint: 'Freigegebene Berichte korrigieren und als geprüft markieren' },
+			{ key: 'tagesberichte.kundenlink', label: 'Link an den Kunden', hint: 'Link zum Unterschreiben kopieren, teilen oder per E-Mail schicken' },
+			{
+				key: 'tagesberichte.oeffnen.freigegeben',
+				label: 'Freigegebene wieder öffnen',
+				hint: 'Bericht wieder änderbar machen – die Unterschrift der Freigabe verfällt'
+			},
+			{
+				key: 'tagesberichte.oeffnen.geprueft',
+				label: 'Geprüfte wieder öffnen',
+				hint: 'Bericht wieder änderbar machen – Freigabe und Prüfung verfallen'
+			},
+			{
+				key: 'tagesberichte.oeffnen.abgeschlossen',
+				label: 'Vom Kunden unterschriebene wieder öffnen',
+				hint: 'Auch die Unterschrift des Kunden verfällt – er unterschreibt danach über denselben Link neu'
+			},
+			{
+				key: 'tagesberichte.pruefung.zuruecknehmen',
+				label: 'Zurück auf freigegeben',
+				hint: 'Prüfung zurücknehmen, solange der Kunde noch nicht unterschrieben hat'
+			},
 			{ key: 'tagesberichte.alle.sehen', label: 'Alle sehen' }
 		]
 	},

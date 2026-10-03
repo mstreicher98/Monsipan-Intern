@@ -1,12 +1,15 @@
 /**
- * Tagesberichte: anlegen, lesen, speichern, abschließen (mit Unterschrift).
+ * Tagesberichte: anlegen, lesen, speichern und der Ablauf bis zur Unterschrift
+ * des Kunden – freigeben (mit Unterschrift für den Auftragnehmer), prüfen,
+ * Link an den Kunden, abgeschlossen sobald er unterschrieben hat.
  *
  * Wer kein Recht auf „alle sehen" hat, sieht die Berichte der eigenen Partie
  * und die selbst angelegten.
  */
-import { and, asc, desc, eq, inArray, like, or, sql } from 'drizzle-orm';
+import { randomBytes } from 'node:crypto';
+import { and, asc, desc, eq, inArray, like, or, sql, type SQL } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/sqlite-core';
-import { can } from '$lib/permissions';
+import { can, type Role } from '$lib/permissions';
 import { db } from '$lib/server/db';
 import {
 	categories,
@@ -25,8 +28,9 @@ import { MAX_MATERIALS, MAX_POSITIONS } from '../sheet';
 /** Zeilen, die ein neuer Bericht gleich mitbringt */
 const START_ROWS = 10;
 
-/** Wer abgeschlossen und unterschrieben hat */
-const closer = alias(users, 'closer');
+/** Wer freigegeben bzw. geprüft hat */
+const releaser = alias(users, 'releaser');
+const checker = alias(users, 'checker');
 
 /** Nur eigene bzw. Partie-Berichte, wenn das Recht auf alle fehlt */
 function scope(user: SessionUser) {
@@ -111,6 +115,16 @@ export async function createReport(user: SessionUser, data: { date: string; numb
 }
 
 export async function reportDetail(id: number) {
+	return loadReport(eq(dailyReports.id, id));
+}
+
+/** Für die Seite des Kunden: der Bericht zu seinem Link */
+export async function reportByToken(token: string) {
+	if (!/^[0-9a-f]{32}$/.test(token)) return null;
+	return loadReport(eq(dailyReports.customerToken, token));
+}
+
+async function loadReport(where: SQL) {
 	const report = await db
 		.select({
 			id: dailyReports.id,
@@ -126,20 +140,31 @@ export async function reportDetail(id: number) {
 			partyId: dailyReports.partyId,
 			partyName: parties.name,
 			createdBy: dailyReports.createdBy,
-			closedAt: dailyReports.closedAt,
-			closeSignature: dailyReports.closeSignature,
-			closedByFirst: closer.firstName,
-			closedByLast: closer.lastName,
+			releasedAt: dailyReports.releasedAt,
+			releaseSignature: dailyReports.releaseSignature,
+			releasedByFirst: releaser.firstName,
+			releasedByLast: releaser.lastName,
+			checkedAt: dailyReports.checkedAt,
+			checkedByFirst: checker.firstName,
+			checkedByLast: checker.lastName,
+			customerToken: dailyReports.customerToken,
+			customerName: dailyReports.customerName,
+			customerSignature: dailyReports.customerSignature,
+			customerSignedAt: dailyReports.customerSignedAt,
+			customerEmail: dailyReports.customerEmail,
+			customerLinkSentAt: dailyReports.customerLinkSentAt,
 			authorFirst: users.firstName,
 			authorLast: users.lastName
 		})
 		.from(dailyReports)
 		.leftJoin(parties, eq(parties.id, dailyReports.partyId))
 		.leftJoin(users, eq(users.id, dailyReports.createdBy))
-		.leftJoin(closer, eq(closer.id, dailyReports.closedBy))
-		.where(eq(dailyReports.id, id))
+		.leftJoin(releaser, eq(releaser.id, dailyReports.releasedBy))
+		.leftJoin(checker, eq(checker.id, dailyReports.checkedBy))
+		.where(where)
 		.get();
 	if (!report) return null;
+	const id = report.id;
 
 	const [positions, rows, materials] = await Promise.all([
 		db
@@ -280,16 +305,72 @@ export async function saveReport(id: number, data: SaveReport) {
 	});
 }
 
-/** Abschließen nimmt die Unterschrift mit, Wieder öffnen verwirft sie */
-export async function setReportStatus(id: number, status: 'entwurf' | 'abgeschlossen', userId: number, signature: string | null = null) {
+/* ------------------------------------------------------------- Ablauf */
+
+const NO_CHECK = { checkedBy: null, checkedAt: null };
+const NO_CUSTOMER = { customerName: null, customerSignature: null, customerSignedAt: null };
+
+/** Freigeben mit Unterschrift – sie steht im Ausdruck bei „Für den Auftragnehmer" */
+export async function releaseReport(id: number, userId: number, signature: string) {
 	await db
 		.update(dailyReports)
-		.set(
-			status === 'abgeschlossen'
-				? { status, closedBy: userId, closedAt: new Date(), closeSignature: signature, updatedAt: new Date() }
-				: { status, closedBy: null, closedAt: null, closeSignature: null, updatedAt: new Date() }
-		)
+		.set({ status: 'freigegeben', releasedBy: userId, releasedAt: new Date(), releaseSignature: signature, ...NO_CHECK, ...NO_CUSTOMER, updatedAt: new Date() })
+		.where(and(eq(dailyReports.id, id), eq(dailyReports.status, 'entwurf')));
+}
+
+/** Prüfen; dabei entsteht der Link für den Kunden, falls es noch keinen gibt */
+export async function checkReport(id: number, userId: number) {
+	await db
+		.update(dailyReports)
+		.set({ status: 'geprueft', checkedBy: userId, checkedAt: new Date(), updatedAt: new Date() })
+		.where(and(eq(dailyReports.id, id), eq(dailyReports.status, 'freigegeben')));
+	await ensureCustomerToken(id);
+}
+
+/** Prüfung zurücknehmen – die Freigabe samt Unterschrift bleibt */
+export async function undoCheck(id: number) {
+	await db
+		.update(dailyReports)
+		.set({ status: 'freigegeben', ...NO_CHECK, updatedAt: new Date() })
+		.where(and(eq(dailyReports.id, id), eq(dailyReports.status, 'geprueft')));
+}
+
+/**
+ * Wieder öffnen: zurück auf „in Arbeit", alle Unterschriften verfallen. Der
+ * Link des Kunden bleibt – er unterschreibt später über denselben neu.
+ */
+export async function reopenReport(id: number) {
+	await db
+		.update(dailyReports)
+		.set({ status: 'entwurf', releasedBy: null, releasedAt: null, releaseSignature: null, ...NO_CHECK, ...NO_CUSTOMER, updatedAt: new Date() })
 		.where(eq(dailyReports.id, id));
+}
+
+/** Link für den Kunden: 128 Bit Zufall, bleibt dauerhaft gleich */
+export async function ensureCustomerToken(id: number): Promise<string> {
+	const row = await db.select({ token: dailyReports.customerToken }).from(dailyReports).where(eq(dailyReports.id, id)).get();
+	if (row?.token) return row.token;
+	const token = randomBytes(16).toString('hex');
+	await db.update(dailyReports).set({ customerToken: token }).where(and(eq(dailyReports.id, id), sql`${dailyReports.customerToken} is null`));
+	const after = await db.select({ token: dailyReports.customerToken }).from(dailyReports).where(eq(dailyReports.id, id)).get();
+	return after?.token ?? token;
+}
+
+export async function markLinkSent(id: number, email: string) {
+	await db.update(dailyReports).set({ customerEmail: email, customerLinkSentAt: new Date() }).where(eq(dailyReports.id, id));
+}
+
+/**
+ * Der Kunde unterschreibt. Nur ein geprüfter Bericht nimmt die Unterschrift an –
+ * kommen zwei gleichzeitig, gewinnt die erste.
+ */
+export async function customerSign(id: number, name: string, signature: string): Promise<boolean> {
+	const done = await db
+		.update(dailyReports)
+		.set({ status: 'abgeschlossen', customerName: name, customerSignature: signature, customerSignedAt: new Date(), updatedAt: new Date() })
+		.where(and(eq(dailyReports.id, id), eq(dailyReports.status, 'geprueft')))
+		.returning({ id: dailyReports.id });
+	return done.length > 0;
 }
 
 export async function deleteReport(id: number) {
@@ -302,9 +383,24 @@ export function mayView(user: SessionUser, report: { createdBy: number | null; p
 	return !!user.partyId && user.partyId === report.partyId;
 }
 
+/**
+ * Ändern: in Arbeit wer erfassen darf, freigegeben nur noch wer prüft (um vor
+ * dem Prüfen zu korrigieren). Geprüfte und abgeschlossene Berichte nur nach
+ * dem Wieder öffnen.
+ */
 export function mayEdit(user: SessionUser, report: { createdBy: number | null; partyId: number | null; status: string }): boolean {
-	if (report.status === 'abgeschlossen') return can(user.role, 'tagesberichte.abschliessen');
-	return can(user.role, 'tagesberichte.erfassen') && mayView(user, report);
+	if (!mayView(user, report)) return false;
+	if (report.status === 'entwurf') return can(user.role, 'tagesberichte.erfassen');
+	if (report.status === 'freigegeben') return can(user.role, 'tagesberichte.pruefen');
+	return false;
+}
+
+/** Wieder öffnen hängt am Status – jeder hat sein eigenes Recht */
+export function mayReopen(role: Role, status: string): boolean {
+	if (status === 'freigegeben') return can(role, 'tagesberichte.oeffnen.freigegeben');
+	if (status === 'geprueft') return can(role, 'tagesberichte.oeffnen.geprueft');
+	if (status === 'abgeschlossen') return can(role, 'tagesberichte.oeffnen.abgeschlossen');
+	return false;
 }
 
 /**

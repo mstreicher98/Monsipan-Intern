@@ -8,7 +8,12 @@ import { createdAt } from './common';
 import { parties, users } from './core';
 import { products } from './lager';
 
-export const REPORT_STATUS = ['entwurf', 'abgeschlossen'] as const;
+/**
+ * Ablauf: in Arbeit → freigegeben (Partieführer unterschreibt für den
+ * Auftragnehmer) → geprüft (Bauleitung/Büro) → abgeschlossen, sobald der Kunde
+ * über seinen Link unterschrieben hat.
+ */
+export const REPORT_STATUS = ['entwurf', 'freigegeben', 'geprueft', 'abgeschlossen'] as const;
 export type ReportStatus = (typeof REPORT_STATUS)[number];
 
 export const dailyReports = sqliteTable(
@@ -31,14 +36,32 @@ export const dailyReports = sqliteTable(
 		status: text('status', { enum: REPORT_STATUS }).notNull().default('entwurf'),
 		partyId: integer('party_id').references(() => parties.id, { onDelete: 'set null' }),
 		createdBy: integer('created_by').references(() => users.id, { onDelete: 'set null' }),
-		closedBy: integer('closed_by').references(() => users.id, { onDelete: 'set null' }),
-		closedAt: integer('closed_at', { mode: 'timestamp_ms' }),
-		/** Unterschrift beim Abschließen (SVG-Pfad) – steht im Ausdruck bei „Für den Auftragnehmer" */
-		closeSignature: text('close_signature'),
+		/** Freigabe mit Unterschrift (SVG-Pfad) – steht im Ausdruck bei „Für den Auftragnehmer" */
+		releasedBy: integer('released_by').references(() => users.id, { onDelete: 'set null' }),
+		releasedAt: integer('released_at', { mode: 'timestamp_ms' }),
+		releaseSignature: text('release_signature'),
+		checkedBy: integer('checked_by').references(() => users.id, { onDelete: 'set null' }),
+		checkedAt: integer('checked_at', { mode: 'timestamp_ms' }),
+		/**
+		 * Dauerhafter Link für den Kunden (/bericht/<token>): dort unterschreibt er
+		 * und lädt den fertigen Bericht. Bleibt beim Wieder öffnen erhalten.
+		 */
+		customerToken: text('customer_token'),
+		/** Unterschrift des Kunden – steht im Ausdruck bei „Für den Auftraggeber" */
+		customerName: text('customer_name'),
+		customerSignature: text('customer_signature'),
+		customerSignedAt: integer('customer_signed_at', { mode: 'timestamp_ms' }),
+		/** Zuletzt per E-Mail verschickt – an wen und wann */
+		customerEmail: text('customer_email'),
+		customerLinkSentAt: integer('customer_link_sent_at', { mode: 'timestamp_ms' }),
 		createdAt: createdAt(),
 		updatedAt: integer('updated_at', { mode: 'timestamp_ms' })
 	},
-	(t) => [index('daily_reports_date_idx').on(t.date), index('daily_reports_party_idx').on(t.partyId)]
+	(t) => [
+		index('daily_reports_date_idx').on(t.date),
+		index('daily_reports_party_idx').on(t.partyId),
+		uniqueIndex('daily_reports_customer_token_idx').on(t.customerToken)
+	]
 );
 
 /** Kopf einer Mengenspalte: LB-Position und Einheit */

@@ -36,7 +36,7 @@ const date = (iso: string) => {
 	return `${d}.${m}.${y}`;
 };
 
-export async function tagesberichtPdf(report: ReportDetail): Promise<Response> {
+export async function tagesberichtPdf(report: ReportDetail, { forCustomer = false } = {}): Promise<Response> {
 	// Kleiner Rand: pdfkit bricht sonst Text nahe am unteren Rand auf eine neue Seite um
 	const { doc, finish } = startPdf({ title: `Tagesbericht ${report.number}`.trim(), margin: 8 });
 
@@ -104,8 +104,10 @@ export async function tagesberichtPdf(report: ReportDetail): Promise<Response> {
 	const blaetter = sheets(report.positions, report.rows, report.materials.length);
 	const sums = columnSums(report.rows, report.positions.length);
 	const materialRows = Array.from({ length: Math.max(SHEET_MATERIAL_ROWS, report.materials.length) }, (_, i) => report.materials[i] ?? null);
-	const extra = [report.site && `Baustelle: ${report.site}`, report.costCenter && `Kostenstelle: ${report.costCenter}`].filter(Boolean).join(' · ');
-	const signed = report.status === 'abgeschlossen' && !!report.closeSignature && !!report.closedAt;
+	// Kostenstelle und Notiz sind intern – im PDF für den Kunden fehlen sie
+	const extra = [report.site && `Baustelle: ${report.site}`, !forCustomer && report.costCenter && `Kostenstelle: ${report.costCenter}`]
+		.filter(Boolean)
+		.join(' · ');
 
 	for (const [n, blatt] of blaetter.entries()) {
 		if (n > 0) doc.addPage();
@@ -249,7 +251,7 @@ export async function tagesberichtPdf(report: ReportDetail): Promise<Response> {
 		const signW = 0.324 * width;
 		const signY = doc.page.height - 40;
 		const noteRoom = signY - 11 * MM - 4 - (tableBottom + 4);
-		if (report.note && noteRoom > 9) {
+		if (!forCustomer && report.note && noteRoom > 9) {
 			doc
 				.font('Helvetica')
 				.fontSize(8)
@@ -263,26 +265,26 @@ export async function tagesberichtPdf(report: ReportDetail): Promise<Response> {
 		doc.text('Für den Auftragnehmer', left, signY + 2, { width: signW, align: 'center', lineBreak: false });
 		doc.text('Für den Auftraggeber', right - signW, signY + 2, { width: signW, align: 'center', lineBreak: false });
 
-		if (signed && report.closeSignature) {
-			// Der Pfad liegt im 600×200-Feld – maßstabsgetreu über die Linie setzen
+		/** Unterschrift über der Linie ab x, darunter Name und Datum – der Pfad liegt im 600×200-Feld */
+		const signature = (path: string | null, x: number, who: string, at: Date | null) => {
+			if (!path || !at) return;
 			const boxH = 11 * MM;
 			const scale = Math.min(signW / SIGNATURE_WIDTH, boxH / SIGNATURE_HEIGHT);
 			doc.save();
-			doc.translate(left + (signW - SIGNATURE_WIDTH * scale) / 2, signY - boxH - 1);
+			doc.translate(x + (signW - SIGNATURE_WIDTH * scale) / 2, signY - boxH - 1);
 			doc.scale(scale);
-			doc.path(report.closeSignature).lineWidth(4).lineCap('round').lineJoin('round').strokeColor(INK).stroke();
+			doc.path(path).lineWidth(4).lineCap('round').lineJoin('round').strokeColor(INK).stroke();
 			doc.restore();
-			const who = [report.closedByFirst, report.closedByLast].filter(Boolean).join(' ');
-			const when = report.closedAt
-				? new Intl.DateTimeFormat('de-AT', { day: '2-digit', month: '2-digit', year: 'numeric' }).format(report.closedAt)
-				: '';
+			const when = new Intl.DateTimeFormat('de-AT', { day: '2-digit', month: '2-digit', year: 'numeric' }).format(at);
 			doc
 				.font('Helvetica')
 				.fontSize(6.5)
 				.fillColor(MUTED)
-				.text([who, when].filter(Boolean).join(', '), left, signY + 11, { width: signW, align: 'center', lineBreak: false });
+				.text([who, when].filter(Boolean).join(', '), x, signY + 11, { width: signW, align: 'center', lineBreak: false });
 			doc.fillColor(INK);
-		}
+		};
+		signature(report.releaseSignature, left, [report.releasedByFirst, report.releasedByLast].filter(Boolean).join(' '), report.releasedAt);
+		signature(report.customerSignature, right - signW, report.customerName ?? '', report.customerSignedAt);
 	}
 
 	const buffer = await finish();

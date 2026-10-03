@@ -19,6 +19,14 @@
 	let road = $state('');
 	let site = $state('');
 
+	/** Ablauf: in Arbeit → freigegeben → geprüft → vom Kunden unterschrieben */
+	const STATUS: Record<string, { label: string; tone: string }> = {
+		entwurf: { label: 'In Arbeit', tone: '' },
+		freigegeben: { label: 'Freigegeben', tone: 'badge-info' },
+		geprueft: { label: 'Geprüft', tone: 'badge-warn' },
+		abgeschlossen: { label: 'Abgeschlossen', tone: 'badge-ok' }
+	};
+
 	function openNew() {
 		number = data.suggestion.number;
 		date = data.suggestion.date;
@@ -33,7 +41,7 @@
 <div class="flex flex-wrap items-end justify-between gap-3 pt-2 pb-5">
 	<div>
 		<h1 class="flex items-center gap-2 text-[2rem] leading-tight"><NotebookPen size={26} aria-hidden="true" />Tagesberichte</h1>
-		<p class="text-ink-2">Leistung je Tag und Baustelle – zum Ausdrucken und Unterschreiben.</p>
+		<p class="text-ink-2">Leistung je Tag und Baustelle – freigeben, prüfen und vom Kunden unterschreiben lassen.</p>
 	</div>
 	{#if data.canCreate}
 		<button class="btn btn-primary" onclick={openNew}><Plus size={18} aria-hidden="true" />Neuer Bericht</button>
@@ -72,11 +80,9 @@
 						</span>
 					</span>
 					{#if r.dailyOutput}<span class="hidden truncate text-sm text-ink-2 sm:block">{r.dailyOutput}</span>{/if}
-					{#if r.status === 'abgeschlossen'}
-						<span class="badge badge-ok"><CircleCheck size={13} aria-hidden="true" />Abgeschlossen</span>
-					{:else}
-						<span class="badge">In Arbeit</span>
-					{/if}
+					<span class="badge {(STATUS[r.status] ?? STATUS.entwurf).tone}">
+						{#if r.status === 'abgeschlossen'}<CircleCheck size={13} aria-hidden="true" />{/if}{(STATUS[r.status] ?? STATUS.entwurf).label}
+					</span>
 					<ChevronRight size={18} class="shrink-0 text-ink-3" aria-hidden="true" />
 				</a>
 			</li>

@@ -10,7 +10,8 @@ export const init: ServerInit = async () => {
 	scheduleMaintenance();
 };
 
-const PUBLIC_PATHS = ['/login', '/passwort-vergessen', '/passwort-zuruecksetzen', '/healthz'];
+// /bericht/<token>: Tagesbericht für den Kunden – ohne Anmeldung, der Link selbst ist der Schlüssel
+const PUBLIC_PATHS = ['/login', '/passwort-vergessen', '/passwort-zuruecksetzen', '/healthz', '/bericht'];
 const isPublic = (path: string) => PUBLIC_PATHS.some((p) => path === p || path.startsWith(`${p}/`));
 
 /**

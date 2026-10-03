@@ -1,15 +1,22 @@
 import { error, fail, redirect } from '@sveltejs/kit';
 import { can } from '$lib/permissions';
 import { requireUser } from '$lib/server/guard';
+import { customerReportMail, isMailConfigured, sendMail } from '$lib/server/mail';
 import {
+	checkReport,
 	deleteReport,
+	ensureCustomerToken,
+	markLinkSent,
 	materialProducts,
 	mayEdit,
+	mayReopen,
 	mayView,
 	recentPlaces,
+	releaseReport,
+	reopenReport,
 	reportDetail,
 	saveReport,
-	setReportStatus,
+	undoCheck,
 	type SaveReport
 } from '$lib/modules/tagesberichte/server/reports';
 import { isValidIsoDate } from '$lib/modules/stunden/week';
@@ -25,16 +32,26 @@ async function open(id: number, locals: App.Locals) {
 	return { user, report };
 }
 
-export const load: PageServerLoad = async ({ params, locals }) => {
+/** Den Link bekommt der Kunde erst nach der Prüfung */
+const linkReady = (status: string) => status === 'geprueft' || status === 'abgeschlossen';
+
+export const load: PageServerLoad = async ({ params, locals, url }) => {
 	const { user, report } = await open(Number(params.id), locals);
 	const editable = mayEdit(user, report);
+	const canLink = linkReady(report.status) && can(user.role, 'tagesberichte.kundenlink');
 	return {
 		report,
 		places: await recentPlaces(),
 		// Die Artikelauswahl braucht nur, wer auch eintragen darf
 		products: editable ? await materialProducts() : [],
 		editable,
-		canClose: can(user.role, 'tagesberichte.abschliessen')
+		canRelease: report.status === 'entwurf' && editable && can(user.role, 'tagesberichte.freigeben'),
+		canCheck: report.status === 'freigegeben' && can(user.role, 'tagesberichte.pruefen'),
+		canUncheck: report.status === 'geprueft' && can(user.role, 'tagesberichte.pruefung.zuruecknehmen'),
+		canReopen: mayReopen(user.role, report.status),
+		canLink,
+		mailConfigured: isMailConfigured(),
+		customerUrl: canLink && report.customerToken ? `${url.origin}/bericht/${report.customerToken}` : null
 	};
 };
 
@@ -98,6 +115,17 @@ function readReport(form: FormData): SaveReport {
 	};
 }
 
+/** Was im Formular steht, vor einem Statuswechsel speichern – nur wenn es mitkam und geändert werden darf */
+async function saveIfEditable(form: FormData, report: { id: number }, editable: boolean) {
+	if (!editable || !form.has('datum')) return null;
+	const data = readReport(form);
+	if (!isValidIsoDate(data.head.date)) return fail(400, { message: 'Das Datum ist ungültig.' });
+	await saveReport(report.id, data);
+	return null;
+}
+
+const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
 export const actions: Actions = {
 	save: async ({ params, request, locals }) => {
 		const { user, report } = await open(Number(params.id), locals);
@@ -108,33 +136,50 @@ export const actions: Actions = {
 		return { saved: true };
 	},
 
-	/**
-	 * Abschließen geht nur mit Unterschrift – sie steht danach im Ausdruck bei
-	 * „Für den Auftragnehmer". Was im Formular steht, wird vorher gespeichert.
-	 */
-	close: async ({ params, request, locals }) => {
+	/** Freigeben geht nur mit Unterschrift – sie steht im Ausdruck bei „Für den Auftragnehmer" */
+	release: async ({ params, request, locals }) => {
 		const { user, report } = await open(Number(params.id), locals);
-		if (!can(user.role, 'tagesberichte.abschliessen')) return fail(403, { message: 'Dafür fehlt dir die Berechtigung.' });
-		if (report.status !== 'entwurf') return fail(400, { message: 'Dieser Bericht ist bereits abgeschlossen.' });
+		if (report.status !== 'entwurf') return fail(400, { message: 'Dieser Bericht ist bereits freigegeben.' });
+		if (!can(user.role, 'tagesberichte.freigeben') || !mayEdit(user, report)) {
+			return fail(403, { message: 'Freigeben darf nur, wer den Bericht auch erfassen darf.' });
+		}
 		const form = await request.formData();
 		const signature = String(form.get('unterschrift') ?? '').trim();
-		if (!signature) return fail(400, { message: 'Bitte unterschreiben – ohne Unterschrift wird der Bericht nicht abgeschlossen.' });
+		if (!signature) return fail(400, { message: 'Bitte unterschreiben – ohne Unterschrift wird der Bericht nicht freigegeben.' });
 		if (!isValidSignature(signature)) {
 			return fail(400, { message: 'Die Unterschrift konnte nicht gelesen werden – bitte neu unterschreiben.' });
 		}
-		if (mayEdit(user, report) && form.has('datum')) {
-			const data = readReport(form);
-			if (!isValidIsoDate(data.head.date)) return fail(400, { message: 'Das Datum ist ungültig.' });
-			await saveReport(report.id, data);
-		}
-		await setReportStatus(report.id, 'abgeschlossen', user.id, signature);
-		return { closed: true };
+		const invalid = await saveIfEditable(form, report, true);
+		if (invalid) return invalid;
+		await releaseReport(report.id, user.id, signature);
+		return { released: true };
 	},
 
+	/** Prüfen – wer prüft, darf vorher noch korrigieren; das wird dabei gespeichert */
+	check: async ({ params, request, locals }) => {
+		const { user, report } = await open(Number(params.id), locals);
+		if (!can(user.role, 'tagesberichte.pruefen')) return fail(403, { message: 'Dafür fehlt dir die Berechtigung.' });
+		if (report.status !== 'freigegeben') return fail(400, { message: 'Geprüft werden kann nur ein freigegebener Bericht.' });
+		const invalid = await saveIfEditable(await request.formData(), report, mayEdit(user, report));
+		if (invalid) return invalid;
+		await checkReport(report.id, user.id);
+		return { checked: true };
+	},
+
+	uncheck: async ({ params, locals }) => {
+		const { user, report } = await open(Number(params.id), locals);
+		if (!can(user.role, 'tagesberichte.pruefung.zuruecknehmen')) return fail(403, { message: 'Dafür fehlt dir die Berechtigung.' });
+		if (report.status !== 'geprueft') return fail(400, { message: 'Dieser Bericht ist nicht (mehr) geprüft.' });
+		await undoCheck(report.id);
+		return { unchecked: true };
+	},
+
+	/** Wieder öffnen nur mit dem Recht für den jeweiligen Status */
 	reopen: async ({ params, locals }) => {
 		const { user, report } = await open(Number(params.id), locals);
-		if (!can(user.role, 'tagesberichte.abschliessen')) return fail(403, { message: 'Dafür fehlt dir die Berechtigung.' });
-		await setReportStatus(report.id, 'entwurf', user.id);
+		if (report.status === 'entwurf') return { reopened: true };
+		if (!mayReopen(user.role, report.status)) return fail(403, { message: 'Dafür fehlt dir die Berechtigung.' });
+		await reopenReport(report.id);
 		return { reopened: true };
 	},
 
@@ -145,5 +190,37 @@ export const actions: Actions = {
 		}
 		await deleteReport(report.id);
 		redirect(303, '/tagesberichte');
+	},
+
+	/** Link für den Kunden anlegen (falls ein alter Bericht noch keinen hat) */
+	link: async ({ params, locals }) => {
+		const { user, report } = await open(Number(params.id), locals);
+		if (!linkReady(report.status) || !can(user.role, 'tagesberichte.kundenlink')) {
+			return fail(403, { message: 'Den Link gibt es erst nach der Prüfung.' });
+		}
+		await ensureCustomerToken(report.id);
+		return { linked: true };
+	},
+
+	/** Link per E-Mail an den Kunden – mit dem Absender der App */
+	sendLink: async ({ params, request, locals, url }) => {
+		const { user, report } = await open(Number(params.id), locals);
+		if (!linkReady(report.status) || !can(user.role, 'tagesberichte.kundenlink')) {
+			return fail(403, { message: 'Den Link gibt es erst nach der Prüfung.' });
+		}
+		const email = String((await request.formData()).get('email') ?? '').trim();
+		if (!EMAIL.test(email) || email.length > 200) return fail(400, { message: 'Bitte eine gültige E-Mail-Adresse eintragen.', email });
+		if (!isMailConfigured()) return fail(400, { message: 'Der E-Mail-Versand ist nicht eingerichtet – bitte den Link kopieren oder teilen.', email });
+		const token = await ensureCustomerToken(report.id);
+		const ok = await sendMail(
+			customerReportMail(
+				email,
+				{ number: report.number, date: report.date, road: report.road, site: report.site, signed: report.status === 'abgeschlossen' },
+				`${url.origin}/bericht/${token}`
+			)
+		);
+		if (!ok) return fail(500, { message: 'Die E-Mail konnte nicht verschickt werden – bitte später noch einmal versuchen.', email });
+		await markLinkSent(report.id, email);
+		return { sent: email };
 	}
 };

@@ -69,6 +69,7 @@ Administration unter `/verwaltung/…`:
 | Übersicht | `/` |
 | Stundenzettel | `/stundenzettel` |
 | Tagesberichte | `/tagesberichte` |
+| Tagesbericht für den Kunden (ohne Anmeldung) | `/bericht/<link>` |
 | Bestand, Buchen, Bewegungen, Bestellliste, Berichte | `/lager/bestand` usw. |
 | Inventur | `/lager/inventur` |
 | Artikel | `/lager/artikel/<id>` |
@@ -86,7 +87,7 @@ weiter. Die Weiterleitung steht in [`src/hooks.server.ts`](src/hooks.server.ts).
 | Admin | alles, zusätzlich Benutzer, Berechtigungen und Einstellungen |
 | Geschäftsführer | sieht und prüft alles – von Haus aus alles, was Bauleitung oder Buchhaltung dürfen; Benutzer, Berechtigungen und Einstellungen bleiben beim Admin |
 | Bauleiter | buchen, Inventur, Korrekturen, Artikel und Stammdaten pflegen, Berichte, Stunden und Tagesberichte |
-| Buchhaltung/Sekretariat | Stundenzettel prüfen, Tagesberichte und Berichte einsehen, Stammdaten pflegen – ohne Lagerbuchungen |
+| Buchhaltung/Sekretariat | Stundenzettel und Tagesberichte prüfen, Berichte einsehen, Stammdaten pflegen – ohne Lagerbuchungen |
 | Partieführer | Bestand und Bewegungen ansehen, buchen, Stundenzettel und Tagesberichte der eigenen Partie |
 | Arbeiter | wie Partieführer, sieht aber keine Bewegungen (weder Liste noch Verlauf am Artikel) |
 | Nur ansehen | alles ansehen außer Stammdaten, Benutzer und Einstellungen – keine Änderungen |
@@ -206,9 +207,32 @@ Farbe die Materialart) und Kenn-Nr. (der Artikelname) füllen sich selbst aus, e
 bleibt nur die Filmdicke. Ohne Artikel lässt sich alles von Hand eintragen.
 
 Die Nummer schlägt die App als nächste freie vor, bleibt aber frei änderbar – so passt sie
-zum Papierblock. **Abschließen** (Admin, Geschäftsführung, Bauleitung) geht nur mit
-Unterschrift; sie steht danach im Ausdruck bei „Für den Auftragnehmer". Was im Formular
-steht, wird dabei gespeichert. **Wieder öffnen** fragt nach und verwirft die Unterschrift.
+zum Papierblock.
+
+**Ablauf** – wie beim Stundenzettel, mit dem Kunden als letztem Schritt:
+
+1. **In Arbeit:** Die Partie füllt den Bericht aus.
+2. **Freigegeben:** Der Partieführer unterschreibt beim Freigeben – die Unterschrift steht
+   im Ausdruck bei „Für den Auftragnehmer". Danach kann er nichts mehr ändern.
+3. **Geprüft:** Bauleitung, Buchhaltung oder Geschäftsführung prüfen; vorher dürfen sie
+   noch korrigieren. Mit der Prüfung entsteht der **Link für den Kunden**.
+4. **Abgeschlossen:** Der Kunde öffnet den Link, trägt seinen Namen ein und unterschreibt
+   („Für den Auftraggeber"). Danach lädt er den fertigen Bericht als PDF – der Link bleibt
+   dauerhaft gültig, der Bericht lässt sich darüber jederzeit wieder laden oder drucken.
+
+Den Link kann man kopieren, am Handy teilen (WhatsApp, Mail-App …) oder direkt aus der App
+per E-Mail schicken – dafür muss der Mailversand (SMTP) eingerichtet sein. Die Seite des
+Kunden (`/bericht/<link>`) braucht keine Anmeldung; der Link besteht aus 128 Bit Zufall,
+wird von Suchmaschinen nicht erfasst und zeigt weder Kostenstelle noch Notiz – beides
+fehlt auch im PDF für den Kunden. Ist der Bericht gerade wieder geöffnet, steht dort nur
+„wird gerade überarbeitet".
+
+**Wieder öffnen** fragt nach und hat je Stand ein eigenes Recht: freigegebene und geprüfte
+Berichte standardmäßig Admin, Geschäftsführung, Bauleitung und Buchhaltung, vom Kunden
+unterschriebene nur Admin und Geschäftsführung. Dabei verfallen die Unterschriften; der
+Kunde unterschreibt später über denselben Link neu. **Zurück auf freigegeben** nimmt nur
+die Prüfung zurück, solange der Kunde noch nicht unterschrieben hat. Alle Rechte lassen
+sich unter Verwaltung → Berechtigungen anpassen.
 
 **Drucken** und **PDF** geben den Bericht im Aufbau des Vordrucks aus: Briefkopf, Titel mit
 Datum und Nummer, das Kästchen „Bundesstraße Nr.", je Blatt acht LB-Spalten und 33 Zeilen,
@@ -581,11 +605,12 @@ src/
       lager/       Alles zum Lager: server/ (Bestand, Buchungen, Warnungen),
                    components/, scan/ (Parser, Tastaturlayouts, Handscanner, Kamera)
       stunden/     Lohnwoche: Wochenrechnung und server/ (Zettel, Freigabe, Prüfung)
-      tagesberichte/ server/ (Berichte, Positionen, Zeilen, Material, PDF),
-                   sheet.ts (Aufteilung auf Blätter wie der Vordruck)
+      tagesberichte/ server/ (Berichte, Ablauf, Kundenlink, PDF), components/ (Ansicht
+                   für Handy und Kunden), sheet.ts (Aufteilung auf Blätter wie der Vordruck)
   routes/
     (auth)/        Anmelden, Passwort vergessen/zurücksetzen
     (app)/         Übersicht, lager/…, verwaltung/…, Konto, App fürs Handy
+    (kunde)/       Seiten für Kunden ohne Anmeldung: Tagesbericht ansehen und unterschreiben
     api/           Code-Suche, Artikelsuche, Live-Ereignisse
     export/        CSV-Exporte (Excel-kompatibel) und Backup-Download
 ```

@@ -4,6 +4,7 @@
 	import PrintSheet from '$lib/components/PrintSheet.svelte';
 	import { dateTime } from '$lib/format';
 	import { SIGNATURE_HEIGHT, SIGNATURE_WIDTH } from '$lib/modules/stunden/signature';
+	import ReportSummary from '$lib/modules/tagesberichte/components/ReportSummary.svelte';
 	import {
 		columnSums,
 		LETTERHEAD,
@@ -21,8 +22,7 @@
 	const materialRows = $derived(
 		Array.from({ length: Math.max(SHEET_MATERIAL_ROWS, report.materials.length) }, (_, i) => report.materials[i] ?? null)
 	);
-	const signed = $derived(report.status === 'abgeschlossen' && !!report.closeSignature && !!report.closedAt);
-	const closer = $derived([report.closedByFirst, report.closedByLast].filter(Boolean).join(' '));
+	const releaser = $derived([report.releasedByFirst, report.releasedByLast].filter(Boolean).join(' '));
 	const extra = $derived([report.site && `Baustelle: ${report.site}`, report.costCenter && `Kostenstelle: ${report.costCenter}`].filter(Boolean));
 	/** Unter „Einheitssumme" stehen Gesamtmenge, Tagesleistung und LV-Position */
 	const LABELS = ['Gesamtmenge', 'Tagesleistung', 'LV-Position Nr.'];
@@ -42,6 +42,20 @@
 </script>
 
 <svelte:head><title>{pageTitle(`Tagesbericht ${report.number || ''}`.trim())}</title></svelte:head>
+
+{#snippet signBlock(label: string, path: string | null, who: string, at: Date | null)}
+	<div class="sign-block">
+		<div class="sign-bild">
+			{#if path && at}
+				<svg viewBox="0 0 {SIGNATURE_WIDTH} {SIGNATURE_HEIGHT}" role="img" aria-label="Unterschrift {who}">
+					<path d={path} fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" />
+				</svg>
+			{/if}
+		</div>
+		<span class="sign">{label}</span>
+		{#if path && at}<span class="sign-info">{[who, dateTime(at)].filter(Boolean).join(', ')}</span>{/if}
+	</div>
+{/snippet}
 
 <PrintSheet title="Tagesbericht {report.number}" back="/tagesberichte/{report.id}" pdf="/tagesberichte/{report.id}/pdf" bare>
 	{#each blaetter as blatt (blatt.number)}
@@ -132,21 +146,8 @@
 			{#if report.note}<p class="notiz">Notiz: {report.note}</p>{/if}
 
 			<footer class="unterschriften">
-				<div class="sign-block">
-					<div class="sign-bild">
-						{#if signed}
-							<svg viewBox="0 0 {SIGNATURE_WIDTH} {SIGNATURE_HEIGHT}" role="img" aria-label="Unterschrift {closer}">
-								<path d={report.closeSignature} fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" />
-							</svg>
-						{/if}
-					</div>
-					<span class="sign">Für den Auftragnehmer</span>
-					{#if signed && report.closedAt}<span class="sign-info">{closer}, {dateTime(report.closedAt)}</span>{/if}
-				</div>
-				<div class="sign-block">
-					<div class="sign-bild"></div>
-					<span class="sign">Für den Auftraggeber</span>
-				</div>
+				{@render signBlock('Für den Auftragnehmer', report.releaseSignature, releaser, report.releasedAt)}
+				{@render signBlock('Für den Auftraggeber', report.customerSignature, report.customerName ?? '', report.customerSignedAt)}
 			</footer>
 		</section>
 	{/each}
@@ -157,69 +158,8 @@
 	-->
 	<div class="handy space-y-4">
 		<p class="text-[0.8125rem] text-ink-3">Am Handy vereinfacht dargestellt – gedruckt und im PDF steht der Bericht im Aufbau des Vordrucks.</p>
-		<div>
-			<h2 class="text-xl">Tagesbericht {report.number}</h2>
-			<p class="num text-sm text-ink-2">{[date(report.date), report.road && `Bundesstraße ${report.road}`, ...extra].filter(Boolean).join(' · ')}</p>
-		</div>
-
-		<ul class="divide-y divide-line rounded-xl border border-line">
-			{#each report.positions as p, i (i)}
-				<li class="flex items-baseline justify-between gap-3 px-3 py-2">
-					<span class="font-medium">LB-Pos. {p.lbPos || i + 1}{p.unit ? ` · ${p.unit}` : ''}</span>
-					<span class="num text-right text-sm">
-						<span class="font-semibold">{sumLabel(sums[i]) || '–'}</span>
-						{#if p.totalQuantity != null}<span class="block text-[0.8125rem] text-ink-3">Gesamt {quantityLabel(p.totalQuantity)}</span>{/if}
-					</span>
-				</li>
-			{:else}
-				<li class="px-3 py-2 text-ink-3">Keine LB-Positionen</li>
-			{/each}
-		</ul>
-
-		<ul class="divide-y divide-line rounded-xl border border-line">
-			{#each report.rows.filter((r) => r.label.trim() || r.quantities.some(hasQuantity)) as row (row.id)}
-				<li class="px-3 py-2">
-					<p>{row.label || '–'}</p>
-					<p class="num text-[0.8125rem] text-ink-2">
-						{report.positions
-							.map((p, i) => (hasQuantity(row.quantities[i]) ? `${p.lbPos || `Spalte ${i + 1}`}: ${quantityLabel(row.quantities[i])}${p.unit ? ` ${p.unit}` : ''}` : ''))
-							.filter(Boolean)
-							.join(' · ')}
-					</p>
-				</li>
-			{:else}
-				<li class="px-3 py-2 text-ink-3">Keine Zeilen erfasst</li>
-			{/each}
-		</ul>
-
-		<dl class="grid grid-cols-[7rem_1fr] gap-x-4 gap-y-1 text-sm">
-			<dt class="text-ink-3">Material</dt>
-			<dd class="num">
-				{#each report.materials as m, i (i)}
-					<span class="block">{[m.material, m.code, m.filmThickness != null ? `${quantityLabel(m.filmThickness)} mm` : ''].filter(Boolean).join(' · ')}</span>
-				{:else}–{/each}
-			</dd>
-			<dt class="text-ink-3">Tagesleistung</dt>
-			<dd>{report.dailyOutput || '–'}</dd>
-			<dt class="text-ink-3">LV-Position Nr.</dt>
-			<dd class="num">{report.lvPosition || '–'}</dd>
-			{#if report.note}
-				<dt class="text-ink-3">Notiz</dt>
-				<dd>{report.note}</dd>
-			{/if}
-		</dl>
-
-		<div class="rounded-xl border border-line p-3">
-			<p class="text-[0.8125rem] text-ink-3">Für den Auftragnehmer</p>
-			{#if signed && report.closedAt}
-				<svg viewBox="0 0 {SIGNATURE_WIDTH} {SIGNATURE_HEIGHT}" class="mt-1 h-14 w-full rounded-lg bg-white" role="img" aria-label="Unterschrift {closer}">
-					<path d={report.closeSignature} fill="none" stroke="#1d2127" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" />
-				</svg>
-				<p class="mt-1 text-[0.8125rem]">{closer}, {dateTime(report.closedAt)}</p>
-			{:else}
-				<p class="mt-1 text-sm text-ink-3">noch nicht unterschrieben</p>
-			{/if}
-		</div>
+		<h2 class="text-xl">Tagesbericht {report.number}</h2>
+		<ReportSummary {report} />
 	</div>
 </PrintSheet>
 

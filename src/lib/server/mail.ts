@@ -62,12 +62,13 @@ export async function sendMail(mail: Mail): Promise<boolean> {
 const esc = (s: string) =>
 	s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
 
-function layout(title: string, body: string): string {
+/** Grundgerüst jeder Mail; brand steht klein über dem Titel (für Kunden der Firmenname statt des App-Namens) */
+function layout(title: string, body: string, brand: string = APP_NAME): string {
 	return `<!doctype html><html lang="de"><body style="margin:0;background:#f3f4f5;font-family:Segoe UI,Arial,sans-serif;color:#1d2127">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="padding:24px 12px"><tr><td align="center">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;background:#ffffff;border-radius:14px;overflow:hidden;border:1px solid #e3e5e8">
 <tr><td style="height:6px;background:repeating-linear-gradient(90deg,#f8f000 0 28px,transparent 28px 44px);background-color:#1d2127"></td></tr>
-<tr><td style="padding:28px 28px 8px"><div style="font-size:13px;color:#5c626b">${esc(APP_NAME)}</div>
+<tr><td style="padding:28px 28px 8px"><div style="font-size:13px;color:#5c626b">${esc(brand)}</div>
 <h1 style="margin:6px 0 0;font-size:22px;line-height:1.3">${esc(title)}</h1></td></tr>
 <tr><td style="padding:12px 28px 28px;font-size:15px;line-height:1.6">${body}</td></tr>
 </table></td></tr></table></body></html>`;
@@ -127,6 +128,31 @@ export function lowStockMail(to: string[], items: LowStockItem[], link: string):
 		html: layout(
 			items.length === 1 ? 'Ein Artikel muss nachbestellt werden' : `${items.length} Artikel müssen nachbestellt werden`,
 			`<p>Diese Artikel haben den Mindestbestand erreicht (Bestand / Mindestbestand in Stück):</p><table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="font-size:14px">${rows}</table>${button(link, 'Bestellliste öffnen')}`
+		)
+	};
+}
+
+/** Link für den Kunden: Tagesbericht ansehen, unterschreiben, als PDF laden */
+export function customerReportMail(
+	to: string,
+	report: { number: string; date: string; road: string; site: string; signed: boolean },
+	link: string
+): Mail {
+	const [y, m, d] = report.date.split('-');
+	const what = [`Tagesbericht${report.number ? ` Nr. ${report.number}` : ''} vom ${d}.${m}.${y}`, report.road && `Bundesstraße ${report.road}`, report.site]
+		.filter(Boolean)
+		.join(', ');
+	const ask = report.signed
+		? 'über den folgenden Link können Sie den unterschriebenen Tagesbericht jederzeit ansehen und als PDF herunterladen.'
+		: 'über den folgenden Link können Sie den Tagesbericht ansehen, mit Ihrem Namen unterschreiben und danach als PDF herunterladen.';
+	return {
+		to,
+		subject: `${report.signed ? 'Unterschriebener ' : ''}${what.split(',')[0]} – Monsipan`,
+		text: `Guten Tag,\n\n${ask}\n\n${what}\n${link}\n\nDer Link bleibt gültig – Sie können den Bericht jederzeit wieder öffnen, drucken oder herunterladen.\n\nMit freundlichen Grüßen\nMonsipan Bautenschutz`,
+		html: layout(
+			report.signed ? 'Ihr unterschriebener Tagesbericht' : 'Tagesbericht zum Unterschreiben',
+			`<p>Guten Tag,</p><p>${esc(ask)}</p><p style="font-weight:600">${esc(what)}</p>${button(link, report.signed ? 'Bericht öffnen' : 'Bericht ansehen und unterschreiben')}<p style="color:#5c626b;font-size:13px">Der Link bleibt gültig – Sie können den Bericht jederzeit wieder öffnen, drucken oder herunterladen.</p><p>Mit freundlichen Grüßen<br>Monsipan Bautenschutz</p>`,
+			'Monsipan Bautenschutz'
 		)
 	};
 }
