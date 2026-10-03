@@ -62,11 +62,12 @@ function text(v: PdfCell): string {
  * Leeres Dokument für Formulare, die genau wie ihre Papiervorlage aussehen
  * sollen (z. B. der Lohnzettel). Gezeichnet wird dort mit pdfkit direkt.
  */
-export function startPdf(opts: { title: string; landscape?: boolean }) {
+export function startPdf(opts: { title: string; landscape?: boolean; margin?: number }) {
+	const margin = opts.margin ?? 36;
 	const doc = new PDFDocument({
 		size: 'A4',
 		layout: opts.landscape ? 'landscape' : 'portrait',
-		margins: { top: 36, bottom: 36, left: 36, right: 36 },
+		margins: { top: margin, bottom: margin, left: margin, right: margin },
 		info: { Title: opts.title, Author: APP_NAME, Creator: APP_NAME }
 	});
 	const chunks: Buffer[] = [];

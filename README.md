@@ -196,14 +196,26 @@ liegen als Linienzug vor und bleiben in jeder Größe scharf.
 ## Tagesberichte
 
 Ein Bericht je Tag und Baustelle, wie der Block im Auto: Nummer, Datum, Bundesstraße,
-Baustelle und Kostenstelle im Kopf, darunter bis zu acht LB-Positionen mit Einheit und
-beliebig vielen Zeilen „Ortsbezeichnungen und Markierungsarten" mit den Mengen je Position.
-Die Einheitssumme je Spalte wird mitgerechnet. Dazu der Materialblock (gelb, weiß,
-Reflexkörper mit Kenn-Nr. und Filmdicke), Tagesleistung und LV-Position Nr.
+Baustelle und Kostenstelle im Kopf, darunter beliebig viele LB-Positionen mit Einheit
+(**LB-Pos. hinzufügen**) und beliebig viele Zeilen „Ortsbezeichnungen und Markierungsarten"
+mit den Mengen je Position. Die Einheitssumme je Spalte wird mitgerechnet, die Gesamtmenge
+wird von Hand eingetragen. Dazu Tagesleistung und LV-Position Nr.
+
+**Material:** Je Zeile wird ein Artikel aus dem Lager gewählt – Material (die Farbe, ohne
+Farbe die Materialart) und Kenn-Nr. (der Artikelname) füllen sich selbst aus, einzutragen
+bleibt nur die Filmdicke. Ohne Artikel lässt sich alles von Hand eintragen.
 
 Die Nummer schlägt die App als nächste freie vor, bleibt aber frei änderbar – so passt sie
-zum Papierblock. Berichte lassen sich abschließen (nur Bauleitung und Admin) und wieder
-öffnen. **Drucken** gibt den Bericht mit beiden Unterschriftszeilen aus.
+zum Papierblock. **Abschließen** (Admin, Geschäftsführung, Bauleitung) geht nur mit
+Unterschrift; sie steht danach im Ausdruck bei „Für den Auftragnehmer". Was im Formular
+steht, wird dabei gespeichert. **Wieder öffnen** fragt nach und verwirft die Unterschrift.
+
+**Drucken** und **PDF** geben den Bericht im Aufbau des Vordrucks aus: Briefkopf, Titel mit
+Datum und Nummer, das Kästchen „Bundesstraße Nr.", je Blatt acht LB-Spalten und 33 Zeilen,
+darunter Material, Einheitssumme, Gesamtmenge, Tagesleistung, LV-Position und die beiden
+Unterschriftszeilen. Mehr Positionen oder Zeilen gehen auf weitere Blätter („Blatt 1 von 2").
+Baustelle und Kostenstelle stehen unter dem Briefkopf. Am Handy zeigt die Druckansicht die
+Angaben untereinander.
 
 Wer kein Recht auf „alle sehen" hat, sieht die Berichte der eigenen Partie und die selbst
 angelegten.
@@ -393,7 +405,7 @@ eingestellten Filter und eignet sich zum Weiterschicken oder Ablegen:
 | Bestellliste (nach Hersteller gruppiert, mit Unterschriftszeile) | `/export/bestellliste.pdf` |
 | Verbrauch je Monat | `/export/verbrauch.pdf` |
 | Lohnzettel einer Woche (im Aufbau des Formulars aus dem Block) | `/stundenzettel/<id>/pdf` |
-| Tagesbericht | `/tagesberichte/<id>/pdf` |
+| Tagesbericht (im Aufbau des Vordrucks aus dem Block) | `/tagesberichte/<id>/pdf` |
 
 **Lohnzettel:** Druckansicht und PDF sind dem Vordruck nachgebaut – Briefkopf mit
 Lohnwoche, das Raster mit je einer Zeile pro Tag und einer schmalen für Zeit von/bis,
@@ -569,7 +581,8 @@ src/
       lager/       Alles zum Lager: server/ (Bestand, Buchungen, Warnungen),
                    components/, scan/ (Parser, Tastaturlayouts, Handscanner, Kamera)
       stunden/     Lohnwoche: Wochenrechnung und server/ (Zettel, Freigabe, Prüfung)
-      tagesberichte/ server/ (Berichte, Positionen, Zeilen, Material)
+      tagesberichte/ server/ (Berichte, Positionen, Zeilen, Material, PDF),
+                   sheet.ts (Aufteilung auf Blätter wie der Vordruck)
   routes/
     (auth)/        Anmelden, Passwort vergessen/zurücksetzen
     (app)/         Übersicht, lager/…, verwaltung/…, Konto, App fürs Handy

@@ -1,21 +1,15 @@
 /**
  * Tagesberichte wie das Papierformular: Kopf mit Nummer, Datum und Straße,
- * bis zu acht LB-Positionen mit Einheit, darunter Zeilen mit Ortsbezeichnung
- * und Mengen je Position, dazu der Materialblock (gelb, weiß, Reflexkörper).
+ * beliebig viele LB-Positionen mit Einheit, darunter Zeilen mit Ortsbezeichnung
+ * und Mengen je Position, dazu der Materialblock (Material, Kenn-Nr., Filmdicke).
  */
 import { index, integer, real, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core';
 import { createdAt } from './common';
 import { parties, users } from './core';
+import { products } from './lager';
 
 export const REPORT_STATUS = ['entwurf', 'abgeschlossen'] as const;
 export type ReportStatus = (typeof REPORT_STATUS)[number];
-
-/** Zeile im Materialblock unten links */
-export const REPORT_MATERIALS = ['gelb', 'weiss', 'reflex'] as const;
-export type ReportMaterial = (typeof REPORT_MATERIALS)[number];
-
-/** Anzahl der Mengenspalten – wie viele LB-Positionen auf einen Bericht passen */
-export const REPORT_COLUMNS = 8;
 
 export const dailyReports = sqliteTable(
 	'daily_reports',
@@ -39,6 +33,8 @@ export const dailyReports = sqliteTable(
 		createdBy: integer('created_by').references(() => users.id, { onDelete: 'set null' }),
 		closedBy: integer('closed_by').references(() => users.id, { onDelete: 'set null' }),
 		closedAt: integer('closed_at', { mode: 'timestamp_ms' }),
+		/** Unterschrift beim Abschließen (SVG-Pfad) – steht im Ausdruck bei „Für den Auftragnehmer" */
+		closeSignature: text('close_signature'),
 		createdAt: createdAt(),
 		updatedAt: integer('updated_at', { mode: 'timestamp_ms' })
 	},
@@ -53,10 +49,12 @@ export const dailyReportPositions = sqliteTable(
 		reportId: integer('report_id')
 			.notNull()
 			.references(() => dailyReports.id, { onDelete: 'cascade' }),
-		/** Spalte 1 bis 8 */
+		/** Reihenfolge der Spalte, ab 1 */
 		idx: integer('idx').notNull(),
 		lbPos: text('lb_pos').notNull().default(''),
-		unit: text('unit').notNull().default('')
+		unit: text('unit').notNull().default(''),
+		/** Gesamtmenge – wird von Hand eingetragen */
+		totalQuantity: real('total_quantity')
 	},
 	(t) => [uniqueIndex('daily_report_positions_idx').on(t.reportId, t.idx)]
 );
@@ -71,18 +69,13 @@ export const dailyReportRows = sqliteTable(
 			.references(() => dailyReports.id, { onDelete: 'cascade' }),
 		sortOrder: integer('sort_order').notNull().default(0),
 		label: text('label').notNull().default(''),
-		q1: real('q1'),
-		q2: real('q2'),
-		q3: real('q3'),
-		q4: real('q4'),
-		q5: real('q5'),
-		q6: real('q6'),
-		q7: real('q7'),
-		q8: real('q8')
+		/** Mengen je LB-Position, in der Reihenfolge der Spalten */
+		quantities: text('quantities', { mode: 'json' }).$type<(number | null)[]>().notNull().default([])
 	},
 	(t) => [index('daily_report_rows_report_idx').on(t.reportId, t.sortOrder)]
 );
 
+/** Eine Zeile im Materialblock unten links */
 export const dailyReportMaterials = sqliteTable(
 	'daily_report_materials',
 	{
@@ -90,13 +83,17 @@ export const dailyReportMaterials = sqliteTable(
 		reportId: integer('report_id')
 			.notNull()
 			.references(() => dailyReports.id, { onDelete: 'cascade' }),
-		kind: text('kind', { enum: REPORT_MATERIALS }).notNull(),
-		/** Kenn-Nr. des Materials */
+		sortOrder: integer('sort_order').notNull().default(0),
+		/** Artikel aus dem Lager, aus dem Material und Kenn-Nr. übernommen wurden */
+		productId: integer('product_id').references(() => products.id, { onDelete: 'set null' }),
+		/** Material bzw. Farbe, z. B. „Weiß" */
+		material: text('material').notNull().default(''),
+		/** Kenn-Nr. – beim Artikel aus dem Lager dessen Name */
 		code: text('code').notNull().default(''),
 		/** Filmdicke in mm */
 		filmThickness: real('film_thickness')
 	},
-	(t) => [uniqueIndex('daily_report_materials_kind_idx').on(t.reportId, t.kind)]
+	(t) => [index('daily_report_materials_report_idx').on(t.reportId, t.sortOrder)]
 );
 
 export type DailyReport = typeof dailyReports.$inferSelect;

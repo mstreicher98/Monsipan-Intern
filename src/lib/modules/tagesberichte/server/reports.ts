@@ -1,29 +1,32 @@
 /**
- * Tagesberichte: anlegen, lesen, speichern, abschließen.
+ * Tagesberichte: anlegen, lesen, speichern, abschließen (mit Unterschrift).
  *
  * Wer kein Recht auf „alle sehen" hat, sieht die Berichte der eigenen Partie
  * und die selbst angelegten.
  */
 import { and, asc, desc, eq, inArray, like, or, sql } from 'drizzle-orm';
+import { alias } from 'drizzle-orm/sqlite-core';
 import { can } from '$lib/permissions';
-import { db, type Tx } from '$lib/server/db';
+import { db } from '$lib/server/db';
 import {
+	categories,
+	colors,
 	dailyReportMaterials,
 	dailyReportPositions,
 	dailyReportRows,
 	dailyReports,
 	parties,
-	REPORT_COLUMNS,
-	REPORT_MATERIALS,
+	products,
 	users
 } from '$lib/server/db/schema';
 import type { SessionUser } from '$lib/server/auth';
+import { MAX_MATERIALS, MAX_POSITIONS } from '../sheet';
 
 /** Zeilen, die ein neuer Bericht gleich mitbringt */
 const START_ROWS = 10;
 
-export const QUANTITY_KEYS = ['q1', 'q2', 'q3', 'q4', 'q5', 'q6', 'q7', 'q8'] as const;
-export type QuantityKey = (typeof QUANTITY_KEYS)[number];
+/** Wer abgeschlossen und unterschrieben hat */
+const closer = alias(users, 'closer');
 
 /** Nur eigene bzw. Partie-Berichte, wenn das Recht auf alle fehlt */
 function scope(user: SessionUser) {
@@ -100,9 +103,9 @@ export async function createReport(user: SessionUser, data: { date: string; numb
 			})
 			.returning({ id: dailyReports.id })
 			.get();
-		for (let i = 1; i <= REPORT_COLUMNS; i++) await tx.insert(dailyReportPositions).values({ reportId: row.id, idx: i });
+		// Eine LB-Position zum Start – weitere kommen nach Bedarf dazu
+		await tx.insert(dailyReportPositions).values({ reportId: row.id, idx: 1 });
 		for (let i = 0; i < START_ROWS; i++) await tx.insert(dailyReportRows).values({ reportId: row.id, sortOrder: i });
-		for (const kind of REPORT_MATERIALS) await tx.insert(dailyReportMaterials).values({ reportId: row.id, kind });
 		return row.id;
 	});
 }
@@ -124,20 +127,51 @@ export async function reportDetail(id: number) {
 			partyName: parties.name,
 			createdBy: dailyReports.createdBy,
 			closedAt: dailyReports.closedAt,
+			closeSignature: dailyReports.closeSignature,
+			closedByFirst: closer.firstName,
+			closedByLast: closer.lastName,
 			authorFirst: users.firstName,
 			authorLast: users.lastName
 		})
 		.from(dailyReports)
 		.leftJoin(parties, eq(parties.id, dailyReports.partyId))
 		.leftJoin(users, eq(users.id, dailyReports.createdBy))
+		.leftJoin(closer, eq(closer.id, dailyReports.closedBy))
 		.where(eq(dailyReports.id, id))
 		.get();
 	if (!report) return null;
 
 	const [positions, rows, materials] = await Promise.all([
-		db.select().from(dailyReportPositions).where(eq(dailyReportPositions.reportId, id)).orderBy(asc(dailyReportPositions.idx)).all(),
-		db.select().from(dailyReportRows).where(eq(dailyReportRows.reportId, id)).orderBy(asc(dailyReportRows.sortOrder), asc(dailyReportRows.id)).all(),
-		db.select().from(dailyReportMaterials).where(eq(dailyReportMaterials.reportId, id)).all()
+		db
+			.select({
+				idx: dailyReportPositions.idx,
+				lbPos: dailyReportPositions.lbPos,
+				unit: dailyReportPositions.unit,
+				totalQuantity: dailyReportPositions.totalQuantity
+			})
+			.from(dailyReportPositions)
+			.where(eq(dailyReportPositions.reportId, id))
+			.orderBy(asc(dailyReportPositions.idx))
+			.all(),
+		db
+			.select({ id: dailyReportRows.id, label: dailyReportRows.label, quantities: dailyReportRows.quantities })
+			.from(dailyReportRows)
+			.where(eq(dailyReportRows.reportId, id))
+			.orderBy(asc(dailyReportRows.sortOrder), asc(dailyReportRows.id))
+			.all(),
+		db
+			.select({
+				productId: dailyReportMaterials.productId,
+				productName: products.name,
+				material: dailyReportMaterials.material,
+				code: dailyReportMaterials.code,
+				filmThickness: dailyReportMaterials.filmThickness
+			})
+			.from(dailyReportMaterials)
+			.leftJoin(products, eq(products.id, dailyReportMaterials.productId))
+			.where(eq(dailyReportMaterials.reportId, id))
+			.orderBy(asc(dailyReportMaterials.sortOrder), asc(dailyReportMaterials.id))
+			.all()
 	]);
 	return { ...report, positions, rows, materials };
 }
@@ -162,9 +196,10 @@ export interface SaveReport {
 		lvPosition: string;
 		note: string;
 	};
-	positions: { idx: number; lbPos: string; unit: string }[];
-	rows: { id: number | null; label: string; quantities: Record<QuantityKey, string> }[];
-	materials: { kind: string; code: string; filmThickness: string }[];
+	/** In der Reihenfolge der Spalten; die Mengen der Zeilen stehen in derselben Reihenfolge */
+	positions: { lbPos: string; unit: string; totalQuantity: string }[];
+	rows: { id: number | null; label: string; quantities: string[] }[];
+	materials: { productId: number | null; material: string; code: string; filmThickness: string }[];
 }
 
 export async function saveReport(id: number, data: SaveReport) {
@@ -184,23 +219,26 @@ export async function saveReport(id: number, data: SaveReport) {
 			})
 			.where(eq(dailyReports.id, id));
 
-		for (const p of data.positions) {
-			await tx
-				.update(dailyReportPositions)
-				.set({ lbPos: p.lbPos.slice(0, 40), unit: p.unit.slice(0, 20) })
-				.where(and(eq(dailyReportPositions.reportId, id), eq(dailyReportPositions.idx, p.idx)));
+		// Positionen werden neu geschrieben – ihre Reihenfolge ist zugleich die der Mengen
+		const positions = data.positions.slice(0, MAX_POSITIONS);
+		await tx.delete(dailyReportPositions).where(eq(dailyReportPositions.reportId, id));
+		for (const [i, p] of positions.entries()) {
+			await tx.insert(dailyReportPositions).values({
+				reportId: id,
+				idx: i + 1,
+				lbPos: p.lbPos.slice(0, 40),
+				unit: p.unit.slice(0, 20),
+				totalQuantity: num(p.totalQuantity)
+			});
 		}
 
 		const keep: number[] = [];
 		let order = 0;
 		for (const r of data.rows) {
-			const empty = !r.label.trim() && QUANTITY_KEYS.every((k) => !String(r.quantities[k] ?? '').trim());
+			const quantities = positions.map((_, i) => num(r.quantities[i]));
+			const empty = !r.label.trim() && quantities.every((q) => q == null);
 			if (empty && r.id == null) continue;
-			const values = {
-				label: r.label.slice(0, 200),
-				sortOrder: order++,
-				...Object.fromEntries(QUANTITY_KEYS.map((k) => [k, num(r.quantities[k])]))
-			};
+			const values = { label: r.label.slice(0, 200), sortOrder: order++, quantities };
 			if (r.id == null) {
 				const created = await tx
 					.insert(dailyReportRows)
@@ -218,22 +256,38 @@ export async function saveReport(id: number, data: SaveReport) {
 		const gone = existing.filter((e) => !keep.includes(e.id)).map((e) => e.id);
 		if (gone.length) await tx.delete(dailyReportRows).where(inArray(dailyReportRows.id, gone));
 
-		for (const m of data.materials) {
-			await tx
-				.update(dailyReportMaterials)
-				.set({ code: m.code.slice(0, 60), filmThickness: num(m.filmThickness) })
-				.where(and(eq(dailyReportMaterials.reportId, id), eq(dailyReportMaterials.kind, m.kind as 'gelb' | 'weiss' | 'reflex')));
+		// Materialblock ebenso neu; leere Zeilen fallen weg
+		const materials = data.materials
+			.filter((m) => m.productId != null || m.material.trim() || m.code.trim() || num(m.filmThickness) != null)
+			.slice(0, MAX_MATERIALS);
+		const wanted = materials.map((m) => m.productId).filter((p): p is number => p != null);
+		const known = new Set(
+			wanted.length
+				? (await tx.select({ id: products.id }).from(products).where(inArray(products.id, wanted)).all()).map((p) => p.id)
+				: []
+		);
+		await tx.delete(dailyReportMaterials).where(eq(dailyReportMaterials.reportId, id));
+		for (const [i, m] of materials.entries()) {
+			await tx.insert(dailyReportMaterials).values({
+				reportId: id,
+				sortOrder: i,
+				productId: m.productId != null && known.has(m.productId) ? m.productId : null,
+				material: m.material.slice(0, 60),
+				code: m.code.slice(0, 120),
+				filmThickness: num(m.filmThickness)
+			});
 		}
 	});
 }
 
-export async function setReportStatus(id: number, status: 'entwurf' | 'abgeschlossen', userId: number) {
+/** Abschließen nimmt die Unterschrift mit, Wieder öffnen verwirft sie */
+export async function setReportStatus(id: number, status: 'entwurf' | 'abgeschlossen', userId: number, signature: string | null = null) {
 	await db
 		.update(dailyReports)
 		.set(
 			status === 'abgeschlossen'
-				? { status, closedBy: userId, closedAt: new Date(), updatedAt: new Date() }
-				: { status, closedBy: null, closedAt: null, updatedAt: new Date() }
+				? { status, closedBy: userId, closedAt: new Date(), closeSignature: signature, updatedAt: new Date() }
+				: { status, closedBy: null, closedAt: null, closeSignature: null, updatedAt: new Date() }
 		)
 		.where(eq(dailyReports.id, id));
 }
@@ -253,11 +307,25 @@ export function mayEdit(user: SessionUser, report: { createdBy: number | null; p
 	return can(user.role, 'tagesberichte.erfassen') && mayView(user, report);
 }
 
-/** Summe je Mengenspalte */
-export function columnSums(rows: Record<string, unknown>[]): Record<QuantityKey, number> {
-	const out = {} as Record<QuantityKey, number>;
-	for (const k of QUANTITY_KEYS) out[k] = rows.reduce((s, r) => s + Number(r[k] ?? 0), 0);
-	return out;
+/**
+ * Artikel für den Materialblock: alle aktiven, mit Farbe und Materialart.
+ * Daraus kommen Material (die Farbe) und Kenn-Nr. (der Artikelname).
+ */
+export async function materialProducts() {
+	return db
+		.select({
+			id: products.id,
+			name: products.name,
+			articleNumber: products.articleNumber,
+			colorName: colors.name,
+			categoryName: categories.name
+		})
+		.from(products)
+		.leftJoin(colors, eq(colors.id, products.colorId))
+		.leftJoin(categories, eq(categories.id, products.categoryId))
+		.where(eq(products.active, true))
+		.orderBy(asc(sql`coalesce(${categories.sortOrder}, 9999)`), asc(categories.name), asc(products.name))
+		.all();
 }
 
 /** Zuletzt verwendete Straßen und Baustellen als Vorschläge */

@@ -127,6 +127,20 @@
       "when": 1790972165071,
       "tag": "0017_stunden_alte_zeiten_weg",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "6",
+      "when": 1791045957160,
+      "tag": "0018_tagesbericht_formular",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "6",
+      "when": 1791045983285,
+      "tag": "0019_tagesbericht_alte_spalten_weg",
+      "breakpoints": true
     }
   ]
 }
