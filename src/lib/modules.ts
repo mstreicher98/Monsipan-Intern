@@ -4,7 +4,8 @@
  * daraus auf – ein neuer Bereich braucht nur einen Eintrag hier.
  *
  * `status: 'geplant'` heißt: noch nicht gebaut, taucht nirgends auf. Sobald der
- * Bereich fertig ist, wird daraus 'aktiv'.
+ * Bereich fertig ist, wird daraus 'aktiv'. `'leer'` ist eine Kategorie, die schon
+ * in der Seitenleiste steht, aber noch keine Einträge hat.
  */
 import LayoutDashboard from '@lucide/svelte/icons/layout-dashboard';
 import HardHat from '@lucide/svelte/icons/hard-hat';
@@ -12,6 +13,7 @@ import CalendarDays from '@lucide/svelte/icons/calendar-days';
 import Users from '@lucide/svelte/icons/users';
 import Clock from '@lucide/svelte/icons/clock';
 import NotebookPen from '@lucide/svelte/icons/notebook-pen';
+import FileText from '@lucide/svelte/icons/file-text';
 import Boxes from '@lucide/svelte/icons/boxes';
 import ScanLine from '@lucide/svelte/icons/scan-line';
 import ArrowLeftRight from '@lucide/svelte/icons/arrow-left-right';
@@ -34,6 +36,8 @@ export interface NavItem {
 	icon: Component;
 	permission?: Permission;
 	badge?: 'lowStock';
+	/** Eine Zeile für die Karte auf der Übersicht – wenn der Eintrag dort eine eigene Karte hat */
+	hint?: string;
 }
 
 /** Grobe Gliederung für die Seitenleiste, sobald mehrere Bereiche aktiv sind */
@@ -46,38 +50,35 @@ export interface AppModule {
 	/** Einstiegsseite des Bereichs */
 	href: string;
 	group: ModuleGroup;
-	status: 'aktiv' | 'geplant';
+	status: 'aktiv' | 'geplant' | 'leer';
 	/** Recht für den ganzen Bereich; ohne Angabe entscheiden die Unterseiten */
 	permission?: Permission;
 	/** Eine Zeile für die Karte auf der Übersicht */
 	hint?: string;
+	/** Auf der Übersicht je Unterseite eine eigene Karte statt einer für den ganzen Bereich */
+	cardsPerItem?: boolean;
 	items: NavItem[];
 }
 
 export const MODULES: AppModule[] = [
 	{ key: 'dashboard', label: 'Übersicht', icon: LayoutDashboard, href: '/', group: 'betrieb', status: 'aktiv', items: [] },
-	{ key: 'auftraege', label: 'Aufträge', icon: HardHat, href: '/auftraege', group: 'betrieb', status: 'geplant', items: [] },
+	// Steht schon im Menü – die Einträge folgen
+	{ key: 'auftraege', label: 'Aufträge/Angebote', icon: HardHat, href: '/auftraege', group: 'betrieb', status: 'leer', items: [] },
 	{ key: 'planung', label: 'Planung', icon: CalendarDays, href: '/planung', group: 'betrieb', status: 'geplant', items: [] },
 	{ key: 'partien', label: 'Partien', icon: Users, href: '/partien', group: 'betrieb', status: 'geplant', items: [] },
 	{
-		key: 'stunden',
-		label: 'Stundenzettel',
-		icon: Clock,
+		key: 'dokumentation',
+		label: 'Dokumentation',
+		icon: FileText,
 		href: '/stundenzettel',
 		group: 'betrieb',
 		status: 'aktiv',
-		hint: 'Lohnwoche je Mitarbeiter',
-		items: []
-	},
-	{
-		key: 'tagesberichte',
-		label: 'Tagesberichte',
-		icon: NotebookPen,
-		href: '/tagesberichte',
-		group: 'betrieb',
-		status: 'aktiv',
-		hint: 'Leistung je Tag und Baustelle',
-		items: []
+		hint: 'Stundenzettel und Tagesberichte',
+		cardsPerItem: true,
+		items: [
+			{ href: '/stundenzettel', label: 'Stundenzettel', icon: Clock, hint: 'Lohnwoche je Mitarbeiter' },
+			{ href: '/tagesberichte', label: 'Tagesberichte', icon: NotebookPen, hint: 'Leistung je Tag und Baustelle' }
+		]
 	},
 	{
 		key: 'lager',

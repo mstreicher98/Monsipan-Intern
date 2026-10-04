@@ -13,13 +13,13 @@
 	import ProductAvatar from '$lib/modules/lager/components/ProductAvatar.svelte';
 	import { monthLong, monthShort } from '$lib/format';
 	import { install } from '$lib/install.svelte';
-	import { visibleModules } from '$lib/nav';
+	import { overviewCards } from '$lib/nav';
 	import { can } from '$lib/permissions';
 
 	let { data } = $props();
 
 	// Bereiche der Anwendung; wächst mit jedem freigeschalteten Modul
-	const areas = $derived(visibleModules(data.user.role).filter((m) => m.key !== 'dashboard'));
+	const areas = $derived(overviewCards(data.user.role));
 
 	const canBook = $derived(can(data.user.role, 'lager.stock.book'));
 	// Ohne Berichte-Recht führt "Nachbestellen" in den gefilterten Bestand statt zur Bestellliste

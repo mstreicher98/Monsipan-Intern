@@ -12,10 +12,17 @@ export function visible(items: NavItem[], role: Role): NavItem[] {
 	return items.filter((i) => !i.permission || can(role, i.permission));
 }
 
-/** Gebaute und für diese Rolle erlaubte Bereiche, Unterseiten schon gefiltert */
+/**
+ * Gebaute und für diese Rolle erlaubte Bereiche, Unterseiten schon gefiltert.
+ * Leere Kategorien kommen mit – die Seitenleiste zeigt sie als Überschrift.
+ */
 export function visibleModules(role: Role): AppModule[] {
 	const out: AppModule[] = [];
 	for (const m of MODULES) {
+		if (m.status === 'leer') {
+			out.push(m);
+			continue;
+		}
 		if (m.status !== 'aktiv') continue;
 		if (m.permission && !can(role, m.permission)) continue;
 		const items = visible(m.items, role);
@@ -30,6 +37,7 @@ export function visibleModules(role: Role): AppModule[] {
 export function allNavItems(role: Role): NavItem[] {
 	const out: NavItem[] = [];
 	for (const m of visibleModules(role)) {
+		if (m.status === 'leer') continue;
 		if (m.items.length) out.push(...m.items);
 		else out.push({ href: m.href, label: m.label, icon: m.icon });
 	}
@@ -42,6 +50,20 @@ export function bottomRightTab(role: Role): NavItem | null {
 	if (can(role, 'lager.movements.view')) return lager.items.find((i) => i.href === '/lager/bewegungen')!;
 	if (can(role, 'lager.stock.book')) return lager.items.find((i) => i.href === '/lager/buchen')!;
 	return null;
+}
+
+/**
+ * Karten für die Übersicht: je Bereich eine, bei `cardsPerItem` je Unterseite
+ * eine. Leere Kategorien und die Übersicht selbst fehlen.
+ */
+export function overviewCards(role: Role): { key: string; href: string; label: string; icon: NavItem['icon']; hint?: string }[] {
+	return visibleModules(role)
+		.filter((m) => m.status === 'aktiv' && m.key !== 'dashboard')
+		.flatMap((m) =>
+			m.cardsPerItem
+				? m.items.map((i) => ({ key: i.href, href: i.href, label: i.label, icon: i.icon, hint: i.hint }))
+				: [{ key: m.key, href: m.href, label: m.label, icon: m.icon, hint: m.hint }]
+		);
 }
 
 export function isActive(href: string, pathname: string) {

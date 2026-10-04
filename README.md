@@ -6,12 +6,13 @@ Oberfläche, auf dem Handy wie am PC. Die übrigen Bereiche kommen nach und nach
 | Bereich | Stand |
 |---|---|
 | Übersicht | fertig – Einstieg in alle Bereiche, Kennzahlen aus dem Lager |
-| Stundenzettel | fertig – Lohnwoche je Mitarbeiter, Freigabe und Prüfung |
-| Tagesberichte | fertig – Leistung je Tag und Baustelle, zum Unterschreiben |
+| Aufträge/Angebote | Kategorie im Menü angelegt, noch ohne Einträge |
+| Dokumentation: Stundenzettel | fertig – Lohnwoche je Mitarbeiter, Freigabe und Prüfung |
+| Dokumentation: Tagesberichte | fertig – Leistung je Tag und Baustelle, Freigabe, Prüfung, Unterschrift des Kunden |
 | Lagermanagement | fertig – Bestand, Buchen, Inventur, Bewegungen, Bestellliste, Berichte, Artikel |
 | Benutzer | fertig – Zugänge, Gruppen, Berechtigungen |
 | Administration | fertig – Stammdaten, Einstellungen, Sicherungen |
-| Aufträge, Planung, Partien | geplant |
+| Planung, Partien | geplant |
 | Bestellungen, Dokumente, Auswertungen | geplant |
 
 Welche Bereiche es gibt und welche davon freigeschaltet sind, steht an einer Stelle:
@@ -619,7 +620,10 @@ src/
 seinen Rechte-Block in `permissions.ts`, seine Tabellen in `server/db/schema/<bereich>.ts`,
 seinen Code unter `lib/modules/<bereich>/` und seine Seiten unter `routes/(app)/<bereich>/`.
 Sobald er läuft, wird aus `'geplant'` ein `'aktiv'` – dann erscheint er in der Navigation
-und auf der Übersicht.
+und auf der Übersicht. `'leer'` zeigt eine Kategorie schon als Überschrift in der
+Seitenleiste, bevor sie Einträge hat (so steht Aufträge/Angebote im Menü). Mehrere Seiten
+unter einer Überschrift sind ein Bereich mit `items` (wie Dokumentation); mit
+`cardsPerItem` bekommt auf der Übersicht jede Seite ihre eigene Karte.
 
 **Buchungslogik:** Jede Buchung ist eine unveränderliche Bewegung. Korrekturen stornieren
 die alte Bewegung und legen eine neue an – der Bestand je Lagerort wird in derselben

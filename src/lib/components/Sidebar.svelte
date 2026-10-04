@@ -46,7 +46,11 @@
 	</div>
 	<nav aria-label="Hauptnavigation" class="flex-1 overflow-y-auto px-3 pb-3">
 		{#each modules as m, i (m.key)}
-			{#if m.items.length}
+			{#if m.status === 'leer'}
+				<!-- Kategorie steht schon da, Einträge folgen -->
+				<p class="{i === 0 ? '' : 'mt-6'} mb-1.5 px-3 text-[0.8125rem] text-ink-3">{m.label}</p>
+				<p class="px-3 text-[0.8125rem] text-ink-3 italic opacity-70">Noch keine Einträge</p>
+			{:else if m.items.length}
 				<p class="{i === 0 ? '' : 'mt-6'} mb-1.5 px-3 text-[0.8125rem] text-ink-3">{m.label}</p>
 				<ul class="space-y-0.5">
 					{#each m.items as n (n.href)}{@render item(n)}{/each}
