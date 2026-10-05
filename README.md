@@ -222,6 +222,13 @@ zum Papierblock.
    („Für den Auftraggeber"). Danach lädt er den fertigen Bericht als PDF – der Link bleibt
    dauerhaft gültig, der Bericht lässt sich darüber jederzeit wieder laden oder drucken.
 
+**Unterschrift vor Ort:** Der Kunde kann auch schon auf der Baustelle am Gerät unterschreiben
+(**Kunde unterschreibt vor Ort**, solange der Bericht noch nicht geprüft ist). Danach ist der
+Inhalt gesperrt – geändert wird erst nach **Unterschrift des Kunden entfernen**. Freigeben
+geht wie gewohnt; mit der Prüfung ist der Bericht dann gleich **abgeschlossen**, und der Link
+entsteht trotzdem – zum Herunterladen. Im Bericht steht, ob der Kunde vor Ort oder über den
+Link unterschrieben hat.
+
 Den Link kann man kopieren, am Handy teilen (WhatsApp, Mail-App …) oder direkt aus der App
 per E-Mail schicken – dafür muss der Mailversand (SMTP) eingerichtet sein. Die Seite des
 Kunden (`/bericht/<link>`) zeigt den Bericht im Aufbau des Vordrucks (am Handy verkleinert, umschaltbar auf eine Liste) und braucht keine Anmeldung; der Link besteht aus 128 Bit Zufall,

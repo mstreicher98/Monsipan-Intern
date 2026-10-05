@@ -18,6 +18,7 @@
 	import Share from '@lucide/svelte/icons/share-2';
 	import Send from '@lucide/svelte/icons/send';
 	import CircleCheck from '@lucide/svelte/icons/circle-check';
+	import Signature from '@lucide/svelte/icons/signature';
 	import Dialog from '$lib/components/Dialog.svelte';
 	import SignaturePad from '$lib/modules/stunden/components/SignaturePad.svelte';
 	import { SIGNATURE_HEIGHT, SIGNATURE_WIDTH } from '$lib/modules/stunden/signature';
@@ -31,6 +32,23 @@
 	type Position = { key: number; lbPos: string; unit: string; total: string };
 	type Row = { key: number; id: number | null; label: string; q: string[] };
 	type Material = { key: number; productId: string; material: string; code: string; thickness: string };
+
+	/**
+	 * Kopf- und Fußfelder gehören dem Formular – nur mit value={…} setzte Svelte sie
+	 * bei der ersten Änderung irgendwo im Formular (z. B. einer Unterschrift)
+	 * auf den gespeicherten Stand zurück, und Eingaben gingen verloren.
+	 */
+	// svelte-ignore state_referenced_locally
+	let head = $state({
+		number: data.report.number,
+		date: data.report.date,
+		road: data.report.road,
+		site: data.report.site,
+		costCenter: data.report.costCenter,
+		dailyOutput: data.report.dailyOutput,
+		lvPosition: data.report.lvPosition,
+		note: data.report.note
+	});
 
 	let nextKey = 1;
 	// Der Bericht wird nur beim Öffnen übernommen – danach gehört der Stand dem Formular
@@ -65,6 +83,10 @@
 	let confirmDelete = $state(false);
 	let confirmReopen = $state(false);
 	let confirmUncheck = $state(false);
+	let onSiteOpen = $state(false);
+	let confirmRemoveCustomer = $state(false);
+	let customerName = $state('');
+	let customerSignature = $state('');
 	let releaseOpen = $state(false);
 	let checkOpen = $state(false);
 	let signature = $state('');
@@ -155,11 +177,15 @@
 	/** Was beim Wieder öffnen verfällt – je nach Stand */
 	const reopenLoss = $derived(
 		report.status === 'abgeschlossen'
-			? 'Die Unterschriften der Freigabe und des Kunden verfallen. Der Kunde unterschreibt danach über denselben Link neu, sobald der Bericht wieder freigegeben und geprüft ist.'
+			? 'Die Unterschriften der Freigabe und des Kunden verfallen. Der Kunde unterschreibt danach über denselben Link oder vor Ort neu, sobald der Bericht wieder freigegeben ist.'
 			: report.status === 'geprueft'
 				? 'Freigabe und Prüfung verfallen. Der Kunde kann erst wieder unterschreiben, wenn der Bericht neu freigegeben und geprüft ist.'
-				: 'Die Unterschrift der Freigabe verfällt – er muss danach neu freigegeben werden.'
+				: `Die Unterschrift der Freigabe${report.customerSignature ? ' und die des Kunden' : ''} verfällt – er muss danach neu freigegeben werden.`
 	);
+	/** Woher die Unterschrift des Kunden stammt */
+	const customerVia = $derived(report.customerSignedOnSite ? 'vor Ort' : 'über den Link');
+	/** Vom Kunden vor Ort unterschrieben, aber noch nicht geprüft – der Inhalt ist gesperrt */
+	const lockedByCustomer = $derived(!!report.customerSignature && (report.status === 'entwurf' || report.status === 'freigegeben'));
 
 	async function copyLink() {
 		if (!data.customerUrl) return;
@@ -222,7 +248,7 @@
 	<p class="card mb-4 border-danger/40 p-3 text-sm text-danger" role="alert">{form.message}</p>
 {/if}
 
-{#if report.status !== 'entwurf'}
+{#if report.status !== 'entwurf' || report.customerSignature}
 	<!-- Wer wann freigegeben, geprüft und (als Kunde) unterschrieben hat -->
 	<section class="card mb-4 grid gap-4 p-4 lg:grid-cols-3 lg:p-5">
 		{@render signed(
@@ -235,7 +261,7 @@
 			'Kunde · für den Auftraggeber',
 			report.customerSignature,
 			report.customerSignedAt
-				? `${report.customerName ?? ''}, ${dateTime(report.customerSignedAt)}`
+				? `${report.customerName ?? ''}, ${dateTime(report.customerSignedAt)} · ${customerVia}`
 				: report.status === 'geprueft'
 					? 'wartet auf die Unterschrift'
 					: 'nach der Prüfung'
@@ -314,7 +340,13 @@
 	action="?/save"
 	use:enhance={({ action }) => {
 		busy = true;
-		const step = action.search.includes('release') ? 'release' : action.search.includes('check') ? 'check' : 'save';
+		const step = action.search.includes('kundeVorOrt')
+			? 'onsite'
+			: action.search.includes('release')
+				? 'release'
+				: action.search.includes('check')
+					? 'check'
+					: 'save';
 		return async ({ result, update }) => {
 			busy = false;
 			if (result.type === 'success') {
@@ -323,38 +355,46 @@
 					releaseOpen = false;
 					signature = '';
 				} else if (step === 'check') {
-					toast.success('Bericht geprüft', 'Der Link für den Kunden ist bereit.');
+					const done = !!(result.data && 'done' in result.data && result.data.done);
+					toast.success(done ? 'Bericht geprüft und abgeschlossen' : 'Bericht geprüft', done ? 'Der Link zum Herunterladen ist bereit.' : 'Der Link für den Kunden ist bereit.');
 					checkOpen = false;
+				} else if (step === 'onsite') {
+					toast.success('Unterschrift des Kunden gespeichert');
+					onSiteOpen = false;
+					customerName = '';
+					customerSignature = '';
 				} else toast.success('Gespeichert');
 			}
 			await update({ reset: false });
 		};
 	}}
 >
-	<!-- Außerhalb des fieldset, damit sie auch bei gesperrtem Bericht mitkommt -->
+	<!-- Außerhalb des fieldset, damit sie auch bei gesperrtem Bericht mitkommen -->
 	<input type="hidden" name="unterschrift" value={signature} />
+	<input type="hidden" name="kunde_name" value={customerName} />
+	<input type="hidden" name="kunde_unterschrift" value={customerSignature} />
 
 	<fieldset disabled={!data.editable} class="contents">
 		<section class="card grid gap-4 p-4 sm:grid-cols-2 lg:grid-cols-5 lg:p-5">
 			<label class="block">
 				<span class="field-label">Nummer</span>
-				<input class="input num" name="nummer" value={report.number} maxlength="40" />
+				<input class="input num" name="nummer" bind:value={head.number} maxlength="40" />
 			</label>
 			<label class="block">
 				<span class="field-label">Datum</span>
-				<input class="input num" type="date" name="datum" value={report.date} required />
+				<input class="input num" type="date" name="datum" bind:value={head.date} required />
 			</label>
 			<label class="block">
 				<span class="field-label">Bundesstraße Nr.</span>
-				<input class="input" name="strasse" value={report.road} maxlength="120" list="strassen" />
+				<input class="input" name="strasse" bind:value={head.road} maxlength="120" list="strassen" />
 			</label>
 			<label class="block">
 				<span class="field-label">Baustelle</span>
-				<input class="input" name="baustelle" value={report.site} maxlength="200" list="baustellen" />
+				<input class="input" name="baustelle" bind:value={head.site} maxlength="200" list="baustellen" />
 			</label>
 			<label class="block">
 				<span class="field-label">Kostenstelle</span>
-				<input class="input" name="kostenstelle" value={report.costCenter} maxlength="60" />
+				<input class="input" name="kostenstelle" bind:value={head.costCenter} maxlength="60" />
 			</label>
 		</section>
 		<datalist id="strassen">{#each data.places.roads as r (r)}<option value={r}></option>{/each}</datalist>
@@ -558,36 +598,52 @@
 			<section class="card space-y-3 p-4 lg:p-5">
 				<label class="block">
 					<span class="field-label">Tagesleistung</span>
-					<input class="input" name="tagesleistung" value={report.dailyOutput} maxlength="200" />
+					<input class="input" name="tagesleistung" bind:value={head.dailyOutput} maxlength="200" />
 				</label>
 				<label class="block">
 					<span class="field-label">LV-Position Nr.</span>
-					<input class="input" name="lvposition" value={report.lvPosition} maxlength="200" />
+					<input class="input" name="lvposition" bind:value={head.lvPosition} maxlength="200" />
 				</label>
 			</section>
 
 			<section class="card p-4 lg:p-5">
 				<h2 class="text-lg">Notiz</h2>
-				<textarea class="textarea mt-2" name="notiz" rows="4" maxlength="2000" value={report.note}></textarea>
+				<textarea class="textarea mt-2" name="notiz" rows="4" maxlength="2000" bind:value={head.note}></textarea>
 			</section>
 		</div>
 	</fieldset>
 
-	{#if data.editable}
+	{#if data.editable || data.canRelease || data.canCheck || data.canSignOnSite || data.canRemoveCustomer}
 		<div class="card sticky bottom-24 mt-4 flex flex-wrap items-center gap-2 p-3 lg:bottom-6">
-			<button class="btn btn-primary" disabled={busy}>{busy ? 'Wird gespeichert …' : 'Speichern'}</button>
+			{#if data.editable}
+				<button class="btn btn-primary" disabled={busy}>{busy ? 'Wird gespeichert …' : 'Speichern'}</button>
+			{/if}
 			{#if data.canRelease}
-				<button type="button" class="btn btn-secondary" disabled={busy} onclick={() => (releaseOpen = true)}>
+				<button type="button" class="btn {data.editable ? 'btn-secondary' : 'btn-primary'}" disabled={busy} onclick={() => (releaseOpen = true)}>
 					<PenLine size={18} aria-hidden="true" />Freigeben
 				</button>
 			{/if}
 			{#if data.canCheck}
-				<button type="button" class="btn btn-secondary" disabled={busy} onclick={() => (checkOpen = true)}>
+				<button type="button" class="btn {data.editable ? 'btn-secondary' : 'btn-primary'}" disabled={busy} onclick={() => (checkOpen = true)}>
 					<Check size={18} aria-hidden="true" />Geprüft
 				</button>
 			{/if}
+			{#if data.canSignOnSite}
+				<button type="button" class="btn btn-secondary" disabled={busy} onclick={() => (onSiteOpen = true)}>
+					<Signature size={18} aria-hidden="true" />Kunde unterschreibt vor Ort
+				</button>
+			{/if}
+			{#if data.canRemoveCustomer}
+				<button type="button" class="btn btn-ghost" disabled={busy} onclick={() => (confirmRemoveCustomer = true)}>
+					<X size={18} aria-hidden="true" />Unterschrift des Kunden entfernen
+				</button>
+			{/if}
 			<span class="ml-auto text-sm text-ink-2">
-				{report.status === 'freigegeben' ? 'Freigegeben – du kannst vor dem Prüfen noch korrigieren.' : `${rows.length} Zeilen · ${positions.length} LB-Pos.`}
+				{lockedByCustomer
+					? 'Vom Kunden vor Ort unterschrieben – zum Ändern erst seine Unterschrift entfernen.'
+					: report.status === 'freigegeben'
+						? 'Freigegeben – du kannst vor dem Prüfen noch korrigieren.'
+						: `${rows.length} Zeilen · ${positions.length} LB-Pos.`}
 			</span>
 		</div>
 	{:else}
@@ -599,9 +655,6 @@
 </form>
 
 <div class="mt-4 flex flex-wrap gap-2">
-	{#if data.canCheck && !data.editable}
-		<button type="button" class="btn btn-secondary" onclick={() => (checkOpen = true)}><Check size={18} aria-hidden="true" />Geprüft</button>
-	{/if}
 	{#if data.canUncheck}
 		<button type="button" class="btn btn-ghost" onclick={() => (confirmUncheck = true)}><Undo size={18} aria-hidden="true" />Zurück auf freigegeben</button>
 	{/if}
@@ -635,8 +688,13 @@
 
 <Dialog bind:open={checkOpen} title="Bericht prüfen">
 	<p class="text-ink-2">
-		Der Bericht {report.number} wird als geprüft markiert{data.editable ? ' – deine Änderungen werden vorher gespeichert' : ''}. Danach
-		kannst du dem Kunden den Link zum Unterschreiben schicken.
+		Der Bericht {report.number} wird als geprüft markiert{data.editable ? ' – deine Änderungen werden vorher gespeichert' : ''}.
+		{#if report.customerSignature}
+			Der Kunde hat schon vor Ort unterschrieben – damit ist der Bericht <span class="font-medium text-ink">abgeschlossen</span>. Den Link
+			zum Herunterladen kannst du ihm danach schicken.
+		{:else}
+			Danach kannst du dem Kunden den Link zum Unterschreiben schicken.
+		{/if}
 	</p>
 	{#if form && 'message' in form && form.message}<p class="field-error" role="alert">{form.message}</p>{/if}
 	<div class="mt-5 flex flex-wrap justify-end gap-2">
@@ -645,6 +703,53 @@
 			<Check size={18} aria-hidden="true" />Als geprüft markieren
 		</button>
 	</div>
+</Dialog>
+
+<Dialog bind:open={onSiteOpen} title="Kunde unterschreibt vor Ort">
+	<p class="text-ink-2">
+		Gib das Gerät dem Kunden: Er trägt seinen Namen ein und unterschreibt für den Auftraggeber. Was im Formular steht, wird
+		vorher gespeichert – danach lässt sich der Bericht nicht mehr ändern, bis die Unterschrift wieder entfernt wird.
+	</p>
+	<label class="mt-4 block">
+		<span class="field-label">Name des Kunden</span>
+		<input class="input" bind:value={customerName} maxlength="120" autocomplete="off" />
+	</label>
+	<div class="mt-3">
+		<SignaturePad bind:path={customerSignature} label="Unterschrift des Kunden" />
+	</div>
+	{#if form && 'message' in form && form.message}<p class="field-error" role="alert">{form.message}</p>{/if}
+	<div class="mt-4 flex flex-wrap justify-end gap-2">
+		<button type="button" class="btn btn-ghost" onclick={() => (onSiteOpen = false)}>Abbrechen</button>
+		<button
+			type="submit"
+			form="bericht"
+			formaction="?/kundeVorOrt"
+			class="btn btn-primary"
+			disabled={busy || !customerSignature || customerName.trim().length < 2}
+		>
+			<Signature size={18} aria-hidden="true" />Unterschrift speichern
+		</button>
+	</div>
+</Dialog>
+
+<Dialog bind:open={confirmRemoveCustomer} title="Unterschrift des Kunden entfernen?">
+	<p class="text-ink-2">
+		Die Unterschrift von <span class="font-medium text-ink">{report.customerName}</span> wird entfernt. Danach lässt sich der Bericht
+		wieder ändern; der Kunde unterschreibt später neu – vor Ort oder nach der Prüfung über den Link.
+	</p>
+	<form
+		method="POST"
+		action="?/kundeEntfernen"
+		class="mt-5 flex justify-end gap-2"
+		use:enhance={() => async ({ result, update }) => {
+			confirmRemoveCustomer = false;
+			if (result.type === 'success') toast.info('Unterschrift des Kunden entfernt');
+			await update();
+		}}
+	>
+		<button type="button" class="btn btn-ghost" onclick={() => (confirmRemoveCustomer = false)}>Abbrechen</button>
+		<button class="btn btn-primary"><X size={18} aria-hidden="true" />Entfernen</button>
+	</form>
 </Dialog>
 
 <Dialog bind:open={confirmUncheck} title="Zurück auf freigegeben?">

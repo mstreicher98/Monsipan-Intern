@@ -162,6 +162,13 @@
       "when": 1791214142653,
       "tag": "0022_tagesbericht_filmdicke_text",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "6",
+      "when": 1791233851875,
+      "tag": "0023_tagesbericht_kunde_vor_ort",
+      "breakpoints": true
     }
   ]
 }

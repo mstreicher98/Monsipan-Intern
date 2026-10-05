@@ -51,6 +51,8 @@ export const dailyReports = sqliteTable(
 		customerName: text('customer_name'),
 		customerSignature: text('customer_signature'),
 		customerSignedAt: integer('customer_signed_at', { mode: 'timestamp_ms' }),
+		/** Auf der Baustelle am Gerät unterschrieben (statt über den Link) – dann gleich nach der Prüfung fertig */
+		customerSignedOnSite: integer('customer_signed_on_site', { mode: 'boolean' }).notNull().default(false),
 		/** Zuletzt per E-Mail verschickt – an wen und wann */
 		customerEmail: text('customer_email'),
 		customerLinkSentAt: integer('customer_link_sent_at', { mode: 'timestamp_ms' }),

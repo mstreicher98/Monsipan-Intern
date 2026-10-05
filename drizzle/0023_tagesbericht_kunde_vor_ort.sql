@@ -1,0 +1,1 @@
+ALTER TABLE `daily_reports` ADD `customer_signed_on_site` integer DEFAULT false NOT NULL;

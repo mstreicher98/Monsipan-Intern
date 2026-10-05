@@ -4,6 +4,7 @@ import { requireUser } from '$lib/server/guard';
 import { customerReportMail, isMailConfigured, sendMail } from '$lib/server/mail';
 import {
 	checkReport,
+	customerSignOnSite,
 	deleteReport,
 	ensureCustomerToken,
 	markLinkSent,
@@ -11,8 +12,10 @@ import {
 	mayEdit,
 	mayReopen,
 	mayView,
+	mayWork,
 	recentPlaces,
 	releaseReport,
+	removeCustomerSignature,
 	reopenReport,
 	reportDetail,
 	saveReport,
@@ -38,6 +41,7 @@ const linkReady = (status: string) => status === 'geprueft' || status === 'abges
 export const load: PageServerLoad = async ({ params, locals, url }) => {
 	const { user, report } = await open(Number(params.id), locals);
 	const editable = mayEdit(user, report);
+	const working = mayWork(user, report);
 	const canLink = linkReady(report.status) && can(user.role, 'tagesberichte.kundenlink');
 	return {
 		report,
@@ -45,7 +49,10 @@ export const load: PageServerLoad = async ({ params, locals, url }) => {
 		// Die Artikelauswahl braucht nur, wer auch eintragen darf
 		products: editable ? await materialProducts() : [],
 		editable,
-		canRelease: report.status === 'entwurf' && editable && can(user.role, 'tagesberichte.freigeben'),
+		canRelease: report.status === 'entwurf' && working && can(user.role, 'tagesberichte.freigeben'),
+		// Vor der Prüfung kann der Kunde auf der Baustelle am Gerät unterschreiben
+		canSignOnSite: working && !report.customerSignature,
+		canRemoveCustomer: working && !!report.customerSignature,
 		canCheck: report.status === 'freigegeben' && can(user.role, 'tagesberichte.pruefen'),
 		canUncheck: report.status === 'geprueft' && can(user.role, 'tagesberichte.pruefung.zuruecknehmen'),
 		canReopen: mayReopen(user.role, report.status),
@@ -140,7 +147,7 @@ export const actions: Actions = {
 	release: async ({ params, request, locals }) => {
 		const { user, report } = await open(Number(params.id), locals);
 		if (report.status !== 'entwurf') return fail(400, { message: 'Dieser Bericht ist bereits freigegeben.' });
-		if (!can(user.role, 'tagesberichte.freigeben') || !mayEdit(user, report)) {
+		if (!can(user.role, 'tagesberichte.freigeben') || !mayWork(user, report)) {
 			return fail(403, { message: 'Freigeben darf nur, wer den Bericht auch erfassen darf.' });
 		}
 		const form = await request.formData();
@@ -149,7 +156,8 @@ export const actions: Actions = {
 		if (!isValidSignature(signature)) {
 			return fail(400, { message: 'Die Unterschrift konnte nicht gelesen werden – bitte neu unterschreiben.' });
 		}
-		const invalid = await saveIfEditable(form, report, true);
+		// Hat der Kunde schon vor Ort unterschrieben, ist der Inhalt gesperrt und wird nicht gespeichert
+		const invalid = await saveIfEditable(form, report, mayEdit(user, report));
 		if (invalid) return invalid;
 		await releaseReport(report.id, user.id, signature);
 		return { released: true };
@@ -162,8 +170,38 @@ export const actions: Actions = {
 		if (report.status !== 'freigegeben') return fail(400, { message: 'Geprüft werden kann nur ein freigegebener Bericht.' });
 		const invalid = await saveIfEditable(await request.formData(), report, mayEdit(user, report));
 		if (invalid) return invalid;
-		await checkReport(report.id, user.id);
-		return { checked: true };
+		// Mit der Unterschrift des Kunden vor Ort ist der Bericht damit fertig
+		const status = await checkReport(report.id, user.id);
+		return { checked: true, done: status === 'abgeschlossen' };
+	},
+
+	/**
+	 * Der Kunde unterschreibt auf der Baustelle am Gerät. Was im Formular steht,
+	 * wird vorher gespeichert – danach ist der Inhalt gesperrt.
+	 */
+	kundeVorOrt: async ({ params, request, locals }) => {
+		const { user, report } = await open(Number(params.id), locals);
+		if (!mayWork(user, report)) return fail(403, { message: 'Vor Ort unterschreiben geht nur vor der Prüfung.' });
+		if (report.customerSignature) return fail(400, { message: 'Der Kunde hat bereits unterschrieben.' });
+		const form = await request.formData();
+		const name = String(form.get('kunde_name') ?? '').trim().replace(/\s+/g, ' ');
+		const signature = String(form.get('kunde_unterschrift') ?? '').trim();
+		if (name.length < 2 || name.length > 120) return fail(400, { message: 'Bitte den Namen des Kunden eintragen.' });
+		if (!isValidSignature(signature)) return fail(400, { message: 'Die Unterschrift des Kunden fehlt oder war nicht lesbar.' });
+		const invalid = await saveIfEditable(form, report, mayEdit(user, report));
+		if (invalid) return invalid;
+		if (!(await customerSignOnSite(report.id, name, signature))) {
+			return fail(409, { message: 'Der Bericht wurde inzwischen geändert – bitte die Seite neu laden.' });
+		}
+		return { customerSigned: true };
+	},
+
+	/** Unterschrift des Kunden vor der Prüfung entfernen – danach lässt sich der Bericht wieder ändern */
+	kundeEntfernen: async ({ params, locals }) => {
+		const { user, report } = await open(Number(params.id), locals);
+		if (!mayWork(user, report)) return fail(403, { message: 'Dafür fehlt dir die Berechtigung.' });
+		await removeCustomerSignature(report.id);
+		return { customerRemoved: true };
 	},
 
 	uncheck: async ({ params, locals }) => {

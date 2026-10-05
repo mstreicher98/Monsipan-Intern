@@ -151,6 +151,7 @@ async function loadReport(where: SQL) {
 			customerName: dailyReports.customerName,
 			customerSignature: dailyReports.customerSignature,
 			customerSignedAt: dailyReports.customerSignedAt,
+			customerSignedOnSite: dailyReports.customerSignedOnSite,
 			customerEmail: dailyReports.customerEmail,
 			customerLinkSentAt: dailyReports.customerLinkSentAt,
 			authorFirst: users.firstName,
@@ -308,23 +309,52 @@ export async function saveReport(id: number, data: SaveReport) {
 /* ------------------------------------------------------------- Ablauf */
 
 const NO_CHECK = { checkedBy: null, checkedAt: null };
-const NO_CUSTOMER = { customerName: null, customerSignature: null, customerSignedAt: null };
+const NO_CUSTOMER = { customerName: null, customerSignature: null, customerSignedAt: null, customerSignedOnSite: false };
+/** Vor der Prüfung: in Arbeit oder freigegeben */
+const BEFORE_CHECK = inArray(dailyReports.status, ['entwurf', 'freigegeben']);
 
-/** Freigeben mit Unterschrift – sie steht im Ausdruck bei „Für den Auftragnehmer" */
+/**
+ * Freigeben mit Unterschrift – sie steht im Ausdruck bei „Für den Auftragnehmer".
+ * Eine Unterschrift, die der Kunde schon vor Ort geleistet hat, bleibt.
+ */
 export async function releaseReport(id: number, userId: number, signature: string) {
 	await db
 		.update(dailyReports)
-		.set({ status: 'freigegeben', releasedBy: userId, releasedAt: new Date(), releaseSignature: signature, ...NO_CHECK, ...NO_CUSTOMER, updatedAt: new Date() })
+		.set({ status: 'freigegeben', releasedBy: userId, releasedAt: new Date(), releaseSignature: signature, ...NO_CHECK, updatedAt: new Date() })
 		.where(and(eq(dailyReports.id, id), eq(dailyReports.status, 'entwurf')));
 }
 
-/** Prüfen; dabei entsteht der Link für den Kunden, falls es noch keinen gibt */
-export async function checkReport(id: number, userId: number) {
+/**
+ * Prüfen; dabei entsteht der Link für den Kunden, falls es noch keinen gibt.
+ * Hat der Kunde schon vor Ort unterschrieben, ist der Bericht damit fertig.
+ */
+export async function checkReport(id: number, userId: number): Promise<'geprueft' | 'abgeschlossen'> {
+	const row = await db.select({ signed: dailyReports.customerSignature }).from(dailyReports).where(eq(dailyReports.id, id)).get();
+	const status = row?.signed ? 'abgeschlossen' : 'geprueft';
 	await db
 		.update(dailyReports)
-		.set({ status: 'geprueft', checkedBy: userId, checkedAt: new Date(), updatedAt: new Date() })
+		.set({ status, checkedBy: userId, checkedAt: new Date(), updatedAt: new Date() })
 		.where(and(eq(dailyReports.id, id), eq(dailyReports.status, 'freigegeben')));
 	await ensureCustomerToken(id);
+	return status;
+}
+
+/** Der Kunde unterschreibt auf der Baustelle am Gerät – vor der Prüfung, der Inhalt ist danach gesperrt */
+export async function customerSignOnSite(id: number, name: string, signature: string): Promise<boolean> {
+	const done = await db
+		.update(dailyReports)
+		.set({ customerName: name, customerSignature: signature, customerSignedAt: new Date(), customerSignedOnSite: true, updatedAt: new Date() })
+		.where(and(eq(dailyReports.id, id), BEFORE_CHECK, sql`${dailyReports.customerSignature} is null`))
+		.returning({ id: dailyReports.id });
+	return done.length > 0;
+}
+
+/** Unterschrift des Kunden vor der Prüfung wieder entfernen – dann lässt sich der Bericht wieder ändern */
+export async function removeCustomerSignature(id: number) {
+	await db
+		.update(dailyReports)
+		.set({ ...NO_CUSTOMER, updatedAt: new Date() })
+		.where(and(eq(dailyReports.id, id), BEFORE_CHECK));
 }
 
 /** Prüfung zurücknehmen – die Freigabe samt Unterschrift bleibt */
@@ -367,7 +397,14 @@ export async function markLinkSent(id: number, email: string) {
 export async function customerSign(id: number, name: string, signature: string): Promise<boolean> {
 	const done = await db
 		.update(dailyReports)
-		.set({ status: 'abgeschlossen', customerName: name, customerSignature: signature, customerSignedAt: new Date(), updatedAt: new Date() })
+		.set({
+			status: 'abgeschlossen',
+			customerName: name,
+			customerSignature: signature,
+			customerSignedAt: new Date(),
+			customerSignedOnSite: false,
+			updatedAt: new Date()
+		})
 		.where(and(eq(dailyReports.id, id), eq(dailyReports.status, 'geprueft')))
 		.returning({ id: dailyReports.id });
 	return done.length > 0;
@@ -384,15 +421,26 @@ export function mayView(user: SessionUser, report: { createdBy: number | null; p
 }
 
 /**
- * Ändern: in Arbeit wer erfassen darf, freigegeben nur noch wer prüft (um vor
- * dem Prüfen zu korrigieren). Geprüfte und abgeschlossene Berichte nur nach
- * dem Wieder öffnen.
+ * Am Bericht arbeiten: in Arbeit wer erfassen darf, freigegeben nur noch wer
+ * prüft (um vor dem Prüfen zu korrigieren). Geprüfte und abgeschlossene
+ * Berichte nur nach dem Wieder öffnen.
  */
-export function mayEdit(user: SessionUser, report: { createdBy: number | null; partyId: number | null; status: string }): boolean {
+export function mayWork(user: SessionUser, report: { createdBy: number | null; partyId: number | null; status: string }): boolean {
 	if (!mayView(user, report)) return false;
 	if (report.status === 'entwurf') return can(user.role, 'tagesberichte.erfassen');
 	if (report.status === 'freigegeben') return can(user.role, 'tagesberichte.pruefen');
 	return false;
+}
+
+/**
+ * Ändern: wie oben – aber nicht mehr, sobald der Kunde vor Ort unterschrieben
+ * hat. Sonst stünde seine Unterschrift unter anderen Zahlen, als er gesehen hat.
+ */
+export function mayEdit(
+	user: SessionUser,
+	report: { createdBy: number | null; partyId: number | null; status: string; customerSignature?: string | null }
+): boolean {
+	return mayWork(user, report) && !report.customerSignature;
 }
 
 /** Wieder öffnen hängt am Status – jeder hat sein eigenes Recht */
