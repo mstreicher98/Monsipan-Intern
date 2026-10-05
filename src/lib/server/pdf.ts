@@ -3,11 +3,49 @@
  *
  * Bewusst schlicht: ein Kopf mit Titel und Filterangaben, eine oder mehrere
  * Tabellen, optional Angaben als Beschriftung/Wert und Unterschriftszeilen.
- * Gezeichnet wird mit pdfkit und der eingebauten Helvetica – das spart ein
- * eingebettetes Schriftpaket im Container und kann deutsche Umlaute.
+ * Gezeichnet wird mit pdfkit; die Schrift ist Liberation Sans (siehe unten).
  */
+import fs from 'node:fs';
+import path from 'node:path';
 import PDFDocument from 'pdfkit';
 import { APP_NAME } from '$lib/app';
+
+/**
+ * Die eingebaute Helvetica von pdfkit kennt nur westeuropäische Zeichen – Namen
+ * wie Kokić oder Čolić zerfielen. Liberation Sans ist maßgleich mit Helvetica und
+ * Arial und deckt auch ć, č, š, ž, đ, ł, ő usw. ab. Sie wird unter den Namen der
+ * Helvetica angemeldet, damit alle Zeichnungen unverändert bleiben; ins PDF kommen
+ * nur die verwendeten Zeichen. Die Dateien liegen im Ordner „fonts" (mit Lizenz).
+ */
+const FONT_FILES = {
+	Helvetica: 'LiberationSans-Regular.ttf',
+	'Helvetica-Bold': 'LiberationSans-Bold.ttf',
+	'Helvetica-Oblique': 'LiberationSans-Italic.ttf',
+	'Helvetica-BoldOblique': 'LiberationSans-BoldItalic.ttf'
+} as const;
+
+let fontsFolder: string | null = null;
+
+function fontFile(name: keyof typeof FONT_FILES): string {
+	if (!fontsFolder) {
+		const candidates = [path.resolve('fonts'), path.resolve(process.cwd(), 'fonts')];
+		fontsFolder = candidates.find((c) => fs.existsSync(path.join(c, FONT_FILES.Helvetica))) ?? null;
+		if (!fontsFolder) throw new Error('Schriftordner "fonts" nicht gefunden');
+	}
+	return path.join(fontsFolder, FONT_FILES[name]);
+}
+
+/**
+ * Startschrift beim Anlegen des Dokuments – sonst legt pdfkit die eingebaute
+ * Helvetica unter diesem Namen ab, und ein späteres Anmelden griffe nicht mehr.
+ */
+const baseFont = () => fontFile('Helvetica');
+
+/** Alle vier Schnitte unter den Helvetica-Namen anmelden */
+function useFonts(doc: PDFKit.PDFDocument) {
+	for (const name of Object.keys(FONT_FILES) as (keyof typeof FONT_FILES)[]) doc.registerFont(name, fontFile(name));
+	doc.font('Helvetica');
+}
 
 export type Align = 'left' | 'right' | 'center';
 
@@ -68,8 +106,10 @@ export function startPdf(opts: { title: string; landscape?: boolean; margin?: nu
 		size: 'A4',
 		layout: opts.landscape ? 'landscape' : 'portrait',
 		margins: { top: margin, bottom: margin, left: margin, right: margin },
-		info: { Title: opts.title, Author: APP_NAME, Creator: APP_NAME }
+		info: { Title: opts.title, Author: APP_NAME, Creator: APP_NAME },
+		font: baseFont()
 	});
+	useFonts(doc);
 	const chunks: Buffer[] = [];
 	const done = new Promise<Buffer>((resolve, reject) => {
 		doc.on('data', (c: Buffer) => chunks.push(c));
@@ -103,8 +143,10 @@ export function pdfBuffer(opts: PdfOptions): Promise<Buffer> {
 		layout: opts.landscape ? 'landscape' : 'portrait',
 		margins: { top: 40, bottom: 48, left: 36, right: 36 },
 		bufferPages: true,
-		info: { Title: opts.title, Author: APP_NAME, Creator: APP_NAME }
+		info: { Title: opts.title, Author: APP_NAME, Creator: APP_NAME },
+		font: baseFont()
 	});
+	useFonts(doc);
 
 	const chunks: Buffer[] = [];
 	const done = new Promise<Buffer>((resolve, reject) => {

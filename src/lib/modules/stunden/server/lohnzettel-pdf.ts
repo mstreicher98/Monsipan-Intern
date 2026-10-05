@@ -116,7 +116,8 @@ export async function lohnzettelPdf(sheet: SheetDetail): Promise<Response> {
 
 	doc.text('Tag', colX(0), y + 2, { width: colW(0), align: 'center' });
 	line(colX(0), y + HEAD_H / 2, colX(1), y + HEAD_H / 2, 0.6);
-	doc.fontSize(6.5).text('Arbeits-\nzeit', colX(0), y + HEAD_H / 2 + 1, { width: colW(0), align: 'center', lineGap: -1 });
+	// Zwei Zeilen in der unteren Hälfte – klein genug, dass „zeit" über der Linie bleibt
+	doc.fontSize(6).text('Arbeits-\nzeit', colX(0), y + HEAD_H / 2 + 0.5, { width: colW(0), align: 'center', lineGap: -1.5 });
 
 	doc.fontSize(7.5).text('Kosten-\nstelle', colX(1), y + 5, { width: colW(1), align: 'center', lineGap: -1 });
 	doc.text('Baustelle / Tätigkeit', colX(2), y + 9, { width: colW(2), align: 'center' });
@@ -127,6 +128,11 @@ export async function lohnzettelPdf(sheet: SheetDetail): Promise<Response> {
 	doc.text('Feiertags-\nstd.', colX(7), y + 5, { width: colW(7), align: 'center', lineGap: -1 });
 	doc.text('Regen-\nStd.', colX(8), y + 5, { width: colW(8), align: 'center', lineGap: -1 });
 	doc.text('Efzg', colX(9), y + 9, { width: colW(9), align: 'center' });
+
+	// Senkrechte Linien im Kopf – zwischen 50 % und 100 % erst unter „Überstunden"
+	for (let c = 1; c < COLUMNS.length; c++) {
+		line(xs[c], c === 5 ? y + HEAD_H / 2 : y, xs[c], y + HEAD_H, 0.6);
+	}
 
 	y += HEAD_H;
 	line(left, y, right, y);

@@ -20,6 +20,8 @@ ENV NODE_ENV=production \
 COPY --from=build --chown=node:node /app/build ./build
 COPY --from=build --chown=node:node /app/node_modules ./node_modules
 COPY --from=build --chown=node:node /app/drizzle ./drizzle
+# Schrift für die PDFs (Liberation Sans, mit Lizenz) – kann auch ć, č, š, ž, đ
+COPY --from=build --chown=node:node /app/fonts ./fonts
 COPY --from=build --chown=node:node /app/package.json ./
 USER node
 VOLUME ["/data"]

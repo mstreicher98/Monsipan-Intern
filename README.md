@@ -437,6 +437,9 @@ Lohnwoche, das Raster mit je einer Zeile pro Tag und einer schmalen für Zeit vo
 Gesamtstunden, VAZ, Auslöse und die beiden Unterschriftszeilen mit dem KV-Satz dazwischen.
 Mit `?nodruck=1` lässt sich eine Druckansicht ohne Druckfenster anschauen.
 
+Alle PDFs schreiben mit Liberation Sans (Ordner `fonts/`, im Docker-Image enthalten) –
+so kommen auch Namen wie Kokić oder Čolić richtig aufs Papier.
+
 Jede Seite hat Kopf (Titel, Filter) und Fuß (Anwendung, Ausdruckzeitpunkt, Seite x von y);
 der Tabellenkopf wiederholt sich beim Seitenumbruch. Lohnzettel und Tagesbericht bringen
 ihre Unterschriftszeilen mit. **CSV** gibt es unverändert daneben – für Excel.
@@ -591,6 +594,8 @@ Die Artikelsuche findet Artikel auch über die RAL-Nummer.
 - SQLite über libsql und [Drizzle ORM](https://orm.drizzle.team), Migrationen in `drizzle/`
 - Kamera: native BarcodeDetector-API, sonst [zxing-wasm](https://github.com/Sec-ant/zxing-wasm)
 - E-Mail: Nodemailer, Live-Updates: Server-Sent Events
+- PDF: pdfkit mit der Schrift Liberation Sans aus `fonts/` (maßgleich mit Helvetica, kann auch
+  ć, č, š, ž, đ, ł usw. für Namen; Lizenz liegt daneben)
 
 ```
 src/
