@@ -5,7 +5,7 @@
 	 */
 	import { dateTime } from '$lib/format';
 	import { SIGNATURE_HEIGHT, SIGNATURE_WIDTH } from '$lib/modules/stunden/signature';
-	import { columnSums, quantityLabel, sumLabel } from '../sheet';
+	import { columnSums, filmLabel, quantityLabel, sumLabel } from '../sheet';
 
 	interface Report {
 		date: string;
@@ -17,7 +17,7 @@
 		note: string;
 		positions: { lbPos: string; unit: string; totalQuantity: number | null }[];
 		rows: { id: number; label: string; quantities: (number | null)[] }[];
-		materials: { material: string; code: string; filmThickness: number | null }[];
+		materials: { material: string; code: string; filmThickness: string }[];
 		releaseSignature: string | null;
 		releasedAt: Date | null;
 		releasedByFirst: string | null;
@@ -109,7 +109,7 @@
 		<dt class="text-ink-3">Material</dt>
 		<dd class="num">
 			{#each report.materials as m, i (i)}
-				<span class="block">{[m.material, m.code, m.filmThickness != null ? `${quantityLabel(m.filmThickness)} mm` : ''].filter(Boolean).join(' · ')}</span>
+				<span class="block">{[m.material, m.code, filmLabel(m.filmThickness)].filter(Boolean).join(' · ')}</span>
 			{:else}–{/each}
 		</dd>
 		<dt class="text-ink-3">Tagesleistung</dt>

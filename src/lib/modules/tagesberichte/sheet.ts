@@ -85,6 +85,12 @@ export function sumLabel(v: number): string {
 	return v ? quantityLabel(v) : '';
 }
 
+/** Filmdicke für die Liste: eine reine Zahl bekommt „mm", Text bleibt wie eingetragen */
+export function filmLabel(v: string): string {
+	const t = v.trim();
+	return /^\d+(?:[.,]\d+)?$/.test(t) ? `${t} mm` : t;
+}
+
 /**
  * Was beim Artikel aus dem Lager als „Material" eingetragen wird: die Farbe,
  * ohne Farbe die Materialart (z. B. Glasperlen).

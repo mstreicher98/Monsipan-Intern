@@ -218,7 +218,7 @@ export async function tagesberichtPdf(report: ReportDetail, { forCustomer = fals
 			if (m) {
 				cell(m.material, xs[0], y, xs[1] - xs[0], FOOT_H, { size: 8, minSize: 6 });
 				wrapCell(m.code, xs[1], y, xs[2] - xs[1], FOOT_H, 8, 4.5);
-				cell(quantityLabel(m.filmThickness), xs[2], y, xs[3] - xs[2], FOOT_H, { size: 8, minSize: 6 });
+				wrapCell(m.filmThickness, xs[2], y, xs[3] - xs[2], FOOT_H, 8, 4.5);
 			}
 			cell(LABELS[i] ?? '', xs[3], y, xs[4] - xs[3], FOOT_H, { size: 12.5, minSize: 9, align: 'right', pad: 5 });
 			if (i === 0) {

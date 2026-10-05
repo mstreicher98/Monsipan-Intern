@@ -283,7 +283,7 @@ export async function saveReport(id: number, data: SaveReport) {
 
 		// Materialblock ebenso neu; leere Zeilen fallen weg
 		const materials = data.materials
-			.filter((m) => m.productId != null || m.material.trim() || m.code.trim() || num(m.filmThickness) != null)
+			.filter((m) => m.productId != null || m.material.trim() || m.code.trim() || m.filmThickness.trim())
 			.slice(0, MAX_MATERIALS);
 		const wanted = materials.map((m) => m.productId).filter((p): p is number => p != null);
 		const known = new Set(
@@ -299,7 +299,7 @@ export async function saveReport(id: number, data: SaveReport) {
 				productId: m.productId != null && known.has(m.productId) ? m.productId : null,
 				material: m.material.slice(0, 60),
 				code: m.code.slice(0, 120),
-				filmThickness: num(m.filmThickness)
+				filmThickness: m.filmThickness.trim().slice(0, 30)
 			});
 		}
 	});

@@ -19,7 +19,7 @@
 		note: string;
 		positions: { lbPos: string; unit: string; totalQuantity: number | null }[];
 		rows: { id: number; label: string; quantities: (number | null)[] }[];
-		materials: { material: string; code: string; filmThickness: number | null }[];
+		materials: { material: string; code: string; filmThickness: string }[];
 		releaseSignature: string | null;
 		releasedAt: Date | null;
 		releasedByFirst: string | null;
@@ -59,6 +59,8 @@
 	/** Kenn-Nr. ist der Artikelname – er darf in seiner Spalte bis zu vier Zeilen haben */
 	const fitKenn = (text: string) =>
 		text.length > 52 ? '4.5pt' : text.length > 42 ? '5pt' : text.length > 24 ? '5.5pt' : text.length > 18 ? '6.5pt' : undefined;
+	/** Filmdicke ist frei – in der schmalen Spalte darf längerer Text kleiner werden und umbrechen */
+	const fitFilm = (text: string) => (text.length > 24 ? '4.5pt' : text.length > 14 ? '5.5pt' : text.length > 7 ? '6.5pt' : undefined);
 	const hasQuantity = (v: number | null | undefined) => v != null && Number.isFinite(v);
 </script>
 
@@ -143,7 +145,7 @@
 					<tr class="fuss">
 						<td class="mat">{m?.material ?? ''}</td>
 						<td class="mat kenn"><span style:font-size={m ? fitKenn(m.code) : undefined}>{m?.code ?? ''}</span></td>
-						<td class="mat num">{m ? quantityLabel(m.filmThickness) : ''}</td>
+						<td class="mat kenn num"><span style:font-size={m ? fitFilm(m.filmThickness) : undefined}>{m?.filmThickness ?? ''}</span></td>
 						<th class="fl">{LABELS[i] ?? ''}</th>
 						{#if i === 0}
 							{#each blatt.columns as col, c (c)}

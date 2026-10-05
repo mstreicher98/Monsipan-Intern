@@ -205,7 +205,8 @@ wird von Hand eingetragen. Dazu Tagesleistung und LV-Position Nr.
 
 **Material:** Je Zeile wird ein Artikel aus dem Lager gewählt – Material (die Farbe, ohne
 Farbe die Materialart) und Kenn-Nr. (der Artikelname) füllen sich selbst aus, einzutragen
-bleibt nur die Filmdicke. Ohne Artikel lässt sich alles von Hand eintragen.
+bleibt nur die Filmdicke (frei, auch mit Text wie „0,6 nass“). Ohne Artikel lässt sich alles
+von Hand eintragen.
 
 Die Nummer schlägt die App als nächste freie vor, bleibt aber frei änderbar – so passt sie
 zum Papierblock.

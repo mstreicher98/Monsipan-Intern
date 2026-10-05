@@ -56,7 +56,7 @@
 					productId: m.productId == null ? '' : String(m.productId),
 					material: m.material,
 					code: m.code,
-					thickness: quantityLabel(m.filmThickness)
+					thickness: m.filmThickness
 				}))
 			: [emptyMaterial()]
 	);
@@ -525,7 +525,7 @@
 							<input
 								class="input input-sm num"
 								name="material.dicke"
-								inputmode="decimal"
+								maxlength="30"
 								bind:value={m.thickness}
 								aria-label="Filmdicke in mm Zeile {i + 1}"
 							/>

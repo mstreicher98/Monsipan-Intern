@@ -113,8 +113,8 @@ export const dailyReportMaterials = sqliteTable(
 		material: text('material').notNull().default(''),
 		/** Kenn-Nr. – beim Artikel aus dem Lager dessen Name */
 		code: text('code').notNull().default(''),
-		/** Filmdicke in mm */
-		filmThickness: real('film_thickness')
+		/** Filmdicke – meist mm, aber frei, z. B. „0,6 nass" */
+		filmThickness: text('film_thickness').notNull().default('')
 	},
 	(t) => [index('daily_report_materials_report_idx').on(t.reportId, t.sortOrder)]
 );

@@ -155,6 +155,13 @@
       "when": 1791062379051,
       "tag": "0021_tagesbericht_abschluss_weg",
       "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "6",
+      "when": 1791214142653,
+      "tag": "0022_tagesbericht_filmdicke_text",
+      "breakpoints": true
     }
   ]
 }
