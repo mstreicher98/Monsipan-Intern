@@ -262,9 +262,13 @@ Dokument wählt man **Digital** oder **Handschrift**; das Gerät merkt sich die 
 
 - Das Formular sieht aus wie im Ausdruck. Was schon digital eingetragen ist (Name, Woche,
   Baustelle, Mengen …), steht darin – geschrieben wird obenauf. Beides lässt sich mischen.
-- **Nur der Stift schreibt** (Apple Pencil, S Pen …), auch die Maus am Computer. Ein Finger
-  verschiebt, zwei Finger zoomen; liegt beim Schreiben der Handballen auf, zählt er nicht.
-  Werkzeuge: Stift blau oder schwarz, Radierer (auch die Radiertaste am Stift), Rückgängig,
+- **Stift oder Finger:** Mit dem Schalter **Finger** schreiben auch Finger und einfache
+  Displaystifte (Gummispitze – der Browser sieht sie wie einen Finger); verschoben und gezoomt
+  wird dann mit zwei Fingern. Ohne Finger-Schalter schreibt nur ein aktiver Stift (Apple
+  Pencil, S Pen …) bzw. die Maus, ein Finger verschiebt, zwei zoomen, und der aufliegende
+  Handballen zählt nicht. Am Tablet ist **Finger** voreingestellt, bis zum ersten Mal ein
+  aktiver Stift aufsetzt; das Gerät merkt sich die Einstellung.
+- Werkzeuge: Stift blau oder schwarz, Radierer (auch die Radiertaste am Stift), Rückgängig,
   Wiederholen, Zoom. Gespeichert wird nach jedem Strich von selbst. Am besten im Hochformat.
 - **Ausdruck, PDF und Kundenlink** zeigen das Formular mit der Handschrift an ihrer Stelle.
   Steht in einem Feld Handschrift, fällt dort der getippte Wert weg – nichts erscheint doppelt.

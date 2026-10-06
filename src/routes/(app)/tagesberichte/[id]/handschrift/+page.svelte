@@ -45,6 +45,6 @@
 </InkEditor>
 
 <p class="field-hint mt-3">
-	Mit dem Stift direkt aufs Formular schreiben; mit einem Finger verschieben, mit zwei Fingern zoomen. Getippte Werte stehen schon im
-	Formular – wo von Hand geschrieben wird, zählt im Ausdruck die Handschrift. Freigeben und Prüfen gehen in der digitalen Ansicht.
+	Direkt aufs Formular schreiben. Getippte Werte stehen schon im Formular – wo von Hand geschrieben wird, zählt im Ausdruck die
+	Handschrift. Freigeben und Prüfen gehen in der digitalen Ansicht.
 </p>

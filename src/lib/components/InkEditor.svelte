@@ -7,12 +7,15 @@
 	 * PDF-Seite: Was hier geschrieben wird, steht im Ausdruck und im PDF genau
 	 * an derselben Stelle.
 	 *
-	 * Nur Stift und Maus schreiben. Ein Finger verschiebt, zwei Finger zoomen;
-	 * solange der Stift in der Nähe ist, zählen Finger nicht (Handballen).
+	 * Stift und Maus schreiben immer. Finger schreiben, wenn „Finger“ an ist –
+	 * das braucht auch ein einfacher Displaystift, den der Browser wie einen
+	 * Finger sieht. Sonst verschiebt ein Finger, zwei Finger zoomen; solange
+	 * der Stift in der Nähe ist, zählen Finger nicht (Handballen).
 	 */
 	import { onMount, tick, type Snippet } from 'svelte';
 	import { beforeNavigate } from '$app/navigation';
 	import Pen from '@lucide/svelte/icons/pen';
+	import Hand from '@lucide/svelte/icons/hand';
 	import Eraser from '@lucide/svelte/icons/eraser';
 	import Undo from '@lucide/svelte/icons/undo-2';
 	import Redo from '@lucide/svelte/icons/redo-2';
@@ -49,6 +52,27 @@
 	let tool = $state<Tool>('stift');
 	let color = $state<Color>('blau');
 
+	/**
+	 * Schreiben auch Finger? Apple Pencil, S Pen & Co. meldet der Browser als
+	 * Stift, einen einfachen Displaystift mit Gummispitze aber als Finger. Ohne
+	 * eigene Wahl schreiben Finger am Tablet, bis zum ersten Mal ein echter
+	 * Stift aufsetzt – das Gerät merkt sich die Einstellung.
+	 */
+	let fingerWrites = $state(false);
+	let inputChosen = false;
+	let touchDevice = $state(false);
+	const INPUT_KEY = 'monsipan-tinte-eingabe';
+
+	function setInput(finger: boolean) {
+		fingerWrites = finger;
+		inputChosen = true;
+		try {
+			localStorage.setItem(INPUT_KEY, finger ? 'finger' : 'stift');
+		} catch {
+			/* ohne Speicher gilt die Wahl bis zum Verlassen der Seite */
+		}
+	}
+
 	let pages = $state<{ w: number; h: number }[]>([]);
 	let status = $state<'laden' | 'fertig' | 'fehler'>('laden');
 	let saveState = $state<'gespeichert' | 'ungespeichert' | 'speichert' | 'fehler'>('gespeichert');
@@ -73,6 +97,19 @@
 	onMount(() => {
 		let cancelled = false;
 		dpr = Math.min(3, window.devicePixelRatio || 1);
+		touchDevice = matchMedia('(any-pointer: coarse)').matches;
+		let saved: string | null = null;
+		try {
+			saved = localStorage.getItem(INPUT_KEY);
+		} catch {
+			/* kein Speicher – dann gilt die Voreinstellung */
+		}
+		if (saved === 'finger' || saved === 'stift') {
+			fingerWrites = saved === 'finger';
+			inputChosen = true;
+		} else {
+			fingerWrites = matchMedia('(pointer: coarse)').matches;
+		}
 		const media = matchMedia('(orientation: landscape) and (pointer: coarse)');
 		const orient = () => (landscape = media.matches);
 		orient();
@@ -223,6 +260,8 @@
 	/** Wann der Stift zuletzt aktiv war – Finger in dieser Zeit sind die Hand */
 	let lastPen = 0;
 	const PALM_MS = 900;
+	/** Kommt der zweite Finger so kurz nach dem ersten, wird verschoben/gezoomt statt geschrieben */
+	const GESTURE_MS = 300;
 
 	/** Der Strich, der gerade entsteht (außerhalb des Zustands – sonst wäre jeder Punkt teuer) */
 	let drawing: { page: number; pointerId: number; pts: number[] } | null = null;
@@ -230,8 +269,15 @@
 	let livePage = $state(-1);
 	let erasing: { page: number; pointerId: number; before: InkPages; removed: boolean } | null = null;
 
-	const touches = new Map<number, { x: number; y: number }>();
+	/** Finger auf dem Blatt; aufliegende Hände kommen hier gar nicht erst hinein */
+	const touches = new Map<number, { x: number; y: number; at: number; moved: number }>();
 	let pinch: { dist: number; zoom: number; cx: number; cy: number } | null = null;
+
+	/** Der Zeiger, der gerade schreibt oder radiert */
+	const strokePointer = () => drawing?.pointerId ?? erasing?.pointerId ?? null;
+
+	/** Große Auflagefläche: Handballen statt Fingerspitze (nur, wo der Browser die Größe meldet) */
+	const isPalm = (e: PointerEvent) => Math.max(e.width, e.height) >= 100;
 
 	function toPage(e: PointerEvent, page: number, svg: SVGSVGElement): [number, number] {
 		const r = svg.getBoundingClientRect();
@@ -241,15 +287,38 @@
 
 	function down(e: PointerEvent, page: number) {
 		const svg = e.currentTarget as SVGSVGElement;
+		const now = performance.now();
+		const active = strokePointer();
 		if (e.pointerType === 'touch') {
-			if (performance.now() - lastPen < PALM_MS || drawing) return;
-			touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
+			// Hand neben dem Stift, Handballen, dritter Finger: zählen nicht
+			if (now - lastPen < PALM_MS || isPalm(e) || touches.size >= 2 || (active !== null && !touches.has(active))) return;
+			if (active !== null) {
+				// Ein Finger schreibt schon. Kam der zweite gleich hinterher, wollte man verschieben
+				// oder zoomen – sonst ist es die Hand, die beim Schreiben aufliegt.
+				const first = touches.get(active)!;
+				if (now - first.at > GESTURE_MS && first.moved > 12) return;
+				cancelStroke();
+			}
+			touches.set(e.pointerId, { x: e.clientX, y: e.clientY, at: now, moved: 0 });
 			if (touches.size === 2) startPinch();
+			else if (fingerWrites && editable) startStroke(e, page, svg);
 			return;
 		}
-		if (e.pointerType === 'pen') lastPen = performance.now();
+		if (e.pointerType === 'pen') {
+			lastPen = now;
+			// Ein echter Stift: ab jetzt verschieben Finger wieder – außer man hat es selbst so gewählt
+			if (fingerWrites && !inputChosen) setInput(false);
+			// Hat die aufgelegte Hand schon einen Strich begonnen, war das nicht gewollt
+			if (active !== null && touches.has(active)) cancelStroke();
+			touches.clear();
+			pinch = null;
+		}
 		if (e.pointerType === 'mouse' && e.button !== 0) return;
-		if (!editable) return;
+		if (!editable || strokePointer() !== null) return;
+		startStroke(e, page, svg);
+	}
+
+	function startStroke(e: PointerEvent, page: number, svg: SVGSVGElement) {
 		e.preventDefault();
 		try {
 			svg.setPointerCapture(e.pointerId);
@@ -268,13 +337,24 @@
 		livePath = strokePath(drawing.pts);
 	}
 
+	/** Angefangenen Strich verwerfen – der Finger war doch der Anfang einer Geste */
+	function cancelStroke() {
+		if (erasing?.removed) ink = erasing.before;
+		erasing = null;
+		drawing = null;
+		livePath = '';
+		livePage = -1;
+	}
+
 	function move(e: PointerEvent, page: number) {
 		const svg = e.currentTarget as SVGSVGElement;
 		if (e.pointerType === 'pen') lastPen = performance.now();
 		if (e.pointerType === 'touch') {
 			const t = touches.get(e.pointerId);
 			if (!t) return;
-			if (touches.size === 1 && !pinch) {
+			const writes = strokePointer() === e.pointerId;
+			t.moved += Math.hypot(e.clientX - t.x, e.clientY - t.y);
+			if (!writes && touches.size === 1 && !pinch) {
 				// Ein Finger verschiebt
 				hscroll?.scrollBy({ left: t.x - e.clientX });
 				window.scrollBy({ top: t.y - e.clientY });
@@ -282,7 +362,7 @@
 			t.x = e.clientX;
 			t.y = e.clientY;
 			if (pinch && touches.size === 2) updatePinch();
-			return;
+			if (!writes) return;
 		}
 		if (erasing && erasing.pointerId === e.pointerId) {
 			eraseAt(e, page, svg);
@@ -303,9 +383,10 @@
 
 	function up(e: PointerEvent) {
 		if (e.pointerType === 'touch') {
+			const writes = strokePointer() === e.pointerId;
 			touches.delete(e.pointerId);
 			if (touches.size < 2) pinch = null;
-			return;
+			if (!writes) return;
 		}
 		if (e.pointerType === 'pen') lastPen = performance.now();
 		if (erasing && erasing.pointerId === e.pointerId) {
@@ -416,6 +497,15 @@
 					<Eraser size={18} aria-hidden="true" />
 				</button>
 			</div>
+			<button
+				type="button"
+				class="tool finger {fingerWrites ? 'aktiv' : ''}"
+				aria-pressed={fingerWrites}
+				title="Mit Finger oder einfachem Displaystift schreiben – verschieben und zoomen dann mit zwei Fingern"
+				onclick={() => setInput(!fingerWrites)}
+			>
+				<Hand size={18} aria-hidden="true" />Finger
+			</button>
 			<button type="button" class="tool" onclick={undo} disabled={!canUndo} aria-label="Rückgängig" title="Rückgängig"><Undo size={18} /></button>
 			<button type="button" class="tool" onclick={redo} disabled={!canRedo} aria-label="Wiederholen" title="Wiederholen"><Redo size={18} /></button>
 		{/if}
@@ -438,7 +528,19 @@
 		<div class="ml-auto flex flex-wrap items-center gap-1.5">{@render actions?.()}</div>
 	</div>
 
-	{#if landscape}
+	{#if editable && touchDevice}
+		<p class="mb-3 flex items-start gap-2 rounded-xl bg-surface-2 px-3 py-2 text-sm text-ink-2 print:hidden">
+			{#if fingerWrites}<Hand size={16} class="mt-0.5 shrink-0" aria-hidden="true" />{:else}<Pen size={16} class="mt-0.5 shrink-0" aria-hidden="true" />{/if}
+			<span>
+				{#if fingerWrites}
+					Finger und Displaystift schreiben – verschieben und zoomen mit zwei Fingern.
+				{:else}
+					Nur der Stift schreibt, ein Finger verschiebt. Für Finger oder einfachen Displaystift oben „Finger“ einschalten.
+				{/if}
+				{#if landscape}Zum Schreiben das Tablet am besten ins Hochformat drehen.{/if}
+			</span>
+		</p>
+	{:else if landscape}
 		<p class="mb-3 flex items-center gap-2 rounded-xl bg-surface-2 px-3 py-2 text-sm text-ink-2 print:hidden">
 			<Smartphone size={16} aria-hidden="true" />Zum Schreiben das Tablet am besten ins Hochformat drehen.
 		</p>
@@ -500,6 +602,14 @@
 	.tool.aktiv {
 		background: var(--c-ink);
 		color: var(--c-surface);
+	}
+	.tool.finger {
+		display: flex;
+		align-items: center;
+		gap: 0.375rem;
+		padding-inline: 0.625rem;
+		font-size: 0.8125rem;
+		font-weight: 500;
 	}
 	.punkt {
 		position: absolute;

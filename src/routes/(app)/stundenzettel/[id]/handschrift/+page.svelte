@@ -40,7 +40,6 @@
 </InkEditor>
 
 <p class="field-hint mt-3">
-	Mit dem Stift direkt aufs Formular schreiben; mit einem Finger verschieben, mit zwei Fingern zoomen. Name, Woche und schon
-	getippte Werte stehen im Formular – wo von Hand geschrieben wird, zählt im Ausdruck die Handschrift. Freigeben und Prüfen gehen
+	Direkt aufs Formular schreiben. Name, Woche und schon getippte Werte stehen im Formular – wo von Hand geschrieben wird, zählt im Ausdruck die Handschrift. Freigeben und Prüfen gehen
 	in der digitalen Ansicht; dort trägt das Büro beim Prüfen auch die Stunden ein.
 </p>
