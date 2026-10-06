@@ -9,6 +9,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import PDFDocument from 'pdfkit';
 import { APP_NAME } from '$lib/app';
+import { strokePath, type InkStroke } from '$lib/ink';
 
 /**
  * Die eingebaute Helvetica von pdfkit kennt nur westeuropäische Zeichen – Namen
@@ -123,6 +124,16 @@ export function startPdf(opts: { title: string; landscape?: boolean; margin?: nu
 			return done;
 		}
 	};
+}
+
+/** Handschrift einer Seite obenauf zeichnen – die Striche liegen schon in Punkten dieser Seite */
+export function drawInk(doc: PDFKit.PDFDocument, strokes: InkStroke[] | undefined) {
+	if (!strokes?.length) return;
+	doc.save();
+	for (const s of strokes) {
+		doc.path(strokePath(s.p)).lineWidth(s.w).lineCap('round').lineJoin('round').strokeColor(s.c).stroke();
+	}
+	doc.restore();
 }
 
 export function bufferResponse(filename: string, buffer: Buffer): Response {

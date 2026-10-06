@@ -6,6 +6,7 @@
 	import PdfButton from '$lib/components/PdfButton.svelte';
 	import SignaturePad from '$lib/modules/stunden/components/SignaturePad.svelte';
 	import ReportSheet from '$lib/modules/tagesberichte/components/ReportSheet.svelte';
+	import PdfViewer from '$lib/components/PdfViewer.svelte';
 	import ReportSummary from '$lib/modules/tagesberichte/components/ReportSummary.svelte';
 	import { dateTime } from '$lib/format';
 
@@ -66,10 +67,13 @@
 				</button>
 			{/each}
 		</div>
-		{#if view === 'formular' && scale < 0.9}<p class="text-[0.8125rem] text-ink-3">Mit zwei Fingern vergrößern</p>{/if}
+		{#if view === 'formular' && scale < 0.9 && !data.hasInk}<p class="text-[0.8125rem] text-ink-3">Mit zwei Fingern vergrößern</p>{/if}
 	</div>
 
-	{#if view === 'formular'}
+	{#if view === 'formular' && data.hasInk}
+		<!-- Handschriftlich ausgefüllt: das Formular aus dem PDF, dort steht die Handschrift an ihrer Stelle -->
+		<div class="mt-3"><PdfViewer url="/bericht/{data.token}/vorschau" title="Tagesbericht" /></div>
+	{:else if view === 'formular'}
 		<!-- Der Vordruck als weißes Blatt; ist der Bildschirm schmaler, wird er verkleinert statt umgebrochen -->
 		<div class="papier mt-3">
 			<div bind:clientWidth={paperWidth}>

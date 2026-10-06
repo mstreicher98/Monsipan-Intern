@@ -5,8 +5,13 @@
  * die beiden Unterschriftszeilen.
  *
  * Die Spaltenbreiten und Zeilenhöhen sind vom Original abgemessen.
+ *
+ * Handschrift vom Tablet liegt in den Koordinaten dieser Seite und wird zuletzt
+ * obenauf gezeichnet. Wo in einem Feld von Hand geschrieben steht, fällt der
+ * getippte Wert weg – das Büro trägt Stunden nach, ohne dass sie doppelt erscheinen.
  */
-import { bufferResponse, startPdf } from '$lib/server/pdf';
+import { bufferResponse, drawInk, startPdf } from '$lib/server/pdf';
+import { inkInRect } from '$lib/ink';
 import { fullName } from '$lib/format';
 import { SIGNATURE_HEIGHT, SIGNATURE_WIDTH } from '../signature';
 import { hoursLabel, isoWeek, monthLabel, monthsOfWeek, timeRangeLabel, WEEKDAY_LABELS, weekdayIndex, weekDays } from '../week';
@@ -55,8 +60,15 @@ const date = (iso: string) => {
 	return `${d}.${m}.${y}`;
 };
 
-export async function lohnzettelPdf(sheet: SheetDetail): Promise<Response> {
+export async function lohnzettelPdf(
+	sheet: SheetDetail,
+	/** ink: false – Handschrift nicht zeichnen (Hintergrund der Handschrift-Ansicht) */
+	{ ink = true }: { ink?: boolean } = {}
+): Promise<Response> {
 	const t = totals(sheet.days);
+	const pageInk = sheet.ink?.['0'];
+	/** Steht in diesem Feld Handschrift? Dann bleibt der getippte Wert weg */
+	const inked = (x: number, y: number, w: number, h: number) => inkInRect(pageInk, x, y, w, h);
 	const { year, week } = isoWeek(sheet.weekStart);
 	const { doc, finish } = startPdf({ title: `Lohnzettel ${fullName(sheet)}` });
 
@@ -82,7 +94,7 @@ export async function lohnzettelPdf(sheet: SheetDetail): Promise<Response> {
 		const start = x + doc.widthOfString(label) + 4;
 		line(start, y + 13, lineTo, y + 13, 0.8);
 		// Der Wert bleibt in seinem Feld, sonst rutscht er in die nächste Beschriftung
-		if (value) {
+		if (value && !inked(start, y - 4, lineTo - start, 18)) {
 			doc
 				.font('Helvetica')
 				.fontSize(10)
@@ -147,11 +159,16 @@ export async function lohnzettelPdf(sheet: SheetDetail): Promise<Response> {
 
 		doc.font('Helvetica').fontSize(11).text(WEEKDAY_LABELS[i], colX(0), y + DAY_H / 2 - 6, { width: colW(0), align: 'center' });
 		if (d) {
-			doc.fontSize(9).text(d.costCenter, colX(1) + 3, y + DAY_H / 2 - 5, { width: colW(1) - 6, lineBreak: false, ellipsis: true });
-			doc.fontSize(9.5).text(d.site, colX(2) + 5, y + DAY_H / 2 - 6, { width: colW(2) - 10, lineBreak: false, ellipsis: true });
+			if (!inked(colX(1), y, colW(1), DAY_H)) {
+				doc.fontSize(9).text(d.costCenter, colX(1) + 3, y + DAY_H / 2 - 5, { width: colW(1) - 6, lineBreak: false, ellipsis: true });
+			}
+			if (!inked(colX(2), y, colW(2), DAY_H)) {
+				doc.fontSize(9.5).text(d.site, colX(2) + 5, y + DAY_H / 2 - 6, { width: colW(2) - 10, lineBreak: false, ellipsis: true });
+			}
 
 			for (const h of HOURS) {
 				const idx = COLUMNS.findIndex((c) => c.key === h.key);
+				if (inked(colX(idx), y, colW(idx), DAY_H + TIME_H)) continue;
 				doc
 					.font('Helvetica')
 					.fontSize(10)
@@ -164,7 +181,7 @@ export async function lohnzettelPdf(sheet: SheetDetail): Promise<Response> {
 		line(left, timeTop, xs[3], timeTop, 0.6);
 		doc.font('Helvetica').fontSize(6.5).text('Zeit\nvon/bis', colX(0) + 3, timeTop + 2, { width: colW(0) - 6, lineGap: -1 });
 		const times = d ? timeRangeLabel(d.times) : '';
-		if (times) {
+		if (times && !inked(colX(1), timeTop, xs[3] - colX(1), TIME_H)) {
 			// Bei vielen Zeiträumen wird die Schrift kleiner, damit alles in die Zeile passt
 			const room = xs[3] - colX(1) - 8;
 			doc.font('Helvetica').fontSize(9.5);
@@ -189,6 +206,7 @@ export async function lohnzettelPdf(sheet: SheetDetail): Promise<Response> {
 	doc.font('Helvetica').fontSize(10.5).text('Gesamtstunden', colX(2) + 8, y + 6, { lineBreak: false });
 	for (const h of HOURS) {
 		const idx = COLUMNS.findIndex((c) => c.key === h.key);
+		if (inked(colX(idx), y, colW(idx), SUM_H)) continue;
 		doc
 			.font('Helvetica-Bold')
 			.fontSize(10)
@@ -208,12 +226,12 @@ export async function lohnzettelPdf(sheet: SheetDetail): Promise<Response> {
 	// Keine lange Linie – nur der Prozentsatz hat sein Feld.
 	doc.font('Helvetica').fontSize(9).fillColor('#1d2127').text('VAZ', left, tableBottom + 10, { lineBreak: false });
 	let vazX = left + doc.widthOfString('VAZ') + 8;
-	if (sheet.vaz) {
+	if (sheet.vaz && !inked(vazX, tableBottom + 4, 160, 18)) {
 		doc.font('Helvetica').fontSize(10).text(sheet.vaz, vazX, tableBottom + 8, { width: 160, lineBreak: false, ellipsis: true });
 		vazX += Math.min(160, doc.widthOfString(sheet.vaz)) + 8;
 	}
 	line(vazX, tableBottom + 19, vazX + 50, tableBottom + 19, 0.8);
-	if (sheet.vazPercent != null) {
+	if (sheet.vazPercent != null && !inked(vazX, tableBottom + 4, 50, 18)) {
 		doc.font('Helvetica').fontSize(10).text(hoursLabel(sheet.vazPercent), vazX, tableBottom + 8, { width: 50, align: 'center' });
 	}
 	doc.font('Helvetica').fontSize(9).text('%', vazX + 54, tableBottom + 10, { lineBreak: false });
@@ -221,10 +239,10 @@ export async function lohnzettelPdf(sheet: SheetDetail): Promise<Response> {
 	const ausloeseY = tableBottom + 58;
 	doc.font('Helvetica').fontSize(10).text('Auslöse', right - 330, ausloeseY, { lineBreak: false });
 	line(right - 285, ausloeseY + 11, right - 190, ausloeseY + 11);
-	doc.text(hoursLabel(sheet.allowanceDays), right - 280, ausloeseY, { lineBreak: false });
+	if (!inked(right - 285, ausloeseY - 6, 95, 20)) doc.text(hoursLabel(sheet.allowanceDays), right - 280, ausloeseY, { lineBreak: false });
 	doc.text('Tage', right - 180, ausloeseY, { lineBreak: false });
 	line(right - 145, ausloeseY + 11, right - 20, ausloeseY + 11);
-	doc.text(hoursLabel(sheet.allowanceAmount), right - 140, ausloeseY, { lineBreak: false });
+	if (!inked(right - 145, ausloeseY - 6, 125, 20)) doc.text(hoursLabel(sheet.allowanceAmount), right - 140, ausloeseY, { lineBreak: false });
 	doc.text('€', right - 12, ausloeseY, { lineBreak: false });
 
 	const signY = tableBottom + 140;
@@ -273,6 +291,9 @@ export async function lohnzettelPdf(sheet: SheetDetail): Promise<Response> {
 	if (sheet.note) {
 		doc.font('Helvetica').fontSize(8).fillColor('#5c626b').text(`Notiz: ${sheet.note}`, left, signY + 30, { width });
 	}
+
+	// Handschrift zuletzt, damit sie über allem liegt
+	if (ink) drawInk(doc, pageInk);
 
 	const buffer = await finish();
 	const name = `lohnzettel-${sheet.username}-${year}-kw${String(week).padStart(2, '0')}${split ? `-${sheet.month}` : ''}.pdf`;

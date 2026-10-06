@@ -2,6 +2,8 @@
 	/** Druckansicht im Aufbau des Lohnzettel-Formulars aus dem Block */
 	import { pageTitle } from '$lib/app';
 	import PrintSheet from '$lib/components/PrintSheet.svelte';
+	import PdfPages from '$lib/components/PdfPages.svelte';
+	import { hasInk } from '$lib/ink';
 	import { dateTime, fullName } from '$lib/format';
 	import { SIGNATURE_HEIGHT, SIGNATURE_WIDTH } from '$lib/modules/stunden/signature';
 	import {
@@ -17,6 +19,8 @@
 
 	let { data } = $props();
 	const sheet = $derived(data.sheet);
+	const inked = $derived(hasInk(sheet.ink));
+	let pagesReady = $state(false);
 	const t = $derived(data.totals);
 	const week = $derived(isoWeek(sheet.weekStart));
 	/** Das Raster zeigt immer alle sieben Tage; Tage des anderen Monats bleiben leer */
@@ -72,7 +76,11 @@
 	</div>
 {/snippet}
 
-<PrintSheet title="Lohnzettel" back="/stundenzettel/{sheet.id}" pdf="/stundenzettel/{sheet.id}/pdf" bare>
+<PrintSheet title="Lohnzettel" back="/stundenzettel/{sheet.id}" pdf="/stundenzettel/{sheet.id}/pdf" bare ready={!inked || pagesReady}>
+	{#if inked}
+		<!-- Mit Handschrift kommt das Formular aus dem PDF – nur dort liegt sie genau an ihrer Stelle -->
+		<PdfPages url="/stundenzettel/{sheet.id}/pdf" title="Lohnzettel {fullName(sheet)}" onready={() => (pagesReady = true)} />
+	{:else}
 	<div class="form">
 		<header class="kopf">
 			<span class="marke">MONSIPAN</span>
@@ -252,6 +260,7 @@
 			{@render signed('überprüft', checked ? sheet.checkSignature : null, checker, sheet.checkedAt)}
 		</div>
 	</div>
+	{/if}
 </PrintSheet>
 
 <style>

@@ -4,6 +4,7 @@
  * Stundenarten Norm, Überstunden 50/100 %, Urlaub, Feiertag, Regen, Efzg.
  */
 import { index, integer, real, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core';
+import type { InkPages } from '../../../ink';
 import { createdAt } from './common';
 import { parties, users } from './core';
 
@@ -54,6 +55,8 @@ export const timesheets = sqliteTable(
 		checkedAt: integer('checked_at', { mode: 'timestamp_ms' }),
 		/** Unterschrift dessen, der geprüft hat – gleiches Format wie releaseSignature */
 		checkSignature: text('check_signature'),
+		/** Handschrift auf dem Formular (Tablet) – je Seite die Striche in PDF-Punkten */
+		ink: text('ink', { mode: 'json' }).$type<InkPages>(),
 		createdAt: createdAt(),
 		updatedAt: integer('updated_at', { mode: 'timestamp_ms' })
 	},

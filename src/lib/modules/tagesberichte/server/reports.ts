@@ -23,6 +23,7 @@ import {
 	users
 } from '$lib/server/db/schema';
 import type { SessionUser } from '$lib/server/auth';
+import type { InkPages } from '$lib/ink';
 import { MAX_MATERIALS, MAX_POSITIONS } from '../sheet';
 
 /** Zeilen, die ein neuer Bericht gleich mitbringt */
@@ -152,6 +153,7 @@ async function loadReport(where: SQL) {
 			customerSignature: dailyReports.customerSignature,
 			customerSignedAt: dailyReports.customerSignedAt,
 			customerSignedOnSite: dailyReports.customerSignedOnSite,
+			ink: dailyReports.ink,
 			customerEmail: dailyReports.customerEmail,
 			customerLinkSentAt: dailyReports.customerLinkSentAt,
 			authorFirst: users.firstName,
@@ -408,6 +410,14 @@ export async function customerSign(id: number, name: string, signature: string):
 		.where(and(eq(dailyReports.id, id), eq(dailyReports.status, 'geprueft')))
 		.returning({ id: dailyReports.id });
 	return done.length > 0;
+}
+
+/** Handschrift vom Tablet speichern – leer heißt: keine Handschrift mehr */
+export async function saveReportInk(id: number, ink: InkPages) {
+	await db
+		.update(dailyReports)
+		.set({ ink: Object.keys(ink).length ? ink : null, updatedAt: new Date() })
+		.where(eq(dailyReports.id, id));
 }
 
 export async function deleteReport(id: number) {

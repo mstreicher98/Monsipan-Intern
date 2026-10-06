@@ -21,9 +21,21 @@
 		pdf?: string;
 		/** Ohne Standardkopf – für Formulare mit eigenem Briefkopf (z. B. Lohnzettel) */
 		bare?: boolean;
+		/** Erst drucken, wenn der Inhalt fertig ist (z. B. Seiten aus einem PDF gezeichnet) */
+		ready?: boolean;
 		children: Snippet;
 	}
-	let { title, facts = [], notice = null, back, pdf, bare = false, children }: Props = $props();
+	let { title, facts = [], notice = null, back, pdf, bare = false, ready = true, children }: Props = $props();
+
+	/** Schriften sind da – gedruckt wird, sobald auch der Inhalt fertig ist */
+	let wantPrint = $state(false);
+	let printedOnce = false;
+	$effect(() => {
+		if (wantPrint && ready && !printedOnce) {
+			printedOnce = true;
+			printPage();
+		}
+	});
 
 	const printed = new Date();
 
@@ -43,12 +55,7 @@
 		// Mit ?nodruck=1 lässt sich die Ansicht ohne Druckfenster anschauen
 		if (page.url.searchParams.has('nodruck') || !canPrint) return;
 		// Erst drucken, wenn die Schriften geladen sind – sonst stimmen die Umbrüche nicht
-		let done = false;
-		const go = () => {
-			if (done) return;
-			done = true;
-			printPage();
-		};
+		const go = () => (wantPrint = true);
 		const timer = setTimeout(go, 800);
 		document.fonts?.ready.then(() => setTimeout(go, 120));
 		return () => clearTimeout(timer);

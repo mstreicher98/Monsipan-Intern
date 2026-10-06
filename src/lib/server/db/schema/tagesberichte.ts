@@ -4,6 +4,7 @@
  * und Mengen je Position, dazu der Materialblock (Material, Kenn-Nr., Filmdicke).
  */
 import { index, integer, real, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core';
+import type { InkPages } from '../../../ink';
 import { createdAt } from './common';
 import { parties, users } from './core';
 import { products } from './lager';
@@ -56,6 +57,8 @@ export const dailyReports = sqliteTable(
 		/** Zuletzt per E-Mail verschickt – an wen und wann */
 		customerEmail: text('customer_email'),
 		customerLinkSentAt: integer('customer_link_sent_at', { mode: 'timestamp_ms' }),
+		/** Handschrift auf dem Formular (Tablet) – je Seite die Striche in PDF-Punkten */
+		ink: text('ink', { mode: 'json' }).$type<InkPages>(),
 		createdAt: createdAt(),
 		updatedAt: integer('updated_at', { mode: 'timestamp_ms' })
 	},

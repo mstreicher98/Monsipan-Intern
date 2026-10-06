@@ -169,6 +169,13 @@
       "when": 1791233851875,
       "tag": "0023_tagesbericht_kunde_vor_ort",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "6",
+      "when": 1791319123649,
+      "tag": "0024_handschrift",
+      "breakpoints": true
     }
   ]
 }

@@ -25,6 +25,11 @@
 	import { MAX_MATERIALS, MAX_POSITIONS, productMaterial, quantityLabel, sumLabel } from '$lib/modules/tagesberichte/sheet';
 	import { dateTime } from '$lib/format';
 	import { toast } from '$lib/stores/toast.svelte';
+	import { goto } from '$app/navigation';
+	import { page } from '$app/state';
+	import PdfViewer from '$lib/components/PdfViewer.svelte';
+	import ViewSwitch, { preferredView } from '$lib/components/ViewSwitch.svelte';
+	import { hasInk } from '$lib/ink';
 
 	let { data, form } = $props();
 	const report = $derived(data.report);
@@ -93,7 +98,17 @@
 	let sending = $state(false);
 	/** Teilen gibt es vor allem am Handy – erst im Browser bekannt */
 	let canShare = $state(false);
-	onMount(() => (canShare = typeof navigator.share === 'function'));
+	onMount(() => {
+		canShare = typeof navigator.share === 'function';
+		// Wer an diesem Gerät zuletzt handschriftlich ausgefüllt hat, landet gleich wieder dort
+		if (data.editable && preferredView() === 'handschrift' && page.url.searchParams.get('ansicht') !== 'digital') {
+			void goto(`/tagesberichte/${data.report.id}/handschrift`, { replaceState: true });
+		}
+	});
+
+	/** Handschrift vom Tablet – das Büro sieht sie hier zum Abtippen */
+	const inked = $derived(hasInk(report.ink));
+	let inkOpen = $state(true);
 	let confirmColumn = $state<number | null>(null);
 	let tableBox = $state<HTMLDivElement>();
 
@@ -241,6 +256,7 @@
 		</span>
 		<PdfButton href="/tagesberichte/{report.id}/pdf"><FileText size={18} aria-hidden="true" />PDF</PdfButton>
 		<a href="/tagesberichte/{report.id}/druck" class="btn btn-secondary"><Printer size={18} aria-hidden="true" />Drucken</a>
+		<ViewSwitch digital="/tagesberichte/{report.id}" handschrift="/tagesberichte/{report.id}/handschrift" current="digital" />
 	</div>
 </div>
 
@@ -267,6 +283,19 @@
 					: 'nach der Prüfung'
 		)}
 	</section>
+{/if}
+
+{#if inked}
+	<!-- Handschriftlich ausgefüllt: so wie im Ausdruck, daneben die Felder zum Abtippen -->
+	<details class="card mb-4 overflow-hidden" bind:open={inkOpen}>
+		<summary class="flex cursor-pointer flex-wrap items-center gap-2 px-4 py-3 font-medium">
+			<PenLine size={18} aria-hidden="true" />Handschriftlich ausgefüllt
+			<span class="text-sm font-normal text-ink-3">– so steht es im Ausdruck. Werte für Summen und Auswertungen unten eintragen.</span>
+		</summary>
+		{#if inkOpen}
+			<div class="border-t border-line p-3"><PdfViewer url="/tagesberichte/{report.id}/pdf" title="Tagesbericht mit Handschrift" /></div>
+		{/if}
+	</details>
 {/if}
 
 {#if data.canLink}

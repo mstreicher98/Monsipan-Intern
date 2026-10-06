@@ -71,6 +71,7 @@ Administration unter `/verwaltung/…`:
 | Stundenzettel | `/stundenzettel` |
 | Tagesberichte | `/tagesberichte` |
 | Tagesbericht für den Kunden (ohne Anmeldung) | `/bericht/<link>` |
+| Handschrift auf dem Formular | `/tagesberichte/<id>/handschrift`, `/stundenzettel/<id>/handschrift` |
 | Bestand, Buchen, Bewegungen, Bestellliste, Berichte | `/lager/bestand` usw. |
 | Inventur | `/lager/inventur` |
 | Artikel | `/lager/artikel/<id>` |
@@ -252,6 +253,30 @@ Angaben untereinander.
 
 Wer kein Recht auf „alle sehen" hat, sieht die Berichte der eigenen Partie und die selbst
 angelegten.
+
+## Handschrift am Tablet
+
+Tagesberichte und Stundenzettel lassen sich auch wie ein Papierformular ausfüllen. Oben im
+Dokument wählt man **Digital** oder **Handschrift**; das Gerät merkt sich die Wahl, ein Tablet
+öffnet Dokumente danach gleich in der Handschrift-Ansicht.
+
+- Das Formular sieht aus wie im Ausdruck. Was schon digital eingetragen ist (Name, Woche,
+  Baustelle, Mengen …), steht darin – geschrieben wird obenauf. Beides lässt sich mischen.
+- **Nur der Stift schreibt** (Apple Pencil, S Pen …), auch die Maus am Computer. Ein Finger
+  verschiebt, zwei Finger zoomen; liegt beim Schreiben der Handballen auf, zählt er nicht.
+  Werkzeuge: Stift blau oder schwarz, Radierer (auch die Radiertaste am Stift), Rückgängig,
+  Wiederholen, Zoom. Gespeichert wird nach jedem Strich von selbst. Am besten im Hochformat.
+- **Ausdruck, PDF und Kundenlink** zeigen das Formular mit der Handschrift an ihrer Stelle.
+  Steht in einem Feld Handschrift, fällt dort der getippte Wert weg – nichts erscheint doppelt.
+- **Das Büro trägt nach:** In der digitalen Ansicht steht die Handschrift oben („Handschriftlich
+  ausgefüllt“), darunter die Felder. Was dort eingetragen wird, zählt für Summen, Lohn und
+  Auswertungen; im Ausdruck bleibt an diesen Stellen die Handschrift stehen.
+- Schreiben darf, wer das Dokument auch digital ändern darf – nach Freigabe bzw. Prüfung oder
+  der Unterschrift des Kunden vor Ort ist die Handschrift ebenso gesperrt.
+
+Technisch liegen die Striche in den Koordinaten der PDF-Seite (`src/lib/ink.ts`); die Ansicht
+zeichnet das PDF ohne Handschrift als Hintergrund (`?tinte=0`) und die Striche darüber
+(`InkEditor.svelte`).
 
 ## Lokale Entwicklung
 
@@ -612,7 +637,8 @@ src/
     permissions.ts Rollen und Rechte, ein Block je Bereich (lager.*, verwaltung.*)
     app.ts         Name der Anwendung und Seitentitel
     nav.ts         Navigation, gefiltert nach Rolle
-    components/    Geteilte Bausteine (Dialog, Tabelle, Diagramm, PDF-Ansicht, Navigation)
+    components/    Geteilte Bausteine (Dialog, Tabelle, Diagramm, PDF-Ansicht, Navigation,
+                   Handschrift auf dem Formular)
     server/        Geteilt: Datenbank, Anmeldung, Mail, Sicherungen, Dokumente, Ereignisse
     server/db/schema/   core.ts (Benutzer, Partien, Einstellungen) + je Bereich eine Datei
     modules/

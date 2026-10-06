@@ -19,6 +19,7 @@ import { db, type Tx } from '$lib/server/db';
 import { col } from '$lib/server/db/sql';
 import { parties, timesheetDays, timesheets, users } from '$lib/server/db/schema';
 import type { SessionUser } from '$lib/server/auth';
+import type { InkPages } from '$lib/ink';
 import { mondayOf, monthsOfWeek, normalizeRanges, parseHours, weekDaysInMonth, type TimeRange, type WEEKDAY_LABELS } from '../week';
 
 /** Darf andere Partien sehen – wer andere bearbeiten darf, darf sie auch sehen */
@@ -207,6 +208,7 @@ export async function sheetDetail(id: number) {
 			releasedByLast: releaser.lastName,
 			checkedAt: timesheets.checkedAt,
 			checkSignature: timesheets.checkSignature,
+			ink: timesheets.ink,
 			checkedByFirst: checker.firstName,
 			checkedByLast: checker.lastName,
 			firstName: users.firstName,
@@ -449,6 +451,14 @@ export function mayEdit(user: SessionUser, sheet: SheetParties & { userId: numbe
 	if (sheet.status === 'geprueft') return false;
 	if (sheet.status === 'freigegeben') return can(user.role, 'stunden.pruefen');
 	return mayRecordFor(user, sheet);
+}
+
+/** Handschrift vom Tablet speichern – leer heißt: keine Handschrift mehr */
+export async function saveSheetInk(id: number, ink: InkPages) {
+	await db
+		.update(timesheets)
+		.set({ ink: Object.keys(ink).length ? ink : null, updatedAt: new Date() })
+		.where(eq(timesheets.id, id));
 }
 
 /** Zuletzt verwendete Baustellen als Vorschlagsliste (später kommen hier Aufträge her) */

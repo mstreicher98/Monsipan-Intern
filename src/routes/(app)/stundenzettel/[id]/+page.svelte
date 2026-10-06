@@ -30,8 +30,25 @@
 		type TimeRange
 	} from '$lib/modules/stunden/week';
 	import { toast } from '$lib/stores/toast.svelte';
+	import { onMount } from 'svelte';
+	import { goto } from '$app/navigation';
+	import { page } from '$app/state';
+	import PdfViewer from '$lib/components/PdfViewer.svelte';
+	import ViewSwitch, { preferredView } from '$lib/components/ViewSwitch.svelte';
+	import { hasInk } from '$lib/ink';
 
 	let { data, form } = $props();
+
+	onMount(() => {
+		// Wer an diesem Gerät zuletzt handschriftlich ausgefüllt hat, landet gleich wieder dort
+		if (data.editable && preferredView() === 'handschrift' && page.url.searchParams.get('ansicht') !== 'digital') {
+			void goto(`/stundenzettel/${data.sheet.id}/handschrift`, { replaceState: true });
+		}
+	});
+
+	/** Handschrift vom Tablet – das Büro sieht sie hier zum Abtippen */
+	const inked = $derived(hasInk(data.sheet.ink));
+	let inkOpen = $state(true);
 	const sheet = $derived(data.sheet);
 
 	type Row = {
@@ -174,6 +191,7 @@
 		<span class="badge {status.tone}">{status.label}</span>
 		<PdfButton href="/stundenzettel/{sheet.id}/pdf"><FileText size={18} aria-hidden="true" />PDF</PdfButton>
 		<a href="/stundenzettel/{sheet.id}/druck" class="btn btn-secondary"><Printer size={18} aria-hidden="true" />Drucken</a>
+		<ViewSwitch digital="/stundenzettel/{sheet.id}" handschrift="/stundenzettel/{sheet.id}/handschrift" current="digital" />
 	</div>
 </div>
 
@@ -217,6 +235,19 @@
 		</p>
 	</div>
 {/snippet}
+
+{#if inked}
+	<!-- Handschriftlich ausgefüllt: so wie im Ausdruck, darunter die Felder zum Abtippen -->
+	<details class="card mb-4 overflow-hidden" bind:open={inkOpen}>
+		<summary class="flex cursor-pointer flex-wrap items-center gap-2 px-4 py-3 font-medium">
+			<PenLine size={18} aria-hidden="true" />Handschriftlich ausgefüllt
+			<span class="text-sm font-normal text-ink-3">– so steht es im Ausdruck. Stunden für Summen und Lohn unten eintragen.</span>
+		</summary>
+		{#if inkOpen}
+			<div class="border-t border-line p-3"><PdfViewer url="/stundenzettel/{sheet.id}/pdf" title="Lohnzettel mit Handschrift" /></div>
+		{/if}
+	</details>
+{/if}
 
 {#if sheet.status !== 'entwurf' && sheet.releasedAt}
 	<section class="card mb-4 grid gap-4 p-4 lg:grid-cols-2">

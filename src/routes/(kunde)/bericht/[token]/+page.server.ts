@@ -6,6 +6,7 @@
 import { error, fail } from '@sveltejs/kit';
 import { isRateLimited, registerFailure } from '$lib/server/auth';
 import { customerSign, reportByToken, type ReportDetail } from '$lib/modules/tagesberichte/server/reports';
+import { hasInk } from '$lib/ink';
 import { isValidSignature } from '$lib/modules/stunden/signature';
 import type { Actions, PageServerLoad } from './$types';
 
@@ -44,6 +45,8 @@ export const load: PageServerLoad = async ({ params, setHeaders }) => {
 		number: report.number,
 		ready,
 		signed: report.status === 'abgeschlossen',
+		// Mit Handschrift vom Tablet zeigt die Seite das Formular aus dem PDF
+		hasInk: hasInk(report.ink),
 		report: ready ? forCustomer(report) : null
 	};
 };

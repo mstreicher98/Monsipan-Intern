@@ -6,8 +6,13 @@
  * Unterschriftszeilen. Mehr Positionen oder Zeilen gehen auf weitere Blätter.
  *
  * Spaltenanteile und Höhen sind vom Original abgemessen (wie in der Druckansicht).
+ *
+ * Handschrift vom Tablet liegt in den Koordinaten dieser Seiten. Sie wird zuletzt
+ * obenauf gezeichnet; wo in einem Feld von Hand geschrieben steht, fällt der
+ * getippte Wert weg – sonst stünde er doppelt da.
  */
-import { bufferResponse, startPdf } from '$lib/server/pdf';
+import { bufferResponse, drawInk, startPdf } from '$lib/server/pdf';
+import { inkInRect, type InkStroke } from '$lib/ink';
 import { SIGNATURE_HEIGHT, SIGNATURE_WIDTH } from '$lib/modules/stunden/signature';
 import { columnSums, LETTERHEAD, quantityLabel, SHEET_MATERIAL_ROWS, sheets, sumLabel } from '../sheet';
 import type { ReportDetail } from './reports';
@@ -36,7 +41,11 @@ const date = (iso: string) => {
 	return `${d}.${m}.${y}`;
 };
 
-export async function tagesberichtPdf(report: ReportDetail, { forCustomer = false } = {}): Promise<Response> {
+export async function tagesberichtPdf(
+	report: ReportDetail,
+	/** ink: false – Handschrift nicht zeichnen (Hintergrund der Handschrift-Ansicht) */
+	{ forCustomer = false, ink = true }: { forCustomer?: boolean; ink?: boolean } = {}
+): Promise<Response> {
 	// Kleiner Rand: pdfkit bricht sonst Text nahe am unteren Rand auf eine neue Seite um
 	const { doc, finish } = startPdf({ title: `Tagesbericht ${report.number}`.trim(), margin: 8 });
 
@@ -64,9 +73,11 @@ export async function tagesberichtPdf(report: ReportDetail, { forCustomer = fals
 		y: number,
 		w: number,
 		h: number,
-		opts: { size?: number; minSize?: number; align?: 'left' | 'center' | 'right'; bold?: boolean; pad?: number } = {}
+		opts: { size?: number; minSize?: number; align?: 'left' | 'center' | 'right'; bold?: boolean; pad?: number; label?: boolean } = {}
 	) => {
 		if (!text) return;
+		// Werte (keine festen Beschriftungen) entfallen, wo von Hand geschrieben wurde
+		if (!opts.label && inkInRect(pageInk, x, y, w, h)) return;
 		const pad = opts.pad ?? 2.5;
 		const room = w - 2 * pad;
 		doc.font(opts.bold ? 'Helvetica-Bold' : 'Helvetica');
@@ -85,7 +96,7 @@ export async function tagesberichtPdf(report: ReportDetail, { forCustomer = fals
 	 * die größte Schrift, bei der alles hineinpasst, senkrecht mittig.
 	 */
 	const wrapCell = (text: string, x: number, y: number, w: number, h: number, maxSize: number, minSize: number) => {
-		if (!text) return;
+		if (!text || inkInRect(pageInk, x, y, w, h)) return;
 		const pad = 2.5;
 		const room = w - 2 * pad;
 		doc.font('Helvetica').fillColor(INK);
@@ -101,6 +112,9 @@ export async function tagesberichtPdf(report: ReportDetail, { forCustomer = fals
 		doc.restore();
 	};
 
+	/** Handschrift der Seite, die gerade gezeichnet wird */
+	let pageInk: InkStroke[] | undefined;
+
 	const blaetter = sheets(report.positions, report.rows, report.materials.length);
 	const sums = columnSums(report.rows, report.positions.length);
 	const materialRows = Array.from({ length: Math.max(SHEET_MATERIAL_ROWS, report.materials.length) }, (_, i) => report.materials[i] ?? null);
@@ -111,6 +125,7 @@ export async function tagesberichtPdf(report: ReportDetail, { forCustomer = fals
 
 	for (const [n, blatt] of blaetter.entries()) {
 		if (n > 0) doc.addPage();
+		pageInk = report.ink?.[String(n)];
 		const top = 28;
 
 		/* ------------------------------------------------------- Briefkopf */
@@ -207,7 +222,7 @@ export async function tagesberichtPdf(report: ReportDetail, { forCustomer = fals
 		doc.text('Material', xs[0], y + FOOT_H / 2 - 3, { width: xs[1] - xs[0], align: 'center', lineBreak: false });
 		doc.text('Kenn-Nr.', xs[1], y + FOOT_H / 2 - 3, { width: xs[2] - xs[1], align: 'center', lineBreak: false });
 		doc.text('Filmdicke\nin mm', xs[2], y + FOOT_H / 2 - 7, { width: xs[3] - xs[2], align: 'center', lineGap: -0.5 });
-		cell('Einheitssumme', xs[3], y, xs[4] - xs[3], FOOT_H, { size: 12.5, minSize: 9, align: 'right', pad: 5 });
+		cell('Einheitssumme', xs[3], y, xs[4] - xs[3], FOOT_H, { size: 12.5, minSize: 9, align: 'right', pad: 5, label: true });
 		for (const [c, col] of blatt.columns.entries()) {
 			if (col) cell(sumLabel(sums[col.index]), xs[4 + c], y, xs[5 + c] - xs[4 + c], FOOT_H, { size: 9, minSize: 6, align: 'center', bold: true });
 		}
@@ -220,7 +235,7 @@ export async function tagesberichtPdf(report: ReportDetail, { forCustomer = fals
 				wrapCell(m.code, xs[1], y, xs[2] - xs[1], FOOT_H, 8, 4.5);
 				wrapCell(m.filmThickness, xs[2], y, xs[3] - xs[2], FOOT_H, 8, 4.5);
 			}
-			cell(LABELS[i] ?? '', xs[3], y, xs[4] - xs[3], FOOT_H, { size: 12.5, minSize: 9, align: 'right', pad: 5 });
+			cell(LABELS[i] ?? '', xs[3], y, xs[4] - xs[3], FOOT_H, { size: 12.5, minSize: 9, align: 'right', pad: 5, label: true });
 			if (i === 0) {
 				for (const [c, col] of blatt.columns.entries()) {
 					if (col) cell(quantityLabel(col.position.totalQuantity), xs[4 + c], y, xs[5 + c] - xs[4 + c], FOOT_H, { size: 9, minSize: 6, align: 'center', bold: true });
@@ -285,6 +300,9 @@ export async function tagesberichtPdf(report: ReportDetail, { forCustomer = fals
 		};
 		signature(report.releaseSignature, left, [report.releasedByFirst, report.releasedByLast].filter(Boolean).join(' '), report.releasedAt);
 		signature(report.customerSignature, right - signW, report.customerName ?? '', report.customerSignedAt);
+
+		// Handschrift zuletzt, damit sie über allem liegt
+		if (ink) drawInk(doc, pageInk);
 	}
 
 	const buffer = await finish();
