@@ -16,6 +16,7 @@ function forCustomer(r: ReportDetail) {
 		number: r.number,
 		date: r.date,
 		dateTo: r.dateTo,
+		orderNumber: r.orderNumber,
 		road: r.road,
 		site: r.site,
 		costCenter: '',

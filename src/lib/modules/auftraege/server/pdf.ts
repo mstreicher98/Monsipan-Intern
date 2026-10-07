@@ -169,6 +169,14 @@ function paragraph(doc: Doc, text: string, y: number, size = 9.5): number {
 	return y;
 }
 
+/** „Ausführungsort: …" – Beschriftung fett, der Text bricht bei Bedarf um */
+function labeled(doc: Doc, label: string, value: string, y: number): number {
+	if (!value.trim()) return y;
+	doc.font('Helvetica-Bold').fontSize(10).fillColor(INK).text(`${label}: `, LEFT, y, { width: WIDTH, continued: true, lineGap: 1.5 });
+	doc.font('Helvetica').text(value, { lineGap: 1.5 });
+	return doc.y + 3 * MM;
+}
+
 /** Auf jede Seite: Fußzeile mit drei Spalten (nur Angebot) und „Seite x von y" */
 function finishPages(doc: Doc, footer: [string, string][] | null) {
 	const range = doc.bufferedPageRange();
@@ -226,7 +234,9 @@ export async function offerPdf(offer: OfferDetail, { forCustomer = false } = {})
 	doc.font('Helvetica-Bold').fontSize(14).fillColor(INK);
 	const heading = `${title}${offer.title ? ` / BV: ${offer.title}` : ''}`;
 	doc.text(heading, LEFT, y, { width: WIDTH, lineGap: 2 });
-	y += doc.heightOfString(heading, { width: WIDTH, lineGap: 2 }) + 6 * MM;
+	y += doc.heightOfString(heading, { width: WIDTH, lineGap: 2 }) + 5 * MM;
+	y = labeled(doc, 'Ausführungsort', offer.location, y);
+	y += 1 * MM;
 
 	y = paragraph(doc, offer.intro, y, 10) + 5 * MM;
 
@@ -334,6 +344,7 @@ export async function orderPdf(order: OrderDetail): Promise<Response> {
 	const heading = `${title}${order.title ? ` / BV: ${order.title}` : ''}`;
 	doc.text(heading, LEFT, y, { width: WIDTH, lineGap: 2 });
 	y += doc.heightOfString(heading, { width: WIDTH, lineGap: 2 }) + 5 * MM;
+	y = labeled(doc, 'Ausführungsort', order.location, y);
 
 	const contact = [order.customerContact && `Ansprechpartner: ${order.customerContact}`, order.customerPhone && `Tel. ${order.customerPhone}`].filter(Boolean).join(' · ');
 	if (contact) y = paragraph(doc, contact, y, 9.5) + 4 * MM;
@@ -356,6 +367,12 @@ export async function orderPdf(order: OrderDetail): Promise<Response> {
 		y += 6 * MM;
 		doc.font('Helvetica-Bold').fontSize(10).fillColor(INK).text('Hinweis für die Partie', LEFT, y, { lineBreak: false });
 		y = paragraph(doc, order.note, y + 15);
+	}
+
+	// Pläne und andere Unterlagen gibt es in der App – hier nur, welche dazugehören
+	if (order.documents.length) {
+		y += 5 * MM;
+		y = labeled(doc, 'Unterlagen in der App', order.documents.map((d) => d.title).join(', '), y);
 	}
 
 	finishPages(doc, null);

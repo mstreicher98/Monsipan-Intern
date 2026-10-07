@@ -34,7 +34,9 @@ export async function listOffers(filter: OfferFilter = {}, limit = 200) {
 	else if (filter.status) where.push(eq(offers.status, filter.status as OfferStatus));
 	if (filter.q?.trim()) {
 		const q = `%${filter.q.trim().replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
-		where.push(or(like(offers.number, q), like(offers.title, q), like(offers.customerName, q), like(offers.projectNumber, q)));
+		where.push(
+			or(like(offers.number, q), like(offers.title, q), like(offers.location, q), like(offers.customerName, q), like(offers.projectNumber, q))
+		);
 	}
 	return db
 		.select({
@@ -130,6 +132,7 @@ async function loadOffer(where: SQL) {
 			projectNumber: offers.projectNumber,
 			date: offers.date,
 			title: offers.title,
+			location: offers.location,
 			customerId: offers.customerId,
 			customerName: offers.customerName,
 			customerAddition: offers.customerAddition,
@@ -196,6 +199,7 @@ export interface SaveOffer {
 		projectNumber: string;
 		date: string;
 		title: string;
+		location: string;
 		customerId: number | null;
 		customerName: string;
 		customerAddition: string;
@@ -229,6 +233,7 @@ export async function saveOffer(id: number, data: SaveOffer) {
 				projectNumber: h.projectNumber.slice(0, 30),
 				date: h.date,
 				title: h.title.slice(0, 300),
+				location: h.location.slice(0, 300),
 				customerId: h.customerId,
 				customerName: h.customerName.slice(0, 160),
 				customerAddition: h.customerAddition.slice(0, 160),

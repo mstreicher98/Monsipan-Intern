@@ -1,5 +1,5 @@
 /**
- * PDF-Dokumente am Artikel. Die Datenbank kennt nur Titel, Art und Prüfsumme;
+ * PDF-Dokumente am Artikel (und als Unterlagen an Aufträgen). Die Datenbank kennt nur Titel, Art und Prüfsumme;
  * die Dateien liegen unter /data/dokumente/<sha256>.pdf. Gleiche Dateien liegen
  * nur einmal da, auch wenn sie an mehreren Artikeln hängen.
  *
@@ -14,7 +14,7 @@ import { pipeline } from 'node:stream/promises';
 import { asc, eq, sql } from 'drizzle-orm';
 import { MAX_DOCUMENT_BYTES } from '$lib/documents';
 import { DATA_DIR, db } from './db';
-import { productDocuments, users } from './db/schema';
+import { orderDocuments, productDocuments, users } from './db/schema';
 
 export const DOC_DIR = path.join(DATA_DIR, 'dokumente');
 
@@ -103,8 +103,12 @@ export function listDocuments(productId: number) {
  * mehr benutzt, werden gelöscht. Abgebrochene Uploads nach einem Tag.
  */
 export async function tidyDocuments(now = new Date()): Promise<{ removed: number }> {
-	const used = new Set((await db.select({ sha: productDocuments.sha256 }).from(productDocuments).all()).map((r) => r.sha));
-	return tidyFolder(DOC_DIR, SHA_FILE, used, now);
+	// Benutzt sind die PDFs an Artikeln und an Aufträgen
+	const [products, orders] = await Promise.all([
+		db.select({ sha: productDocuments.sha256 }).from(productDocuments).all(),
+		db.select({ sha: orderDocuments.sha256 }).from(orderDocuments).all()
+	]);
+	return tidyFolder(DOC_DIR, SHA_FILE, new Set([...products, ...orders].map((r) => r.sha)), now);
 }
 
 /**

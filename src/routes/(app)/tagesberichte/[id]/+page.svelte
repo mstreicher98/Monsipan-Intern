@@ -28,6 +28,8 @@
 	import ViewSwitch, { preferredView } from '$lib/components/ViewSwitch.svelte';
 	import ReportPhotos from '$lib/modules/tagesberichte/components/ReportPhotos.svelte';
 	import { hasInk } from '$lib/ink';
+	import { spacedNumber } from '$lib/modules/auftraege/offer';
+	import HardHat from '@lucide/svelte/icons/hard-hat';
 
 	let { data, form } = $props();
 	const report = $derived(data.report);
@@ -46,6 +48,7 @@
 		number: data.report.number,
 		date: data.report.date,
 		dateTo: data.report.dateTo ?? '',
+		orderId: data.report.orderId == null ? '' : String(data.report.orderId),
 		road: data.report.road,
 		site: data.report.site,
 		costCenter: data.report.costCenter,
@@ -143,6 +146,13 @@
 		materials = materials.filter((m) => m.key !== key);
 	}
 
+	/** Auftrag gewählt: dessen Ausführungsort (sonst BV) als Baustelle, solange keine eigene drinsteht */
+	function pickOrder() {
+		const o = data.orders.find((x) => String(x.id) === head.orderId);
+		const proposal = o ? o.location || o.title : '';
+		if (proposal && (!head.site.trim() || data.orders.some((x) => (x.location || x.title) === head.site))) head.site = proposal;
+	}
+
 	const productById = $derived(new Map(data.products.map((p) => [String(p.id), p])));
 	/** Kategorien als Gruppen in der Auswahl, in der Reihenfolge der Stammdaten */
 	const productGroups = $derived.by(() => {
@@ -223,6 +233,11 @@
 		<p class="text-ink-2">
 			{report.road || report.site || 'Ohne Bezeichnung'}{report.partyName ? ` · ${report.partyName}` : ''}
 		</p>
+		{#if report.orderId && report.orderNumber}
+			<a href="/auftraege/{report.orderId}" class="mt-1 inline-flex items-center gap-1.5 text-sm font-medium text-ink-2 hover:text-ink">
+				<HardHat size={15} aria-hidden="true" />Auftrag {spacedNumber(report.orderNumber)}{report.orderTitle ? ` · ${report.orderTitle}` : ''}
+			</a>
+		{/if}
 	</div>
 	<div class="flex flex-wrap items-center gap-2">
 		<span class="badge {status.tone}">
@@ -345,6 +360,18 @@
 				<span class="field-label">Bundesstraße Nr.</span>
 				<input class="input" name="strasse" bind:value={head.road} maxlength="120" list="strassen" />
 			</label>
+			{#if data.orders.length || head.orderId}
+				<label class="order-last col-span-2 block lg:col-span-6">
+					<span class="field-label">Auftrag <span class="font-normal text-ink-3">(freiwillig)</span></span>
+					<select class="select" name="auftrag" bind:value={head.orderId} onchange={pickOrder}>
+						<option value="">Ohne Auftrag</option>
+						{#if head.orderId && !data.orders.some((o) => String(o.id) === head.orderId)}
+							<option value={head.orderId}>Auftrag {report.orderNumber ? spacedNumber(report.orderNumber) : ''}</option>
+						{/if}
+						{#each data.orders as o (o.id)}<option value={String(o.id)}>{spacedNumber(o.number)} – {o.title || o.location || 'ohne BV'}</option>{/each}
+					</select>
+				</label>
+			{/if}
 			<label class="order-last col-span-2 block lg:order-none lg:col-span-1">
 				<span class="field-label">Baustelle</span>
 				<input class="input" name="baustelle" bind:value={head.site} maxlength="200" list="baustellen" />

@@ -9,17 +9,33 @@
 	import Dialog from '$lib/components/Dialog.svelte';
 	import { dayLabel } from '$lib/modules/stunden/week';
 	import { reportDateLabel } from '$lib/modules/tagesberichte/sheet';
+	import { spacedNumber } from '$lib/modules/auftraege/offer';
 
 	let { data, form } = $props();
 
-	let newOpen = $state(false);
+	// Vom Auftrag aus kommt man mit ?auftrag=… – dann gleich mit diesem Auftrag anlegen
+	// svelte-ignore state_referenced_locally
+	let newOpen = $state(!!data.suggestion.orderId);
+	// svelte-ignore state_referenced_locally
+	let orderId = $state(data.suggestion.orderId ? String(data.suggestion.orderId) : '');
 	// svelte-ignore state_referenced_locally
 	let number = $state(data.suggestion.number);
 	// svelte-ignore state_referenced_locally
 	let date = $state(data.suggestion.date);
 	let dateTo = $state('');
 	let road = $state('');
-	let site = $state('');
+	// svelte-ignore state_referenced_locally
+	let site = $state(siteOf(data.suggestion.orderId ? String(data.suggestion.orderId) : ''));
+
+	/** Ausführungsort (sonst BV) des Auftrags als Vorschlag für die Baustelle */
+	function siteOf(id: string): string {
+		const o = data.orders.find((x) => String(x.id) === id);
+		return o ? o.location || o.title : '';
+	}
+	function pickOrder() {
+		const proposal = siteOf(orderId);
+		if (proposal && (!site.trim() || data.orders.some((o) => (o.location || o.title) === site))) site = proposal;
+	}
 
 	/** Ablauf: in Arbeit → freigegeben → geprüft → vom Kunden unterschrieben */
 	const STATUS: Record<string, { label: string; tone: string }> = {
@@ -35,6 +51,7 @@
 		dateTo = '';
 		road = '';
 		site = '';
+		orderId = '';
 		newOpen = true;
 	}
 </script>
@@ -79,7 +96,9 @@
 					<span class="min-w-0 flex-1">
 						<span class="block truncate font-medium">{r.road || r.site || 'Ohne Bezeichnung'}</span>
 						<span class="block truncate text-[0.8125rem] text-ink-3">
-							{r.dateTo ? reportDateLabel(r.date, r.dateTo) : dayLabel(r.date)}{r.site && r.road ? ` · ${r.site}` : ''}{r.partyName ? ` · ${r.partyName}` : ''}
+							{r.dateTo ? reportDateLabel(r.date, r.dateTo) : dayLabel(r.date)}{r.site && r.road ? ` · ${r.site}` : ''}{r.partyName ? ` · ${r.partyName}` : ''}{r.orderNumber
+								? ` · Auftrag ${spacedNumber(r.orderNumber)}`
+								: ''}
 						</span>
 					</span>
 					{#if r.dailyOutput}<span class="hidden truncate text-sm text-ink-2 sm:block">{r.dailyOutput}</span>{/if}
@@ -116,6 +135,15 @@
 				<input class="input num" type="date" name="datum_bis" bind:value={dateTo} min={date} />
 			</label>
 		</div>
+		{#if data.orders.length}
+			<label class="block">
+				<span class="field-label">Auftrag <span class="font-normal text-ink-3">(freiwillig)</span></span>
+				<select class="select" name="auftrag" bind:value={orderId} onchange={pickOrder}>
+					<option value="">Ohne Auftrag</option>
+					{#each data.orders as o (o.id)}<option value={String(o.id)}>{spacedNumber(o.number)} – {o.title || o.location || 'ohne BV'}</option>{/each}
+				</select>
+			</label>
+		{/if}
 		<label class="block">
 			<span class="field-label">Bundesstraße Nr.</span>
 			<input class="input" name="strasse" bind:value={road} maxlength="120" list="strassen" placeholder="z. B. B9" />

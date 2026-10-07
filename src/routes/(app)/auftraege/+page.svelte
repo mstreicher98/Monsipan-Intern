@@ -59,7 +59,7 @@
 					<span class="min-w-0 flex-1">
 						<span class="block truncate font-medium">{o.title || 'Ohne BV'}</span>
 						<span class="block truncate text-[0.8125rem] text-ink-3">
-							{[o.customerName, o.customerCity, data.all ? o.partyName : null].filter(Boolean).join(' · ')}
+							{[o.location || o.customerName, data.all ? o.partyName : null].filter(Boolean).join(' · ')}
 						</span>
 					</span>
 					<span class="hidden shrink-0 text-right text-[0.8125rem] text-ink-3 sm:block">{o.statusAt ? dateTime(o.statusAt) : dateTime(o.createdAt)}</span>

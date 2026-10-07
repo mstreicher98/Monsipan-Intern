@@ -24,6 +24,8 @@ import {
 	type SaveReport
 } from '$lib/modules/tagesberichte/server/reports';
 import { isValidSignature } from '$lib/modules/stunden/signature';
+import { linkableOrders } from '$lib/modules/auftraege/server/orders';
+import type { SessionUser } from '$lib/server/auth';
 import { listPhotos } from '$lib/modules/tagesberichte/server/photos';
 import type { Actions, PageServerLoad } from './$types';
 
@@ -47,6 +49,8 @@ export const load: PageServerLoad = async ({ params, locals, url }) => {
 	return {
 		report,
 		places: await recentPlaces(),
+		// Aufträge zur Auswahl – nur wer ändern darf, braucht sie
+		orders: editable ? await linkableOrders(user, report.orderId) : [],
 		photos: await listPhotos(report.id),
 		// Fotos ändern nichts, was der Kunde unterschreibt – sie gehen, solange am Bericht gearbeitet wird
 		canPhotos: working,
@@ -113,11 +117,13 @@ function readReport(form: FormData): SaveReport | { message: string } {
 	const range = checkDateRange(date, String(form.get('datum_bis') ?? ''));
 	if ('message' in range) return range;
 
+	const order = Number(form.get('auftrag'));
 	return {
 		head: {
 			number: String(form.get('nummer') ?? ''),
 			date,
 			dateTo: range.dateTo,
+			orderId: Number.isInteger(order) && order > 0 ? order : null,
 			road: String(form.get('strasse') ?? ''),
 			site: String(form.get('baustelle') ?? ''),
 			costCenter: String(form.get('kostenstelle') ?? ''),
@@ -131,11 +137,21 @@ function readReport(form: FormData): SaveReport | { message: string } {
 	};
 }
 
+/** Nur ein Auftrag, den dieser Benutzer sieht – der schon verknüpfte bleibt erlaubt */
+async function orderProblem(user: SessionUser, data: SaveReport, current: number | null): Promise<string | null> {
+	const id = data.head.orderId;
+	if (id == null || id === current) return null;
+	const allowed = await linkableOrders(user, current);
+	return allowed.some((o) => o.id === id) ? null : 'Diesen Auftrag gibt es nicht (mehr) – bitte neu wählen.';
+}
+
 /** Was im Formular steht, vor einem Statuswechsel speichern – nur wenn es mitkam und geändert werden darf */
-async function saveIfEditable(form: FormData, report: { id: number }, editable: boolean) {
+async function saveIfEditable(form: FormData, report: { id: number; orderId: number | null }, editable: boolean, user: SessionUser) {
 	if (!editable || !form.has('datum')) return null;
 	const data = readReport(form);
 	if ('message' in data) return fail(400, data);
+	const problem = await orderProblem(user, data, report.orderId);
+	if (problem) return fail(400, { message: problem });
 	await saveReport(report.id, data);
 	return null;
 }
@@ -148,6 +164,8 @@ export const actions: Actions = {
 		if (!mayEdit(user, report)) return fail(403, { message: 'Dieser Bericht ist nicht (mehr) änderbar.' });
 		const data = readReport(await request.formData());
 		if ('message' in data) return fail(400, data);
+		const problem = await orderProblem(user, data, report.orderId);
+		if (problem) return fail(400, { message: problem });
 		await saveReport(report.id, data);
 		return { saved: true };
 	},
@@ -166,7 +184,7 @@ export const actions: Actions = {
 			return fail(400, { message: 'Die Unterschrift konnte nicht gelesen werden – bitte neu unterschreiben.' });
 		}
 		// Hat der Kunde schon vor Ort unterschrieben, ist der Inhalt gesperrt und wird nicht gespeichert
-		const invalid = await saveIfEditable(form, report, mayEdit(user, report));
+		const invalid = await saveIfEditable(form, report, mayEdit(user, report), user);
 		if (invalid) return invalid;
 		await releaseReport(report.id, user.id, signature);
 		return { released: true };
@@ -177,7 +195,7 @@ export const actions: Actions = {
 		const { user, report } = await open(Number(params.id), locals);
 		if (!can(user.role, 'tagesberichte.pruefen')) return fail(403, { message: 'Dafür fehlt dir die Berechtigung.' });
 		if (report.status !== 'freigegeben') return fail(400, { message: 'Geprüft werden kann nur ein freigegebener Bericht.' });
-		const invalid = await saveIfEditable(await request.formData(), report, mayEdit(user, report));
+		const invalid = await saveIfEditable(await request.formData(), report, mayEdit(user, report), user);
 		if (invalid) return invalid;
 		// Mit der Unterschrift des Kunden vor Ort ist der Bericht damit fertig
 		const status = await checkReport(report.id, user.id);
@@ -197,7 +215,7 @@ export const actions: Actions = {
 		const signature = String(form.get('kunde_unterschrift') ?? '').trim();
 		if (name.length < 2 || name.length > 120) return fail(400, { message: 'Bitte den Namen des Kunden eintragen.' });
 		if (!isValidSignature(signature)) return fail(400, { message: 'Die Unterschrift des Kunden fehlt oder war nicht lesbar.' });
-		const invalid = await saveIfEditable(form, report, mayEdit(user, report));
+		const invalid = await saveIfEditable(form, report, mayEdit(user, report), user);
 		if (invalid) return invalid;
 		if (!(await customerSignOnSite(report.id, name, signature))) {
 			return fail(409, { message: 'Der Bericht wurde inzwischen geändert – bitte die Seite neu laden.' });

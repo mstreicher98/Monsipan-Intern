@@ -6,12 +6,15 @@
 	 */
 	import { dateTime } from '$lib/format';
 	import { SIGNATURE_HEIGHT, SIGNATURE_WIDTH } from '$lib/modules/stunden/signature';
+	import { spacedNumber } from '$lib/modules/auftraege/offer';
 	import { columnSums, LETTERHEAD, quantityLabel, reportDateLabel, SHEET_MATERIAL_ROWS, sheets, sumLabel } from '../sheet';
 
 	interface Report {
 		number: string;
 		date: string;
 		dateTo: string | null;
+		/** Nummer des Auftrags, zu dem der Bericht gehört */
+		orderNumber?: string | null;
 		road: string;
 		site: string;
 		costCenter: string;
@@ -43,8 +46,12 @@
 		Array.from({ length: Math.max(SHEET_MATERIAL_ROWS, report.materials.length) }, (_, i) => report.materials[i] ?? null)
 	);
 	const releaser = $derived([report.releasedByFirst, report.releasedByLast].filter(Boolean).join(' '));
-	/** Kostenstelle nur intern */
-	const extra = $derived(internal && report.costCenter ? `Kostenstelle: ${report.costCenter}` : '');
+	/** Auftrag für alle, Kostenstelle nur intern */
+	const extra = $derived(
+		[report.orderNumber && `Auftrag Nr. ${spacedNumber(report.orderNumber)}`, internal && report.costCenter && `Kostenstelle: ${report.costCenter}`]
+			.filter(Boolean)
+			.join(' · ')
+	);
 	/** Unter „Einheitssumme" stehen Gesamtmenge, Tagesleistung und LV-Position */
 	const LABELS = ['Gesamtmenge', 'Tagesleistung', 'LV-Position Nr.'];
 

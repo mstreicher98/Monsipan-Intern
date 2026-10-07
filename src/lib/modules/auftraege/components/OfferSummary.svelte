@@ -8,6 +8,7 @@
 		projectNumber: string;
 		date: string;
 		title: string;
+		location?: string;
 		customerName: string;
 		customerAddition: string;
 		customerStreet: string;
@@ -40,6 +41,7 @@
 	</div>
 
 	<h2 class="text-xl leading-snug">Angebot Nr. {spacedNumber(offer.number)}{offer.title ? ` / BV: ${offer.title}` : ''}</h2>
+	{#if offer.location}<p><span class="font-medium">Ausführungsort:</span> {offer.location}</p>{/if}
 	{#if offer.intro}<p class="whitespace-pre-line text-ink-2">{offer.intro}</p>{/if}
 
 	<ul class="divide-y divide-line rounded-xl border border-line">

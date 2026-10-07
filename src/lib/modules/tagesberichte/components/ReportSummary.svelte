@@ -5,11 +5,13 @@
 	 */
 	import { dateTime } from '$lib/format';
 	import { SIGNATURE_HEIGHT, SIGNATURE_WIDTH } from '$lib/modules/stunden/signature';
+	import { spacedNumber } from '$lib/modules/auftraege/offer';
 	import { columnSums, filmLabel, quantityLabel, reportDateLabel, sumLabel } from '../sheet';
 
 	interface Report {
 		date: string;
 		dateTo: string | null;
+		orderNumber?: string | null;
 		road: string;
 		site: string;
 		costCenter: string;
@@ -58,6 +60,7 @@
 	<p class="num text-sm text-ink-2">
 		{[
 			reportDateLabel(report.date, report.dateTo),
+			report.orderNumber && `Auftrag ${spacedNumber(report.orderNumber)}`,
 			report.road && `Bundesstraße ${report.road}`,
 			report.site && `Baustelle ${report.site}`,
 			internal && report.costCenter && `Kostenstelle ${report.costCenter}`

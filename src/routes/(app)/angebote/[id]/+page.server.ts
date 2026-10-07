@@ -18,7 +18,8 @@ import {
 	withdrawOffer,
 	type SaveOffer
 } from '$lib/modules/auftraege/server/offers';
-import { activeParties, createOrderFromOffer } from '$lib/modules/auftraege/server/orders';
+import { activeParties, createOrderFromOffer, insertOrderDocument } from '$lib/modules/auftraege/server/orders';
+import { DocumentError, storeDocument } from '$lib/server/documents';
 import { isValidIsoDate } from '$lib/modules/stunden/week';
 import { parseAmount } from '$lib/modules/auftraege/offer';
 import type { Actions, PageServerLoad } from './$types';
@@ -92,6 +93,7 @@ function readOffer(form: FormData): SaveOffer | { message: string } {
 			projectNumber: s('projekt').trim(),
 			date,
 			title: s('titel').trim(),
+			location: s('ort').trim(),
 			customerId: Number.isInteger(customer) && customer > 0 ? customer : null,
 			customerName: s('k_name').trim(),
 			customerAddition: s('k_zusatz').trim(),
@@ -205,8 +207,20 @@ export const actions: Actions = {
 		const form = await request.formData();
 		const partyId = Number(form.get('partie'));
 		if (!Number.isInteger(partyId) || partyId <= 0) return fail(400, { orderMessage: 'Bitte eine Partie wählen.' });
+		// Pläne erst prüfen und ablegen – ist eine Datei kein PDF, entsteht auch kein Auftrag
+		const files = form.getAll('plaene').filter((f): f is File => f instanceof File && f.size > 0);
+		const stored: { name: string; sha256: string; size: number }[] = [];
+		for (const file of files) {
+			try {
+				stored.push({ name: file.name, ...(await storeDocument(file)) });
+			} catch (err) {
+				if (err instanceof DocumentError) return fail(400, { orderMessage: `${file.name}: ${err.message}` });
+				throw err;
+			}
+		}
 		const id = await createOrderFromOffer(offer.id, partyId, String(form.get('hinweis') ?? '').trim(), user.id);
 		if (!id) return fail(400, { orderMessage: 'Aus diesem Angebot lässt sich (noch) kein Auftrag erstellen.' });
+		for (const s of stored) await insertOrderDocument(id, s.name, s, user.id);
 		redirect(303, `/auftraege/${id}`);
 	}
 };

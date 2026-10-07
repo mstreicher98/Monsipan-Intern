@@ -49,6 +49,8 @@ export const offers = sqliteTable(
 		date: text('date').notNull(),
 		/** BV – was angeboten wird, steht in der Überschrift */
 		title: text('title').notNull().default(''),
+		/** Wo gearbeitet wird – geht in den Auftrag über */
+		location: text('location').notNull().default(''),
 		customerId: integer('customer_id').references(() => customers.id, { onDelete: 'set null' }),
 		/** Anschrift, wie sie im Angebot steht – bleibt, auch wenn sich der Kundenstamm ändert */
 		customerName: text('customer_name').notNull().default(''),
@@ -124,6 +126,8 @@ export const orders = sqliteTable(
 		status: text('status', { enum: ORDER_STATUS }).notNull().default('erstellt'),
 		projectNumber: text('project_number').notNull().default(''),
 		title: text('title').notNull().default(''),
+		/** Wo gearbeitet wird – aus dem Angebot, im Auftrag änderbar */
+		location: text('location').notNull().default(''),
 		customerName: text('customer_name').notNull().default(''),
 		customerAddition: text('customer_addition').notNull().default(''),
 		customerStreet: text('customer_street').notNull().default(''),
@@ -158,6 +162,27 @@ export const orderPositions = sqliteTable(
 		unit: text('unit').notNull().default('')
 	},
 	(t) => [index('order_positions_order_idx').on(t.orderId, t.sortOrder)]
+);
+
+/**
+ * Unterlagen zum Auftrag (PDF, z. B. Pläne) – die Partie sieht sie in der App.
+ * Die Dateien liegen wie die PDFs am Artikel unter /data/dokumente/<sha256>.pdf.
+ */
+export const orderDocuments = sqliteTable(
+	'order_documents',
+	{
+		id: integer('id').primaryKey({ autoIncrement: true }),
+		orderId: integer('order_id')
+			.notNull()
+			.references(() => orders.id, { onDelete: 'cascade' }),
+		title: text('title').notNull(),
+		fileName: text('file_name').notNull(),
+		sha256: text('sha256').notNull(),
+		size: integer('size').notNull(),
+		uploadedBy: integer('uploaded_by').references(() => users.id, { onDelete: 'set null' }),
+		createdAt: createdAt()
+	},
+	(t) => [index('order_documents_order_idx').on(t.orderId)]
 );
 
 export type Customer = typeof customers.$inferSelect;

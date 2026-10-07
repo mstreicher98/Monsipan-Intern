@@ -1,16 +1,20 @@
 import { error, fail, redirect } from '@sveltejs/kit';
 import { can } from '$lib/permissions';
 import { requireUser } from '$lib/server/guard';
+import { DocumentError } from '$lib/server/documents';
 import { ORDER_STATUS, type OrderStatus } from '$lib/server/db/schema';
 import {
 	activeParties,
+	addOrderDocument,
 	deleteOrder,
+	deleteOrderDocument,
 	mayViewOrder,
 	maySetOrderStatus,
 	orderDetail,
 	setOrderStatus,
 	updateOrder
 } from '$lib/modules/auftraege/server/orders';
+import { listReports } from '$lib/modules/tagesberichte/server/reports';
 import type { Actions, PageServerLoad } from './$types';
 
 async function open(id: number, locals: App.Locals) {
@@ -29,7 +33,10 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 		canStatus: maySetOrderStatus(user, order),
 		canManage,
 		canSeeOffer: can(user.role, 'angebote.sehen') && order.offerId != null,
-		parties: canManage ? await activeParties() : []
+		parties: canManage ? await activeParties() : [],
+		// Tagesberichte zu diesem Auftrag – so weit dieser Benutzer sie sieht
+		reports: await listReports(user, { orderId: order.id }),
+		canCreateReport: can(user.role, 'tagesberichte.erfassen') && order.status !== 'abgeschlossen'
 	};
 };
 
@@ -51,8 +58,40 @@ export const actions: Actions = {
 		const form = await request.formData();
 		const partyId = Number(form.get('partie'));
 		if (!Number.isInteger(partyId) || partyId <= 0) return fail(400, { message: 'Bitte eine Partie wählen.' });
-		await updateOrder(order.id, { partyId, note: String(form.get('hinweis') ?? '').trim() });
+		await updateOrder(order.id, {
+			partyId,
+			location: String(form.get('ort') ?? '').trim(),
+			note: String(form.get('hinweis') ?? '').trim()
+		});
 		return { updated: true };
+	},
+
+	/** Pläne und andere PDFs – mehrere auf einmal */
+	upload: async ({ params, request, locals }) => {
+		const { user, order } = await open(Number(params.id), locals);
+		if (!can(user.role, 'auftraege.erstellen')) return fail(403, { docError: 'Dafür fehlt dir die Berechtigung.' });
+		const files = (await request.formData()).getAll('dateien').filter((f): f is File => f instanceof File && f.size > 0);
+		if (!files.length) return fail(400, { docError: 'Bitte eine oder mehrere PDF-Dateien auswählen.' });
+		let added = 0;
+		for (const file of files) {
+			try {
+				await addOrderDocument(order.id, file, user.id);
+				added++;
+			} catch (err) {
+				if (err instanceof DocumentError) return fail(400, { docError: `${file.name}: ${err.message}`, added });
+				throw err;
+			}
+		}
+		return { added };
+	},
+
+	deleteDocument: async ({ params, request, locals }) => {
+		const { user, order } = await open(Number(params.id), locals);
+		if (!can(user.role, 'auftraege.erstellen')) return fail(403, { docError: 'Dafür fehlt dir die Berechtigung.' });
+		const id = Number((await request.formData()).get('dokument'));
+		if (!Number.isInteger(id)) return fail(400, { docError: 'Unterlage fehlt.' });
+		await deleteOrderDocument(order.id, id);
+		return { documentRemoved: true };
 	},
 
 	delete: async ({ params, locals }) => {

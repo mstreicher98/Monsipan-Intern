@@ -16,6 +16,7 @@ import { inkInRect, type InkStroke } from '$lib/ink';
 import { SIGNATURE_HEIGHT, SIGNATURE_WIDTH } from '$lib/modules/stunden/signature';
 import { columnSums, LETTERHEAD, quantityLabel, reportDateLabel, SHEET_MATERIAL_ROWS, sheets, sumLabel } from '../sheet';
 import type { ReportDetail } from './reports';
+import { spacedNumber } from '$lib/modules/auftraege/offer';
 
 const MM = 72 / 25.4;
 const INK = '#1d2127';
@@ -116,8 +117,10 @@ export async function tagesberichtPdf(
 	const blaetter = sheets(report.positions, report.rows, report.materials.length);
 	const sums = columnSums(report.rows, report.positions.length);
 	const materialRows = Array.from({ length: Math.max(SHEET_MATERIAL_ROWS, report.materials.length) }, (_, i) => report.materials[i] ?? null);
-	// Kostenstelle und Notiz sind intern – im PDF für den Kunden fehlen sie
-	const extra = !forCustomer && report.costCenter ? `Kostenstelle: ${report.costCenter}` : '';
+	// Auftragsnummer für alle, Kostenstelle und Notiz sind intern – im PDF für den Kunden fehlen sie
+	const extra = [report.orderNumber && `Auftrag Nr. ${spacedNumber(report.orderNumber)}`, !forCustomer && report.costCenter && `Kostenstelle: ${report.costCenter}`]
+		.filter(Boolean)
+		.join(' · ');
 
 	for (const [n, blatt] of blaetter.entries()) {
 		if (n > 0) doc.addPage();
@@ -171,7 +174,7 @@ export async function tagesberichtPdf(
 			doc.fontSize(size).text(report.site, siteX + 2, siteBase - size * ASCENT, { width: siteW - 4, lineBreak: false, ellipsis: true });
 		}
 
-		// Kostenstelle (nur intern) und Blattnummer klein darunter
+		// Auftrag, Kostenstelle (nur intern) und Blattnummer klein darunter
 		const blattText = blatt.count > 1 ? `Blatt ${blatt.number} von ${blatt.count}` : '';
 		if (extra || blattText) {
 			const y = top + 30.3 * MM;

@@ -51,6 +51,7 @@
 		projectNumber: data.offer.projectNumber,
 		date: data.offer.date,
 		title: data.offer.title,
+		location: data.offer.location,
 		customerId: data.offer.customerId == null ? '' : String(data.offer.customerId),
 		name: data.offer.customerName,
 		addition: data.offer.customerAddition,
@@ -87,6 +88,7 @@
 	let customerOpen = $state(false);
 	let orderOpen = $state(false);
 	let customerBusy = $state(false);
+	let orderBusy = $state(false);
 	let listBox = $state<HTMLElement>();
 
 	/** Kunde gewählt: seine Anschrift kommt ins Angebot (danach hier noch änderbar) */
@@ -275,6 +277,10 @@
 					<label class="col-span-2 block">
 						<span class="field-label">Bauvorhaben (BV)</span>
 						<textarea class="textarea auto" name="titel" rows="2" maxlength="300" bind:value={head.title}></textarea>
+					</label>
+					<label class="col-span-2 block">
+						<span class="field-label">Ausführungsort</span>
+						<input class="input" name="ort" maxlength="300" placeholder="z. B. Flughafen Wien, Werkstättenring Süd" bind:value={head.location} />
 					</label>
 				</div>
 			</section>
@@ -517,7 +523,19 @@
 </Dialog>
 
 <Dialog bind:open={orderOpen} title="Auftrag erstellen">
-	<form method="POST" action="?/createOrder" class="space-y-4" use:enhance>
+	<form
+		method="POST"
+		action="?/createOrder"
+		enctype="multipart/form-data"
+		class="space-y-4"
+		use:enhance={() => {
+			orderBusy = true;
+			return async ({ update }) => {
+				orderBusy = false;
+				await update({ reset: false });
+			};
+		}}
+	>
 		<p class="text-ink-2">
 			Der Auftrag bekommt die Nummer {spacedNumber(offer.number)}, die Anschrift und alle Positionen – ohne Preise. Die Partie sieht ihn danach unter
 			Aufträge und setzt ihn auf „in Arbeit" und „abgeschlossen".
@@ -533,10 +551,14 @@
 			<span class="field-label">Hinweis für die Partie</span>
 			<textarea class="textarea" name="hinweis" rows="3" maxlength="2000" placeholder="z. B. Zufahrt über Tor 3, Ansprechpartner vor Ort …"></textarea>
 		</label>
+		<label class="block">
+			<span class="field-label">Pläne und Unterlagen <span class="font-normal text-ink-3">(PDF, freiwillig – auch später im Auftrag)</span></span>
+			<input class="input py-2" type="file" name="plaene" accept="application/pdf,.pdf" multiple />
+		</label>
 		{#if form && 'orderMessage' in form && form.orderMessage}<p class="field-error" role="alert">{form.orderMessage}</p>{/if}
 		<div class="flex justify-end gap-2 pt-1">
 			<button type="button" class="btn btn-ghost" onclick={() => (orderOpen = false)}>Abbrechen</button>
-			<button class="btn btn-primary"><HardHat size={18} aria-hidden="true" />Auftrag erstellen</button>
+			<button class="btn btn-primary" disabled={orderBusy}><HardHat size={18} aria-hidden="true" />{orderBusy ? 'Wird erstellt …' : 'Auftrag erstellen'}</button>
 		</div>
 	</form>
 </Dialog>

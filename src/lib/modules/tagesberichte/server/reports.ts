@@ -18,6 +18,7 @@ import {
 	dailyReportPositions,
 	dailyReportRows,
 	dailyReports,
+	orders,
 	parties,
 	products,
 	users
@@ -45,6 +46,8 @@ export interface ReportFilter {
 	q?: string;
 	from?: string;
 	to?: string;
+	/** Nur die Berichte zu diesem Auftrag */
+	orderId?: number;
 }
 
 export async function listReports(user: SessionUser, filter: ReportFilter = {}, limit = 100) {
@@ -52,6 +55,7 @@ export async function listReports(user: SessionUser, filter: ReportFilter = {}, 
 	// Berichte über mehrere Tage zählen, sobald einer ihrer Tage im Zeitraum liegt
 	if (filter.from) where.push(sql`coalesce(${dailyReports.dateTo}, ${dailyReports.date}) >= ${filter.from}`);
 	if (filter.to) where.push(sql`${dailyReports.date} <= ${filter.to}`);
+	if (filter.orderId) where.push(eq(dailyReports.orderId, filter.orderId));
 	if (filter.q?.trim()) {
 		const q = `%${filter.q.trim().replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
 		where.push(
@@ -74,12 +78,14 @@ export async function listReports(user: SessionUser, filter: ReportFilter = {}, 
 			status: dailyReports.status,
 			dailyOutput: dailyReports.dailyOutput,
 			partyName: parties.name,
+			orderNumber: orders.number,
 			authorFirst: users.firstName,
 			authorLast: users.lastName
 		})
 		.from(dailyReports)
 		.leftJoin(parties, eq(parties.id, dailyReports.partyId))
 		.leftJoin(users, eq(users.id, dailyReports.createdBy))
+		.leftJoin(orders, eq(orders.id, dailyReports.orderId))
 		.where(and(...where.filter(Boolean)))
 		.orderBy(desc(dailyReports.date), desc(dailyReports.id))
 		.limit(limit)
@@ -98,7 +104,7 @@ export async function nextNumber(): Promise<string> {
 
 export async function createReport(
 	user: SessionUser,
-	data: { date: string; dateTo: string | null; number: string; road: string; site: string }
+	data: { date: string; dateTo: string | null; number: string; road: string; site: string; orderId: number | null }
 ) {
 	return db.transaction(async (tx) => {
 		const row = await tx
@@ -106,6 +112,7 @@ export async function createReport(
 			.values({
 				date: data.date,
 				dateTo: data.dateTo,
+				orderId: data.orderId,
 				number: data.number.slice(0, 40),
 				road: data.road.slice(0, 120),
 				site: data.site.slice(0, 200),
@@ -169,6 +176,9 @@ async function loadReport(where: SQL) {
 			status: dailyReports.status,
 			partyId: dailyReports.partyId,
 			partyName: parties.name,
+			orderId: dailyReports.orderId,
+			orderNumber: orders.number,
+			orderTitle: orders.title,
 			createdBy: dailyReports.createdBy,
 			releasedAt: dailyReports.releasedAt,
 			releaseSignature: dailyReports.releaseSignature,
@@ -193,6 +203,7 @@ async function loadReport(where: SQL) {
 		.leftJoin(users, eq(users.id, dailyReports.createdBy))
 		.leftJoin(releaser, eq(releaser.id, dailyReports.releasedBy))
 		.leftJoin(checker, eq(checker.id, dailyReports.checkedBy))
+		.leftJoin(orders, eq(orders.id, dailyReports.orderId))
 		.where(where)
 		.get();
 	if (!report) return null;
@@ -265,6 +276,8 @@ export interface SaveReport {
 		date: string;
 		/** Letzter Tag bei mehreren Tagen, sonst null */
 		dateTo: string | null;
+		/** Auftrag, zu dem der Bericht gehört */
+		orderId: number | null;
 		road: string;
 		site: string;
 		costCenter: string;
@@ -286,6 +299,7 @@ export async function saveReport(id: number, data: SaveReport) {
 				number: data.head.number.slice(0, 40),
 				date: data.head.date,
 				dateTo: data.head.dateTo,
+				orderId: data.head.orderId,
 				road: data.head.road.slice(0, 120),
 				site: data.head.site.slice(0, 200),
 				costCenter: data.head.costCenter.slice(0, 60),

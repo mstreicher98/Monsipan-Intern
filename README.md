@@ -215,6 +215,9 @@ von Hand eintragen.
 Die Nummer schlägt die App als nächste freie vor, bleibt aber frei änderbar – so passt sie
 zum Papierblock.
 
+**Auftrag:** Ein Bericht kann zu einem Auftrag gehören (siehe [Angebote und Aufträge](#angebote-und-aufträge)).
+Zur Auswahl stehen die offenen Aufträge, die man sieht – der Partie also die eigenen.
+
 **Mehrere Tage:** Neben dem Datum gibt es ein freiwilliges **bis**. Ist es ausgefüllt, steht im
 Bericht „vom 07.10. bis 09.10.2026" (höchstens 62 Tage). Der Zeitfilter der Liste findet so
 einen Bericht an jedem seiner Tage.
@@ -291,6 +294,8 @@ Einheit, Einheitspreis (EP) und Gesamtpreis (GP)**, darunter Gesamt Netto, Umsat
 (20 %, je Angebot änderbar) und Gesamtbetrag, der Schlusstext und unten Anschrift,
 Bankverbindung und Kontakt.
 
+- Der **Ausführungsort** (wo gearbeitet wird) steht im PDF unter der Überschrift und geht in
+  den Auftrag über.
 - Positionen werden 1.1, 1.2 … nummeriert; eine **Überschrift** beginnt eine neue Gruppe (2,
   2.1, 2.2 …). Positionen lassen sich verschieben und entfernen.
 - Angebots- und Projektnummer schlägt die App vor (nächste freie), beide bleiben frei änderbar.
@@ -313,13 +318,25 @@ Bankverbindung und Kontakt.
      überarbeitet“.
    Wer das Angebot angelegt und freigegeben hat, bekommt bei beidem eine E-Mail (wenn SMTP
    eingerichtet ist und eine Adresse hinterlegt ist).
-4. **Angenommen:** **Auftrag erstellen** – Partie wählen, optional ein Hinweis für die Partie.
+4. **Angenommen:** **Auftrag erstellen** – Partie wählen, optional ein Hinweis für die Partie
+   und gleich die **Pläne als PDF** (mehrere auf einmal).
    Ein angenommenes Angebot lässt sich nur wieder öffnen (Admin, Geschäftsführung), solange
    es keinen Auftrag gibt; die Annahme verfällt dabei.
 
 **Aufträge** (`/auftraege`) bekommen dieselbe Nummer wie das Angebot, die Anschrift und alle
 Positionen – **ohne Preise** und ohne Einleitung, Schlusstext und Fußzeile, dafür mit Partie,
-Ansprechpartner und Telefon des Kunden und dem Hinweis. Die Partie sieht nur ihre eigenen
+Ausführungsort (antippen öffnet die Karte), Ansprechpartner und Telefon des Kunden und dem
+Hinweis.
+
+- **Pläne und Unterlagen:** PDFs am Auftrag – beim Erstellen oder später hochladen (das Büro),
+  die Partie sieht sie direkt in der App. Abgelegt werden sie wie die PDFs am Artikel unter
+  `/data/dokumente`; im Auftrags-PDF steht, welche Unterlagen es in der App gibt.
+- **Tagesberichte zum Auftrag:** Beim Anlegen oder im Bericht lässt sich ein offener Auftrag
+  wählen – die Baustelle wird dann aus dem Ausführungsort übernommen (oder dem BV, wenn keiner
+  eingetragen ist). Im Auftrag stehen alle seine Tagesberichte, **Neuer Tagesbericht** legt
+  gleich einen mit diesem Auftrag an. Im Tagesbericht-PDF steht „Auftrag Nr. …“ unter der
+  Baustelle.
+ Die Partie sieht nur ihre eigenen
 Aufträge und setzt sie auf **In Arbeit** und **Abgeschlossen** (und bei Bedarf zurück auf in
 Arbeit). Das Büro sieht alle, wechselt die Partie, ändert den Hinweis, setzt zurück auf
 „Auftrag erstellt“ oder löscht einen noch nicht begonnenen Auftrag – das Angebot bleibt dann

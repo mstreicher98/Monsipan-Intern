@@ -10,6 +10,14 @@
 	import Phone from '@lucide/svelte/icons/phone';
 	import FilePen from '@lucide/svelte/icons/file-pen-line';
 	import Trash from '@lucide/svelte/icons/trash';
+	import MapPin from '@lucide/svelte/icons/map-pin';
+	import Upload from '@lucide/svelte/icons/upload';
+	import NotebookPen from '@lucide/svelte/icons/notebook-pen';
+	import Plus from '@lucide/svelte/icons/plus';
+	import ChevronRight from '@lucide/svelte/icons/chevron-right';
+	import X from '@lucide/svelte/icons/x';
+	import { fileSizeLabel, MAX_DOCUMENT_BYTES } from '$lib/documents';
+	import { reportDateLabel } from '$lib/modules/tagesberichte/sheet';
 	import Dialog from '$lib/components/Dialog.svelte';
 	import PdfButton from '$lib/components/PdfButton.svelte';
 	import { dateTime } from '$lib/format';
@@ -25,6 +33,17 @@
 	let busy = $state(false);
 	let deleteOpen = $state(false);
 	let resetOpen = $state(false);
+	let uploading = $state(false);
+	let removeDoc = $state<{ id: number; title: string } | null>(null);
+
+	/** Ausführungsort in der Karten-App öffnen – am Handy gleich mit Navigation */
+	const mapUrl = $derived(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(order.location)}`);
+	const REPORT_STATUS: Record<string, { label: string; tone: string }> = {
+		entwurf: { label: 'In Arbeit', tone: '' },
+		freigegeben: { label: 'Freigegeben', tone: 'badge-info' },
+		geprueft: { label: 'Geprüft', tone: 'badge-warn' },
+		abgeschlossen: { label: 'Abgeschlossen', tone: 'badge-ok' }
+	};
 
 	const STEP_DONE: Record<string, string> = { in_arbeit: 'Auftrag ist in Arbeit', abgeschlossen: 'Auftrag abgeschlossen', erstellt: 'Zurück auf „Auftrag erstellt"' };
 	const statusEnhance = () => {
@@ -48,6 +67,11 @@
 	<div class="min-w-0">
 		<h1 class="text-[2rem] leading-tight">Auftrag {spacedNumber(order.number)}</h1>
 		<p class="text-ink-2">{order.title || 'Ohne BV'}</p>
+		{#if order.location}
+			<a href={mapUrl} target="_blank" rel="noopener" class="mt-1 inline-flex items-start gap-1.5 font-medium underline-offset-2 hover:underline">
+				<MapPin size={17} class="mt-0.5 shrink-0" aria-hidden="true" />{order.location}
+			</a>
+		{/if}
 	</div>
 	<div class="flex flex-wrap items-center gap-2">
 		<span class="badge {st.tone}">{#if order.status === 'abgeschlossen'}<CircleCheck size={13} aria-hidden="true" />{/if}{st.label}</span>
@@ -143,9 +167,95 @@
 	</ul>
 </section>
 
+<section class="card mt-4 p-4 lg:p-5">
+	<div class="flex flex-wrap items-center justify-between gap-2">
+		<h2 class="text-lg">Pläne und Unterlagen</h2>
+		{#if data.canManage}
+			<form
+				method="POST"
+				action="?/upload"
+				enctype="multipart/form-data"
+				use:enhance={() => {
+					uploading = true;
+					return async ({ result, update }) => {
+						uploading = false;
+						if (result.type === 'success') toast.success(Number(result.data?.added) === 1 ? 'PDF hochgeladen' : `${result.data?.added} PDFs hochgeladen`);
+						await update();
+					};
+				}}
+			>
+				<label class="upload btn btn-secondary btn-sm {uploading ? 'pointer-events-none opacity-50' : ''}">
+					<Upload size={16} aria-hidden="true" />{uploading ? 'Wird hochgeladen …' : 'PDF hochladen'}
+					<input
+						type="file"
+						name="dateien"
+						accept="application/pdf,.pdf"
+						multiple
+						class="sr-only"
+						onchange={(e) => e.currentTarget.files?.length && e.currentTarget.form?.requestSubmit()}
+					/>
+				</label>
+			</form>
+		{/if}
+	</div>
+	{#if form && 'docError' in form && form.docError}<p class="field-error mt-2" role="alert">{form.docError}</p>{/if}
+	{#if order.documents.length}
+		<ul class="mt-3 divide-y divide-line rounded-xl border border-line">
+			{#each order.documents as d (d.id)}
+				<li class="flex items-center gap-2">
+					<a href="/auftraege/{order.id}/unterlagen/{d.id}" class="flex min-w-0 flex-1 items-center gap-3 px-3 py-2.5 hover:bg-surface-2">
+						<FileText size={20} class="shrink-0 text-ink-3" aria-hidden="true" />
+						<span class="min-w-0 flex-1">
+							<span class="block truncate font-medium">{d.title}</span>
+							<span class="block truncate text-[0.8125rem] text-ink-3">{d.fileName} · {fileSizeLabel(d.size)}</span>
+						</span>
+						<ChevronRight size={18} class="shrink-0 text-ink-3" aria-hidden="true" />
+					</a>
+					{#if data.canManage}
+						<button type="button" class="mr-2 grid size-9 shrink-0 place-items-center rounded-lg text-ink-3 hover:bg-surface-3 hover:text-danger" aria-label="{d.title} entfernen" onclick={() => (removeDoc = d)}>
+							<X size={16} />
+						</button>
+					{/if}
+				</li>
+			{/each}
+		</ul>
+	{:else}
+		<p class="mt-2 text-sm text-ink-3">{data.canManage ? `Noch keine Unterlagen – z. B. Pläne als PDF (bis ${fileSizeLabel(MAX_DOCUMENT_BYTES)} je Datei).` : 'Keine Unterlagen.'}</p>
+	{/if}
+</section>
+
+<section class="card mt-4 p-4 lg:p-5">
+	<div class="flex flex-wrap items-center justify-between gap-2">
+		<h2 class="flex items-center gap-2 text-lg"><NotebookPen size={18} aria-hidden="true" />Tagesberichte</h2>
+		{#if data.canCreateReport}
+			<a href="/tagesberichte?auftrag={order.id}" class="btn btn-secondary btn-sm"><Plus size={16} aria-hidden="true" />Neuer Tagesbericht</a>
+		{/if}
+	</div>
+	{#if data.reports.length}
+		<ul class="mt-3 divide-y divide-line rounded-xl border border-line">
+			{#each data.reports as r (r.id)}
+				{@const rs = REPORT_STATUS[r.status] ?? REPORT_STATUS.entwurf}
+				<li>
+					<a href="/tagesberichte/{r.id}" class="flex items-center gap-3 px-3 py-2.5 hover:bg-surface-2">
+						<span class="num w-14 shrink-0 font-semibold">{r.number || '–'}</span>
+						<span class="min-w-0 flex-1">
+							<span class="block truncate">{reportDateLabel(r.date, r.dateTo)}</span>
+							<span class="block truncate text-[0.8125rem] text-ink-3">{[r.site, r.partyName, r.dailyOutput].filter(Boolean).join(' · ')}</span>
+						</span>
+						<span class="badge {rs.tone}">{rs.label}</span>
+						<ChevronRight size={18} class="shrink-0 text-ink-3" aria-hidden="true" />
+					</a>
+				</li>
+			{/each}
+		</ul>
+	{:else}
+		<p class="mt-2 text-sm text-ink-3">Noch kein Tagesbericht zu diesem Auftrag.</p>
+	{/if}
+</section>
+
 {#if data.canManage}
 	<section class="card mt-4 p-4 lg:p-5">
-		<h2 class="text-lg">Partie und Hinweis</h2>
+		<h2 class="text-lg">Partie, Ausführungsort und Hinweis</h2>
 		<form
 			method="POST"
 			action="?/update"
@@ -161,6 +271,10 @@
 					<option value="">Bitte wählen</option>
 					{#each data.parties as p (p.id)}<option value={String(p.id)}>{p.name}</option>{/each}
 				</select>
+			</label>
+			<label class="block">
+				<span class="field-label">Ausführungsort</span>
+				<input class="input" name="ort" maxlength="300" value={order.location} placeholder="z. B. Flughafen Wien, Werkstättenring Süd" />
 			</label>
 			<label class="block">
 				<span class="field-label">Hinweis für die Partie</span>
@@ -195,6 +309,25 @@
 	</form>
 </Dialog>
 
+<Dialog open={!!removeDoc} onclose={() => (removeDoc = null)} title="Unterlage entfernen?">
+	{#if removeDoc}
+		<p class="text-ink-2">„{removeDoc.title}“ wird vom Auftrag entfernt.</p>
+		<form
+			method="POST"
+			action="?/deleteDocument"
+			class="mt-5 flex justify-end gap-2"
+			use:enhance={() => async ({ update }) => {
+				removeDoc = null;
+				await update();
+			}}
+		>
+			<input type="hidden" name="dokument" value={removeDoc.id} />
+			<button type="button" class="btn btn-ghost" onclick={() => (removeDoc = null)}>Abbrechen</button>
+			<button class="btn btn-primary">Entfernen</button>
+		</form>
+	{/if}
+</Dialog>
+
 <Dialog bind:open={deleteOpen} title="Auftrag löschen?">
 	<p class="text-ink-2">
 		Der Auftrag {spacedNumber(order.number)} wird gelöscht. Das Angebot bleibt angenommen – daraus lässt sich wieder ein Auftrag erstellen, etwa für eine
@@ -205,3 +338,11 @@
 		<button class="btn btn-primary">Löschen</button>
 	</form>
 </Dialog>
+
+<style>
+	/* Der Knopf ist ein Label um das Dateifeld – den Fokus zeigt er selbst */
+	.upload:has(input:focus-visible) {
+		outline: 2px solid var(--c-focus);
+		outline-offset: 2px;
+	}
+</style>

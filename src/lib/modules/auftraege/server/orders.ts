@@ -9,8 +9,10 @@ import { and, asc, desc, eq, like, or, sql, type SQL } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/sqlite-core';
 import { can } from '$lib/permissions';
 import { db } from '$lib/server/db';
-import { customers, offerPositions, offers, orderPositions, orders, parties, users, type OrderStatus } from '$lib/server/db/schema';
+import { customers, offerPositions, offers, orderDocuments, orderPositions, orders, parties, users, type OrderStatus } from '$lib/server/db/schema';
 import type { SessionUser } from '$lib/server/auth';
+import { storeDocument } from '$lib/server/documents';
+import { titleFromFileName } from '$lib/documents';
 
 const creator = alias(users, 'creator');
 const statusUser = alias(users, 'status_user');
@@ -34,13 +36,16 @@ export async function listOrders(user: SessionUser, filter: OrderFilter = {}, li
 	if (filter.partyId) where.push(eq(orders.partyId, filter.partyId));
 	if (filter.q?.trim()) {
 		const q = `%${filter.q.trim().replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
-		where.push(or(like(orders.number, q), like(orders.title, q), like(orders.customerName, q), like(orders.projectNumber, q)));
+		where.push(
+			or(like(orders.number, q), like(orders.title, q), like(orders.location, q), like(orders.customerName, q), like(orders.projectNumber, q))
+		);
 	}
 	return db
 		.select({
 			id: orders.id,
 			number: orders.number,
 			title: orders.title,
+			location: orders.location,
 			customerName: orders.customerName,
 			customerCity: orders.customerCity,
 			status: orders.status,
@@ -69,6 +74,7 @@ export async function orderDetail(id: number) {
 			status: orders.status,
 			projectNumber: orders.projectNumber,
 			title: orders.title,
+			location: orders.location,
 			customerName: orders.customerName,
 			customerAddition: orders.customerAddition,
 			customerStreet: orders.customerStreet,
@@ -97,7 +103,7 @@ export async function orderDetail(id: number) {
 		.where(eq(orderPositions.orderId, id))
 		.orderBy(asc(orderPositions.sortOrder), asc(orderPositions.id))
 		.all();
-	return { ...order, lines };
+	return { ...order, lines, documents: await listOrderDocuments(id) };
 }
 
 export type OrderDetail = NonNullable<Awaited<ReturnType<typeof orderDetail>>>;
@@ -122,6 +128,7 @@ export async function createOrderFromOffer(offerId: number, partyId: number, not
 				partyId,
 				projectNumber: offer.projectNumber,
 				title: offer.title,
+				location: offer.location,
 				customerName: offer.customerName,
 				customerAddition: offer.customerAddition,
 				customerStreet: offer.customerStreet,
@@ -152,11 +159,76 @@ export async function setOrderStatus(id: number, status: OrderStatus, userId: nu
 	await db.update(orders).set({ status, statusBy: userId, statusAt: new Date(), updatedAt: new Date() }).where(eq(orders.id, id));
 }
 
-export async function updateOrder(id: number, data: { partyId: number; note: string }) {
+export async function updateOrder(id: number, data: { partyId: number; location: string; note: string }) {
 	await db
 		.update(orders)
-		.set({ partyId: data.partyId, note: data.note.slice(0, 2000), updatedAt: new Date() })
+		.set({ partyId: data.partyId, location: data.location.slice(0, 300), note: data.note.slice(0, 2000), updatedAt: new Date() })
 		.where(eq(orders.id, id));
+}
+
+/**
+ * Aufträge, an die ein Tagesbericht gehängt werden kann: die offenen, die
+ * dieser Benutzer sieht – dazu der schon verknüpfte, auch wenn er erledigt ist.
+ */
+export async function linkableOrders(user: SessionUser, current: number | null = null) {
+	const where: (SQL | undefined)[] = [scope(user)];
+	const open = or(eq(orders.status, 'erstellt'), eq(orders.status, 'in_arbeit'));
+	where.push(current ? or(open, eq(orders.id, current)) : open);
+	return db
+		.select({ id: orders.id, number: orders.number, title: orders.title, location: orders.location, partyId: orders.partyId })
+		.from(orders)
+		.where(and(...where))
+		.orderBy(desc(orders.createdAt))
+		.limit(200)
+		.all();
+}
+
+/* ---------------------------------------------------------- Unterlagen */
+
+export function listOrderDocuments(orderId: number) {
+	return db
+		.select({
+			id: orderDocuments.id,
+			title: orderDocuments.title,
+			fileName: orderDocuments.fileName,
+			size: orderDocuments.size,
+			createdAt: orderDocuments.createdAt
+		})
+		.from(orderDocuments)
+		.where(eq(orderDocuments.orderId, orderId))
+		.orderBy(asc(orderDocuments.createdAt), asc(orderDocuments.id))
+		.all();
+}
+
+/** PDF ablegen (wie die PDFs am Artikel) und an den Auftrag hängen; der Titel kommt aus dem Dateinamen */
+export async function addOrderDocument(orderId: number, file: File, userId: number) {
+	await insertOrderDocument(orderId, file.name, await storeDocument(file), userId);
+}
+
+/** Eintrag für eine schon abgelegte Datei – beim Erstellen des Auftrags werden die PDFs vorher geprüft */
+export async function insertOrderDocument(orderId: number, name: string, stored: { sha256: string; size: number }, userId: number) {
+	const fileName = (name || 'unterlage.pdf').slice(0, 200);
+	await db.insert(orderDocuments).values({
+		orderId,
+		title: titleFromFileName(fileName) || 'Unterlage',
+		fileName: /\.pdf$/i.test(fileName) ? fileName : `${fileName}.pdf`,
+		sha256: stored.sha256,
+		size: stored.size,
+		uploadedBy: userId
+	});
+}
+
+export function getOrderDocument(orderId: number, documentId: number) {
+	return db
+		.select()
+		.from(orderDocuments)
+		.where(and(eq(orderDocuments.id, documentId), eq(orderDocuments.orderId, orderId)))
+		.get();
+}
+
+/** Die Datei bleibt noch eine Weile für Sicherungen liegen */
+export async function deleteOrderDocument(orderId: number, documentId: number) {
+	await db.delete(orderDocuments).where(and(eq(orderDocuments.id, documentId), eq(orderDocuments.orderId, orderId)));
 }
 
 /** Nur ein Auftrag, an dem noch nicht gearbeitet wird – das Angebot bleibt angenommen */

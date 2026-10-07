@@ -17,6 +17,7 @@ function forCustomer(o: OfferDetail) {
 		projectNumber: o.projectNumber,
 		date: o.date,
 		title: o.title,
+		location: o.location,
 		customerName: o.customerName,
 		customerAddition: o.customerAddition,
 		customerStreet: o.customerStreet,
