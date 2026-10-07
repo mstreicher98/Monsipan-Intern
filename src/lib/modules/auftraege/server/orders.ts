@@ -231,13 +231,18 @@ export async function deleteOrderDocument(orderId: number, documentId: number) {
 	await db.delete(orderDocuments).where(and(eq(orderDocuments.id, documentId), eq(orderDocuments.orderId, orderId)));
 }
 
-/** Nur ein Auftrag, an dem noch nicht gearbeitet wird – das Angebot bleibt angenommen */
-export async function deleteOrder(id: number): Promise<boolean> {
-	const done = await db
-		.delete(orders)
-		.where(and(eq(orders.id, id), eq(orders.status, 'erstellt')))
-		.returning({ id: orders.id });
-	return done.length > 0;
+/**
+ * Auftrag löschen – Positionen und Unterlagen gehen mit, seine Tagesberichte
+ * bleiben (ohne Auftrag). Das Angebot bleibt angenommen; daraus lässt sich neu
+ * ein Auftrag erstellen.
+ */
+export async function deleteOrder(id: number) {
+	await db.delete(orders).where(eq(orders.id, id));
+}
+
+/** Löschen: noch nicht begonnene, wer Aufträge erstellt – sonst nur mit „Aufträge löschen" */
+export function mayDeleteOrder(user: SessionUser, order: { status: string }): boolean {
+	return can(user.role, 'auftraege.loeschen') || (order.status === 'erstellt' && can(user.role, 'auftraege.erstellen'));
 }
 
 export function mayViewOrder(user: SessionUser, order: { partyId: number | null }): boolean {

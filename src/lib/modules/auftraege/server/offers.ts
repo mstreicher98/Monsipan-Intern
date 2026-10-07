@@ -331,8 +331,20 @@ export async function customerRequestChange(id: number, name: string, message: s
 	return done.length > 0;
 }
 
-export async function deleteOffer(id: number) {
-	await db.delete(offers).where(and(eq(offers.id, id), eq(offers.status, 'entwurf')));
+/**
+ * Angebot samt Positionen löschen. Mit withOrder geht sein Auftrag mit – sonst
+ * bleibt der Auftrag (er hat Anschrift und Positionen ohnehin selbst) ohne Angebot.
+ */
+export async function deleteOffer(id: number, withOrder = false) {
+	await db.transaction(async (tx) => {
+		if (withOrder) await tx.delete(orders).where(eq(orders.offerId, id));
+		await tx.delete(offers).where(eq(offers.id, id));
+	});
+}
+
+/** Löschen: in Arbeit, wer Angebote erstellt – in jedem anderen Stand nur mit „Angebote löschen" */
+export function mayDeleteOffer(user: SessionUser, offer: { status: string }): boolean {
+	return can(user.role, 'angebote.loeschen') || (offer.status === 'entwurf' && can(user.role, 'angebote.erstellen'));
 }
 
 /** Link für den Kunden: 128 Bit Zufall, bleibt dauerhaft gleich */

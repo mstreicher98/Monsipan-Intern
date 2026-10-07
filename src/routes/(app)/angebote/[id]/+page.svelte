@@ -484,13 +484,29 @@
 </Dialog>
 
 <Dialog bind:open={deleteOpen} title="Angebot löschen?">
-	<p class="text-ink-2">
-		Das Angebot {spacedNumber(offer.number)} wird samt allen Positionen gelöscht.{offer.customerToken ? ' Ein schon verschickter Link funktioniert danach nicht mehr.' : ''} Das lässt sich
-		nicht rückgängig machen.
-	</p>
-	<form method="POST" action="?/delete" class="mt-5 flex justify-end gap-2" use:enhance>
-		<button type="button" class="btn btn-ghost" onclick={() => (deleteOpen = false)}>Abbrechen</button>
-		<button class="btn btn-primary">Löschen</button>
+	<form method="POST" action="?/delete" use:enhance>
+		<p class="text-ink-2">
+			Das Angebot {spacedNumber(offer.number)} wird samt allen Positionen gelöscht{offer.status === 'angenommen' ? ' – auch die Annahme und Unterschrift des Kunden' : ''}.{offer.customerToken
+				? ' Der Link des Kunden funktioniert danach nicht mehr.'
+				: ''} Das lässt sich nicht rückgängig machen.
+		</p>
+		{#if offer.order}
+			{#if data.canDeleteOrder}
+				<label class="mt-4 flex items-start gap-3 rounded-xl border border-line-strong p-3 has-[:checked]:border-danger">
+					<input type="checkbox" name="auftrag" value="ja" class="mt-0.5 size-5 shrink-0 accent-[var(--c-danger)]" />
+					<span>
+						<span class="block font-medium">Auftrag {spacedNumber(offer.number)} ebenfalls löschen</span>
+						<span class="block text-sm text-ink-2">Samt Plänen und Unterlagen. Seine Tagesberichte bleiben, nur ohne Auftrag. Ohne Haken bleibt der Auftrag bestehen.</span>
+					</span>
+				</label>
+			{:else}
+				<p class="mt-3 text-sm text-ink-2">Der Auftrag {spacedNumber(offer.number)} bleibt bestehen – nur ohne Verbindung zum Angebot.</p>
+			{/if}
+		{/if}
+		<div class="mt-5 flex justify-end gap-2">
+			<button type="button" class="btn btn-ghost" onclick={() => (deleteOpen = false)}>Abbrechen</button>
+			<button class="btn btn-primary"><Trash size={18} aria-hidden="true" />Löschen</button>
+		</div>
 	</form>
 </Dialog>
 

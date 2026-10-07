@@ -343,6 +343,14 @@ Arbeit). Das Büro sieht alle, wechselt die Partie, ändert den Hinweis, setzt z
 angenommen und der Auftrag lässt sich neu erstellen. Auftrag und Angebot gibt es als PDF
 und zum Drucken.
 
+**Löschen:** Angebote in Arbeit löscht, wer Angebote erstellt; noch nicht begonnene Aufträge,
+wer Aufträge erstellt. In jedem anderen Stand (freigegeben, angenommen, in Arbeit,
+abgeschlossen) braucht es das Recht **Angebote löschen** bzw. **Aufträge löschen** – von Haus
+aus Admin und Geschäftsführung. Beim Löschen eines Angebots mit Auftrag lässt sich wählen, ob
+der Auftrag mitgeht; sonst bleibt er ohne Angebot bestehen. Ein gelöschter Auftrag nimmt
+Positionen und Unterlagen mit, seine Tagesberichte bleiben (ohne Auftrag), das Angebot bleibt
+angenommen. Der Link des Kunden zu einem gelöschten Angebot funktioniert nicht mehr.
+
 Wer was darf, steht unter Verwaltung → Berechtigungen im Block „Angebote und Aufträge“.
 Preise sieht nur, wer Angebote sehen darf – Partieführer und Arbeiter sehen sie nicht.
 

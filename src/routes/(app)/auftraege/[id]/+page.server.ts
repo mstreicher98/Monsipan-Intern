@@ -8,6 +8,7 @@ import {
 	addOrderDocument,
 	deleteOrder,
 	deleteOrderDocument,
+	mayDeleteOrder,
 	mayViewOrder,
 	maySetOrderStatus,
 	orderDetail,
@@ -36,7 +37,8 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 		parties: canManage ? await activeParties() : [],
 		// Tagesberichte zu diesem Auftrag – so weit dieser Benutzer sie sieht
 		reports: await listReports(user, { orderId: order.id }),
-		canCreateReport: can(user.role, 'tagesberichte.erfassen') && order.status !== 'abgeschlossen'
+		canCreateReport: can(user.role, 'tagesberichte.erfassen') && order.status !== 'abgeschlossen',
+		canDelete: mayDeleteOrder(user, order)
 	};
 };
 
@@ -96,8 +98,9 @@ export const actions: Actions = {
 
 	delete: async ({ params, locals }) => {
 		const { user, order } = await open(Number(params.id), locals);
-		if (!can(user.role, 'auftraege.erstellen')) return fail(403, { message: 'Dafür fehlt dir die Berechtigung.' });
-		if (!(await deleteOrder(order.id))) return fail(400, { message: 'Gelöscht werden kann nur ein Auftrag, an dem noch nicht gearbeitet wird.' });
-		redirect(303, order.offerId ? `/angebote/${order.offerId}` : '/auftraege');
+		if (!mayDeleteOrder(user, order)) return fail(403, { message: 'Diesen Auftrag darfst du nicht löschen.' });
+		await deleteOrder(order.id);
+		// Zurück zum Angebot, wenn man es sieht – sonst zur Liste
+		redirect(303, order.offerId && can(user.role, 'angebote.sehen') ? `/angebote/${order.offerId}` : '/auftraege');
 	}
 };

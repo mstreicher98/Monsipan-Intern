@@ -294,7 +294,7 @@
 	{#if data.canManage && order.status !== 'erstellt'}
 		<button type="button" class="btn btn-ghost" onclick={() => (resetOpen = true)}><Undo size={18} aria-hidden="true" />Zurück auf „Auftrag erstellt"</button>
 	{/if}
-	{#if data.canManage && order.status === 'erstellt'}
+	{#if data.canDelete}
 		<button type="button" class="btn btn-ghost ml-auto text-danger hover:bg-danger-soft" onclick={() => (deleteOpen = true)}>
 			<Trash size={18} aria-hidden="true" />Auftrag löschen
 		</button>
@@ -330,12 +330,14 @@
 
 <Dialog bind:open={deleteOpen} title="Auftrag löschen?">
 	<p class="text-ink-2">
-		Der Auftrag {spacedNumber(order.number)} wird gelöscht. Das Angebot bleibt angenommen – daraus lässt sich wieder ein Auftrag erstellen, etwa für eine
-		andere Partie.
+		Der Auftrag {spacedNumber(order.number)} wird samt Positionen{order.documents.length ? ' und Unterlagen' : ''} gelöscht.{data.reports.length
+			? ` ${data.reports.length === 1 ? 'Sein Tagesbericht bleibt' : `Seine ${data.reports.length} Tagesberichte bleiben`} erhalten, nur ohne Auftrag.`
+			: ''}
+		{order.offerId ? 'Das Angebot bleibt angenommen – daraus lässt sich wieder ein Auftrag erstellen, etwa für eine andere Partie.' : ''}
 	</p>
 	<form method="POST" action="?/delete" class="mt-5 flex justify-end gap-2" use:enhance>
 		<button type="button" class="btn btn-ghost" onclick={() => (deleteOpen = false)}>Abbrechen</button>
-		<button class="btn btn-primary">Löschen</button>
+		<button class="btn btn-primary"><Trash size={18} aria-hidden="true" />Löschen</button>
 	</form>
 </Dialog>
 

@@ -5,6 +5,7 @@ import { customerOfferMail, isMailConfigured, sendMail } from '$lib/server/mail'
 import { createCustomer, customerProblem, getCustomer, listCustomers, readCustomer } from '$lib/modules/auftraege/server/customers';
 import {
 	deleteOffer,
+	mayDeleteOffer,
 	ensureOfferToken,
 	markOfferLinkSent,
 	mayEditOffer,
@@ -18,7 +19,7 @@ import {
 	withdrawOffer,
 	type SaveOffer
 } from '$lib/modules/auftraege/server/offers';
-import { activeParties, createOrderFromOffer, insertOrderDocument } from '$lib/modules/auftraege/server/orders';
+import { activeParties, createOrderFromOffer, insertOrderDocument, mayDeleteOrder } from '$lib/modules/auftraege/server/orders';
 import { DocumentError, storeDocument } from '$lib/server/documents';
 import { isValidIsoDate } from '$lib/modules/stunden/week';
 import { parseAmount } from '$lib/modules/auftraege/offer';
@@ -44,7 +45,9 @@ export const load: PageServerLoad = async ({ params, locals, url }) => {
 		canRelease: offer.status === 'entwurf' && can(user.role, 'angebote.freigeben'),
 		canWithdraw: (offer.status === 'freigegeben' || offer.status === 'aenderung') && can(user.role, 'angebote.erstellen'),
 		canReopen: offer.status === 'angenommen' && !offer.order && can(user.role, 'angebote.oeffnen.angenommen'),
-		canDelete: offer.status === 'entwurf' && can(user.role, 'angebote.erstellen'),
+		canDelete: mayDeleteOffer(user, offer),
+		// Den Auftrag gleich mitlöschen darf, wer ihn auch einzeln löschen dürfte
+		canDeleteOrder: !!offer.order && mayDeleteOrder(user, offer.order),
 		canLink,
 		canCreateOrder,
 		parties: canCreateOrder ? await activeParties() : [],
@@ -160,10 +163,12 @@ export const actions: Actions = {
 		return { reopened: true };
 	},
 
-	delete: async ({ params, locals }) => {
+	delete: async ({ params, request, locals }) => {
 		const { user, offer } = await open(Number(params.id), locals);
-		if (offer.status !== 'entwurf' || !can(user.role, 'angebote.erstellen')) return fail(403, { message: 'Nur Angebote in Arbeit können gelöscht werden.' });
-		await deleteOffer(offer.id);
+		if (!mayDeleteOffer(user, offer)) return fail(403, { message: 'Dieses Angebot darfst du nicht löschen.' });
+		const withOrder = (await request.formData()).get('auftrag') === 'ja';
+		if (withOrder && offer.order && !mayDeleteOrder(user, offer.order)) return fail(403, { message: 'Den Auftrag darfst du nicht löschen.' });
+		await deleteOffer(offer.id, withOrder);
 		redirect(303, '/angebote');
 	},
 

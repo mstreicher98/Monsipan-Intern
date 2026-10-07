@@ -90,9 +90,13 @@ export const DEFAULT_PERMISSIONS = {
 	'angebote.erstellen': ['admin', 'geschaeftsfuehrer', 'bauleiter', 'buchhaltung'],
 	'angebote.freigeben': ['admin', 'geschaeftsfuehrer', 'bauleiter'],
 	'angebote.oeffnen.angenommen': ['admin', 'geschaeftsfuehrer'],
+	// Löschen in jedem Stand – Angebote in Arbeit löscht auch, wer sie erstellt
+	'angebote.loeschen': ['admin', 'geschaeftsfuehrer'],
 	'kunden.pflegen': ['admin', 'geschaeftsfuehrer', 'bauleiter', 'buchhaltung'],
 	'auftraege.erstellen': ['admin', 'geschaeftsfuehrer', 'bauleiter', 'buchhaltung'],
 	'auftraege.status': ['admin', 'geschaeftsfuehrer', 'bauleiter', 'partiefuehrer'],
+	// Löschen in jedem Stand – noch nicht begonnene löscht auch, wer Aufträge erstellt
+	'auftraege.loeschen': ['admin', 'geschaeftsfuehrer'],
 	// Ohne dieses Recht sieht man nur die Aufträge der eigenen Partie
 	'auftraege.alle.sehen': ['admin', 'geschaeftsfuehrer', 'bauleiter', 'buchhaltung', 'viewer'],
 
@@ -192,9 +196,19 @@ export const PERMISSION_GROUPS: { title: string; items: { key: Permission; label
 				label: 'Angenommene wieder öffnen',
 				hint: 'Die Annahme des Kunden verfällt – nur solange es noch keinen Auftrag gibt'
 			},
+			{
+				key: 'angebote.loeschen',
+				label: 'Angebote löschen',
+				hint: 'Auch freigegebene und angenommene – der Link des Kunden funktioniert danach nicht mehr'
+			},
 			{ key: 'kunden.pflegen', label: 'Kunden pflegen', hint: 'Kundenstamm anlegen und ändern' },
 			{ key: 'auftraege.erstellen', label: 'Aufträge erstellen', hint: 'Aus angenommenen Angeboten, Partie zuordnen' },
 			{ key: 'auftraege.status', label: 'Status setzen', hint: 'Auftrag auf „in Arbeit" oder „abgeschlossen" – Partieführer für die eigene Partie' },
+			{
+				key: 'auftraege.loeschen',
+				label: 'Aufträge löschen',
+				hint: 'Auch begonnene und abgeschlossene – ihre Tagesberichte bleiben, nur ohne Auftrag'
+			},
 			{ key: 'auftraege.alle.sehen', label: 'Alle Aufträge sehen', hint: 'Sonst nur die der eigenen Partie' }
 		]
 	},
