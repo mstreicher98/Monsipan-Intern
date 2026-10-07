@@ -1,10 +1,20 @@
 # ---------- Build ----------
-FROM node:24-alpine AS build
+# Läuft immer auf der Maschine, die baut – ohne Emulation. Das Ergebnis ist
+# reines JavaScript und für amd64 und arm64 dasselbe. (Unter Emulation stürzten
+# die nativen Build-Werkzeuge für arm64 gelegentlich ab.)
+FROM --platform=$BUILDPLATFORM node:24-alpine AS build
 WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci
 COPY . .
-RUN npm run build && npm prune --omit=dev
+RUN npm run build
+
+# ---------- Abhängigkeiten zur Laufzeit ----------
+# Je Zielplattform installiert: libsql bringt die passende Binärdatei mit
+FROM node:24-alpine AS deps
+WORKDIR /app
+COPY package.json package-lock.json ./
+RUN npm ci --omit=dev && npm cache clean --force
 
 # ---------- Laufzeit ----------
 FROM node:24-alpine
@@ -18,7 +28,7 @@ ENV NODE_ENV=production \
     TZ=Europe/Vienna \
     BODY_SIZE_LIMIT=210M
 COPY --from=build --chown=node:node /app/build ./build
-COPY --from=build --chown=node:node /app/node_modules ./node_modules
+COPY --from=deps --chown=node:node /app/node_modules ./node_modules
 COPY --from=build --chown=node:node /app/drizzle ./drizzle
 # Schrift für die PDFs (Liberation Sans, mit Lizenz) – kann auch ć, č, š, ž, đ
 COPY --from=build --chown=node:node /app/fonts ./fonts
