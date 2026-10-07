@@ -9,6 +9,8 @@
  */
 import LayoutDashboard from '@lucide/svelte/icons/layout-dashboard';
 import HardHat from '@lucide/svelte/icons/hard-hat';
+import FilePen from '@lucide/svelte/icons/file-pen-line';
+import Building from '@lucide/svelte/icons/building';
 import CalendarDays from '@lucide/svelte/icons/calendar-days';
 import Users from '@lucide/svelte/icons/users';
 import Clock from '@lucide/svelte/icons/clock';
@@ -62,8 +64,21 @@ export interface AppModule {
 
 export const MODULES: AppModule[] = [
 	{ key: 'dashboard', label: 'Übersicht', icon: LayoutDashboard, href: '/', group: 'betrieb', status: 'aktiv', items: [] },
-	// Steht schon im Menü – die Einträge folgen
-	{ key: 'auftraege', label: 'Aufträge/Angebote', icon: HardHat, href: '/auftraege', group: 'betrieb', status: 'leer', items: [] },
+	{
+		key: 'auftraege',
+		label: 'Aufträge/Angebote',
+		icon: HardHat,
+		href: '/auftraege',
+		group: 'betrieb',
+		status: 'aktiv',
+		hint: 'Angebote, Aufträge und Kunden',
+		cardsPerItem: true,
+		items: [
+			{ href: '/angebote', label: 'Angebote', icon: FilePen, permission: 'angebote.sehen', hint: 'Mit Preisen, Link zum Annehmen' },
+			{ href: '/auftraege', label: 'Aufträge', icon: HardHat, hint: 'Arbeiten je Partie' },
+			{ href: '/kunden', label: 'Kunden', icon: Building, permission: 'kunden.pflegen', hint: 'Anschriften für Angebote' }
+		]
+	},
 	{ key: 'planung', label: 'Planung', icon: CalendarDays, href: '/planung', group: 'betrieb', status: 'geplant', items: [] },
 	{ key: 'partien', label: 'Partien', icon: Users, href: '/partien', group: 'betrieb', status: 'geplant', items: [] },
 	{

@@ -6,7 +6,7 @@ Oberfläche, auf dem Handy wie am PC. Die übrigen Bereiche kommen nach und nach
 | Bereich | Stand |
 |---|---|
 | Übersicht | fertig – Einstieg in alle Bereiche, Kennzahlen aus dem Lager |
-| Aufträge/Angebote | Kategorie im Menü angelegt, noch ohne Einträge |
+| Aufträge/Angebote | fertig – Kunden, Angebote mit Preisen und Kundenlink, Aufträge je Partie |
 | Dokumentation: Stundenzettel | fertig – Lohnwoche je Mitarbeiter, Freigabe und Prüfung |
 | Dokumentation: Tagesberichte | fertig – Leistung je Tag und Baustelle, Freigabe, Prüfung, Unterschrift des Kunden |
 | Lagermanagement | fertig – Bestand, Buchen, Inventur, Bewegungen, Bestellliste, Berichte, Artikel |
@@ -48,7 +48,8 @@ Inventur-Buchung festgehalten, auch wenn sie stimmt.
 1. [Rollen](#rollen)
 2. [Stundenzettel](#stundenzettel)
 3. [Tagesberichte](#tagesberichte)
-4. [Lokale Entwicklung](#lokale-entwicklung)
+4. [Angebote und Aufträge](#angebote-und-aufträge)
+5. [Lokale Entwicklung](#lokale-entwicklung)
 3. [Betrieb auf dem Server](#betrieb-auf-dem-server)
 4. [Datensicherung](#datensicherung)
 5. [Alles zurücksetzen](#alles-zurücksetzen)
@@ -71,6 +72,8 @@ Administration unter `/verwaltung/…`:
 | Stundenzettel | `/stundenzettel` |
 | Tagesberichte | `/tagesberichte` |
 | Tagesbericht für den Kunden (ohne Anmeldung) | `/bericht/<link>` |
+| Angebote, Aufträge, Kunden | `/angebote`, `/auftraege`, `/kunden` |
+| Angebot für den Kunden (ohne Anmeldung) | `/angebot/<link>` |
 | Handschrift auf dem Formular | `/tagesberichte/<id>/handschrift`, `/stundenzettel/<id>/handschrift` |
 | Bestand, Buchen, Bewegungen, Bestellliste, Berichte | `/lager/bestand` usw. |
 | Inventur | `/lager/inventur` |
@@ -274,6 +277,57 @@ Angaben untereinander.
 
 Wer kein Recht auf „alle sehen" hat, sieht die Berichte der eigenen Partie und die selbst
 angelegten.
+
+## Angebote und Aufträge
+
+**Kunden** (`/kunden`): Anschrift, UID-Nummer, E-Mail, Ansprechpartner und Telefon – einmal
+anlegen, im Angebot auswählen. Ein neuer Kunde lässt sich auch direkt beim Schreiben eines
+Angebots anlegen. Kunden, die schon in Angeboten stehen, werden ausgeblendet statt gelöscht.
+
+**Angebote** (`/angebote`) sehen aus wie die bisherigen aus dem Büro: Briefkopf, Anschrift
+links, rechts Angebotsdatum, Kunden-UID, Projektnummer und Angebotsnummer, darunter
+„Angebot Nr. 26 659 / BV: …“, die Einleitung, die Positionen mit **Nr., Bezeichnung, Menge,
+Einheit, Einheitspreis (EP) und Gesamtpreis (GP)**, darunter Gesamt Netto, Umsatzsteuer
+(20 %, je Angebot änderbar) und Gesamtbetrag, der Schlusstext und unten Anschrift,
+Bankverbindung und Kontakt.
+
+- Positionen werden 1.1, 1.2 … nummeriert; eine **Überschrift** beginnt eine neue Gruppe (2,
+  2.1, 2.2 …). Positionen lassen sich verschieben und entfernen.
+- Angebots- und Projektnummer schlägt die App vor (nächste freie), beide bleiben frei änderbar.
+- Einleitung und Schlusstext kommen aus der Vorlage unter **Einstellungen → Angebote und
+  Aufträge** und lassen sich im einzelnen Angebot ändern. Dort stehen auch die drei Spalten
+  der Fußzeile und der **Briefkopf**: als hochgeladenes Bild (PNG/JPG, oben mittig
+  eingepasst) oder – ohne Bild – aus Text gesetzt.
+
+**Ablauf:**
+
+1. **In Arbeit:** Angebot schreiben, Vorschau über **PDF**.
+2. **Freigeben** (Admin, Geschäftsführung, Bauleitung): Danach gibt es den **Link für den
+   Kunden** – kopieren, am Handy teilen oder per E-Mail schicken (der Vorschlag ist die
+   E-Mail aus dem Kundenstamm).
+3. Der Kunde sieht das Angebot (als Blatt oder als Liste, als PDF zum Laden) und
+   - **nimmt es an** – mit Name und Unterschrift; sie steht danach unten im PDF, oder
+   - **wünscht Änderungen** – mit einem kurzen Text. Im Büro steht der Wunsch oben am
+     Angebot; **Überarbeiten** holt es zurück in Arbeit, danach wird es neu freigegeben.
+     Der Link bleibt derselbe; solange es überarbeitet wird, sieht der Kunde „wird
+     überarbeitet“.
+   Wer das Angebot angelegt und freigegeben hat, bekommt bei beidem eine E-Mail (wenn SMTP
+   eingerichtet ist und eine Adresse hinterlegt ist).
+4. **Angenommen:** **Auftrag erstellen** – Partie wählen, optional ein Hinweis für die Partie.
+   Ein angenommenes Angebot lässt sich nur wieder öffnen (Admin, Geschäftsführung), solange
+   es keinen Auftrag gibt; die Annahme verfällt dabei.
+
+**Aufträge** (`/auftraege`) bekommen dieselbe Nummer wie das Angebot, die Anschrift und alle
+Positionen – **ohne Preise** und ohne Einleitung, Schlusstext und Fußzeile, dafür mit Partie,
+Ansprechpartner und Telefon des Kunden und dem Hinweis. Die Partie sieht nur ihre eigenen
+Aufträge und setzt sie auf **In Arbeit** und **Abgeschlossen** (und bei Bedarf zurück auf in
+Arbeit). Das Büro sieht alle, wechselt die Partie, ändert den Hinweis, setzt zurück auf
+„Auftrag erstellt“ oder löscht einen noch nicht begonnenen Auftrag – das Angebot bleibt dann
+angenommen und der Auftrag lässt sich neu erstellen. Auftrag und Angebot gibt es als PDF
+und zum Drucken.
+
+Wer was darf, steht unter Verwaltung → Berechtigungen im Block „Angebote und Aufträge“.
+Preise sieht nur, wer Angebote sehen darf – Partieführer und Arbeiter sehen sie nicht.
 
 ## Handschrift am Tablet
 
@@ -535,7 +589,7 @@ Die Sicherungen der Datenbank bleiben dadurch klein.
 **Sicherungen:** Wird ein PDF entfernt oder alles zurückgesetzt, bleibt die Datei noch
 90 Tage liegen. Eine in dieser Zeit eingespielte Sicherung findet ihre PDFs also wieder.
 Danach räumt die tägliche Wartung unbenutzte Dateien weg. Für den Umzug auf einen anderen
-Server das ganze Volume mitnehmen (Datenbank, `/data/dokumente` **und** `/data/fotos`) – eine
+Server das ganze Volume mitnehmen (Datenbank, `/data/dokumente`, `/data/fotos` **und** `/data/briefkopf`) – eine
 hochgeladene Sicherung allein enthält die PDFs nicht.
 
 Die Fotos der Tagesberichte liegen genauso unter `/data/fotos/<sha256>.jpg` (Foto und Vorschau)
@@ -671,6 +725,8 @@ src/
     server/        Geteilt: Datenbank, Anmeldung, Mail, Sicherungen, Dokumente, Ereignisse
     server/db/schema/   core.ts (Benutzer, Partien, Einstellungen) + je Bereich eine Datei
     modules/
+      auftraege/   Angebote und Aufträge: offer.ts (Beträge, Summen, Nummern), server/
+                   (Kunden, Angebote, Aufträge, PDF), components/
       lager/       Alles zum Lager: server/ (Bestand, Buchungen, Warnungen),
                    components/, scan/ (Parser, Tastaturlayouts, Handscanner, Kamera)
       stunden/     Lohnwoche: Wochenrechnung und server/ (Zettel, Freigabe, Prüfung)
@@ -679,7 +735,7 @@ src/
   routes/
     (auth)/        Anmelden, Passwort vergessen/zurücksetzen
     (app)/         Übersicht, lager/…, verwaltung/…, Konto, App fürs Handy
-    (kunde)/       Seiten für Kunden ohne Anmeldung: Tagesbericht ansehen und unterschreiben
+    (kunde)/       Seiten für Kunden ohne Anmeldung: Tagesbericht unterschreiben, Angebot annehmen
     api/           Code-Suche, Artikelsuche, Live-Ereignisse
     export/        CSV-Exporte (Excel-kompatibel) und Backup-Download
 ```

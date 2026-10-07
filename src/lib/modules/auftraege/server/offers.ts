@@ -1,0 +1,353 @@
+/**
+ * Angebote: anlegen, bearbeiten, freigeben, Link an den Kunden. Der Kunde
+ * nimmt über den Link an (Name und Unterschrift) oder wünscht Änderungen –
+ * dann wird das Angebot überarbeitet und neu freigegeben, der Link bleibt.
+ */
+import { randomBytes } from 'node:crypto';
+import { and, asc, desc, eq, inArray, like, or, sql, type SQL } from 'drizzle-orm';
+import { alias } from 'drizzle-orm/sqlite-core';
+import { can } from '$lib/permissions';
+import { db } from '$lib/server/db';
+import { customers, offerPositions, offers, orders, users, type OfferStatus } from '$lib/server/db/schema';
+import { col } from '$lib/server/db/sql';
+import { getSettings } from '$lib/server/settings';
+import type { SessionUser } from '$lib/server/auth';
+import { MAX_OFFER_LINES, nextOfferNumber, nextProjectNumber, parseAmount } from '../offer';
+
+const creator = alias(users, 'creator');
+const releaser = alias(users, 'releaser');
+
+/** Netto-Summe je Angebot, direkt in der Abfrage */
+const netSum = sql<number>`(select coalesce(sum(round(${col(offerPositions.quantity)} * ${col(offerPositions.unitPrice)}, 2)), 0) from ${offerPositions} where ${col(offerPositions.offerId)} = ${col(offers.id)} and ${col(offerPositions.kind)} = 'position')`.mapWith(
+	Number
+);
+const orderOf = sql<number | null>`(select ${col(orders.id)} from ${orders} where ${col(orders.offerId)} = ${col(offers.id)})`;
+
+export interface OfferFilter {
+	q?: string;
+	status?: string;
+}
+
+export async function listOffers(filter: OfferFilter = {}, limit = 200) {
+	const where: (SQL | undefined)[] = [];
+	if (filter.status === 'offen') where.push(inArray(offers.status, ['entwurf', 'freigegeben', 'aenderung']));
+	else if (filter.status) where.push(eq(offers.status, filter.status as OfferStatus));
+	if (filter.q?.trim()) {
+		const q = `%${filter.q.trim().replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
+		where.push(or(like(offers.number, q), like(offers.title, q), like(offers.customerName, q), like(offers.projectNumber, q)));
+	}
+	return db
+		.select({
+			id: offers.id,
+			number: offers.number,
+			projectNumber: offers.projectNumber,
+			date: offers.date,
+			title: offers.title,
+			customerName: offers.customerName,
+			customerCity: offers.customerCity,
+			status: offers.status,
+			vatRate: offers.vatRate,
+			net: netSum,
+			orderId: orderOf
+		})
+		.from(offers)
+		.where(and(...where))
+		.orderBy(desc(offers.date), desc(offers.id))
+		.limit(limit)
+		.all();
+}
+
+/** Vorschlag für das nächste Angebot: Nummer und Projektnummer */
+export async function suggestNumbers(year = new Date().getFullYear()) {
+	const rows = await db.select({ n: offers.number, p: offers.projectNumber }).from(offers).all();
+	return { number: nextOfferNumber(rows.map((r) => r.n), year), projectNumber: nextProjectNumber(rows.map((r) => r.p), year) };
+}
+
+export async function numberTaken(number: string, exceptId?: number): Promise<boolean> {
+	const row = await db.select({ id: offers.id }).from(offers).where(eq(offers.number, number)).get();
+	return !!row && row.id !== exceptId;
+}
+
+/** Anschrift aus dem Kundenstamm für das Angebot */
+async function customerSnapshot(customerId: number | null) {
+	if (customerId == null) return null;
+	const c = await db.select().from(customers).where(eq(customers.id, customerId)).get();
+	if (!c) return null;
+	return {
+		customerId: c.id,
+		customerName: c.name,
+		customerAddition: c.addition,
+		customerStreet: c.street,
+		customerZip: c.zip,
+		customerCity: c.city,
+		customerUid: c.uid
+	};
+}
+
+export async function createOffer(
+	user: SessionUser,
+	data: { number: string; projectNumber: string; date: string; title: string; customerId: number | null }
+): Promise<number> {
+	const settings = await getSettings();
+	const snapshot = await customerSnapshot(data.customerId);
+	return db.transaction(async (tx) => {
+		const row = await tx
+			.insert(offers)
+			.values({
+				number: data.number.slice(0, 30),
+				projectNumber: data.projectNumber.slice(0, 30),
+				date: data.date,
+				title: data.title.slice(0, 300),
+				...(snapshot ?? {}),
+				intro: settings.offerIntro,
+				closing: settings.offerClosing,
+				createdBy: user.id,
+				updatedAt: new Date()
+			})
+			.returning({ id: offers.id })
+			.get();
+		await tx.insert(offerPositions).values({ offerId: row.id, sortOrder: 0, unit: 'Pauschal', quantity: 1 });
+		return row.id;
+	});
+}
+
+export async function offerDetail(id: number) {
+	if (!Number.isInteger(id)) return null;
+	return loadOffer(eq(offers.id, id));
+}
+
+/** Für die Seite des Kunden: das Angebot zu seinem Link */
+export async function offerByToken(token: string) {
+	if (!/^[0-9a-f]{32}$/.test(token)) return null;
+	return loadOffer(eq(offers.customerToken, token));
+}
+
+async function loadOffer(where: SQL) {
+	const offer = await db
+		.select({
+			id: offers.id,
+			number: offers.number,
+			projectNumber: offers.projectNumber,
+			date: offers.date,
+			title: offers.title,
+			customerId: offers.customerId,
+			customerName: offers.customerName,
+			customerAddition: offers.customerAddition,
+			customerStreet: offers.customerStreet,
+			customerZip: offers.customerZip,
+			customerCity: offers.customerCity,
+			customerUid: offers.customerUid,
+			intro: offers.intro,
+			closing: offers.closing,
+			vatRate: offers.vatRate,
+			status: offers.status,
+			releasedAt: offers.releasedAt,
+			releasedByFirst: releaser.firstName,
+			releasedByLast: releaser.lastName,
+			releasedByEmail: releaser.email,
+			customerToken: offers.customerToken,
+			customerEmail: offers.customerEmail,
+			customerLinkSentAt: offers.customerLinkSentAt,
+			/** E-Mail aus dem Kundenstamm – Vorschlag fürs Verschicken */
+			masterEmail: customers.email,
+			changeRequest: offers.changeRequest,
+			changeRequestName: offers.changeRequestName,
+			changeRequestedAt: offers.changeRequestedAt,
+			acceptedName: offers.acceptedName,
+			acceptedSignature: offers.acceptedSignature,
+			acceptedAt: offers.acceptedAt,
+			createdBy: offers.createdBy,
+			createdAt: offers.createdAt,
+			creatorFirst: creator.firstName,
+			creatorLast: creator.lastName,
+			creatorEmail: creator.email
+		})
+		.from(offers)
+		.leftJoin(customers, eq(customers.id, offers.customerId))
+		.leftJoin(creator, eq(creator.id, offers.createdBy))
+		.leftJoin(releaser, eq(releaser.id, offers.releasedBy))
+		.where(where)
+		.get();
+	if (!offer) return null;
+	const [lines, order] = await Promise.all([
+		db
+			.select({
+				id: offerPositions.id,
+				kind: offerPositions.kind,
+				text: offerPositions.text,
+				quantity: offerPositions.quantity,
+				unit: offerPositions.unit,
+				unitPrice: offerPositions.unitPrice
+			})
+			.from(offerPositions)
+			.where(eq(offerPositions.offerId, offer.id))
+			.orderBy(asc(offerPositions.sortOrder), asc(offerPositions.id))
+			.all(),
+		db.select({ id: orders.id, status: orders.status }).from(orders).where(eq(orders.offerId, offer.id)).get()
+	]);
+	return { ...offer, lines, order: order ?? null };
+}
+
+export type OfferDetail = NonNullable<Awaited<ReturnType<typeof offerDetail>>>;
+
+export interface SaveOffer {
+	head: {
+		number: string;
+		projectNumber: string;
+		date: string;
+		title: string;
+		customerId: number | null;
+		customerName: string;
+		customerAddition: string;
+		customerStreet: string;
+		customerZip: string;
+		customerCity: string;
+		customerUid: string;
+		intro: string;
+		closing: string;
+		vatRate: number;
+	};
+	lines: { kind: 'position' | 'titel'; text: string; quantity: string; unit: string; unitPrice: string }[];
+}
+
+const qty = (v: string) => {
+	const n = parseAmount(v);
+	return n == null ? null : Math.round(n * 1000) / 1000;
+};
+const price = (v: string) => {
+	const n = parseAmount(v);
+	return n == null ? null : Math.round(n * 10000) / 10000;
+};
+
+export async function saveOffer(id: number, data: SaveOffer) {
+	const h = data.head;
+	await db.transaction(async (tx) => {
+		await tx
+			.update(offers)
+			.set({
+				number: h.number.slice(0, 30),
+				projectNumber: h.projectNumber.slice(0, 30),
+				date: h.date,
+				title: h.title.slice(0, 300),
+				customerId: h.customerId,
+				customerName: h.customerName.slice(0, 160),
+				customerAddition: h.customerAddition.slice(0, 160),
+				customerStreet: h.customerStreet.slice(0, 160),
+				customerZip: h.customerZip.slice(0, 12),
+				customerCity: h.customerCity.slice(0, 120),
+				customerUid: h.customerUid.replace(/\s+/g, '').toUpperCase().slice(0, 30),
+				intro: h.intro.slice(0, 3000),
+				closing: h.closing.slice(0, 5000),
+				vatRate: h.vatRate,
+				updatedAt: new Date()
+			})
+			.where(eq(offers.id, id));
+		// Positionen werden neu geschrieben; ganz leere Zeilen fallen weg
+		await tx.delete(offerPositions).where(eq(offerPositions.offerId, id));
+		const lines = data.lines
+			.filter((l) => l.text.trim() || (l.kind === 'position' && (l.quantity.trim() || l.unitPrice.trim())))
+			.slice(0, MAX_OFFER_LINES);
+		for (const [i, l] of lines.entries()) {
+			const titel = l.kind === 'titel';
+			await tx.insert(offerPositions).values({
+				offerId: id,
+				sortOrder: i,
+				kind: titel ? 'titel' : 'position',
+				text: l.text.slice(0, 4000),
+				quantity: titel ? null : qty(l.quantity),
+				unit: titel ? '' : l.unit.trim().slice(0, 20),
+				unitPrice: titel ? null : price(l.unitPrice)
+			});
+		}
+	});
+}
+
+/** Was vor dem Freigeben fehlt – sonst null */
+export function releaseProblem(o: { customerName: string; title: string; lines: { kind: string; quantity: number | null; unitPrice: number | null }[] }) {
+	if (!o.customerName.trim()) return 'Bitte zuerst den Kunden eintragen.';
+	if (!o.title.trim()) return 'Bitte das Bauvorhaben (BV) eintragen.';
+	const positions = o.lines.filter((l) => l.kind === 'position');
+	if (!positions.length) return 'Das Angebot hat noch keine Position.';
+	if (positions.some((l) => l.quantity == null || l.unitPrice == null)) return 'Bei jeder Position fehlen noch Menge oder Einheitspreis.';
+	return null;
+}
+
+/* ------------------------------------------------------------- Ablauf */
+
+const NO_RELEASE = { releasedBy: null, releasedAt: null };
+const NO_ACCEPT = { acceptedName: null, acceptedSignature: null, acceptedAt: null };
+
+/** Freigeben – dabei entsteht der Link für den Kunden, falls es noch keinen gibt */
+export async function releaseOffer(id: number, userId: number) {
+	await db
+		.update(offers)
+		.set({ status: 'freigegeben', releasedBy: userId, releasedAt: new Date(), updatedAt: new Date() })
+		.where(and(eq(offers.id, id), eq(offers.status, 'entwurf')));
+	await ensureOfferToken(id);
+}
+
+/** Zurück in Arbeit, um es zu überarbeiten – der Kunde sieht solange „wird überarbeitet" */
+export async function withdrawOffer(id: number) {
+	await db
+		.update(offers)
+		.set({ status: 'entwurf', ...NO_RELEASE, updatedAt: new Date() })
+		.where(and(eq(offers.id, id), inArray(offers.status, ['freigegeben', 'aenderung'])));
+}
+
+/** Angenommenes Angebot wieder öffnen – nur solange es keinen Auftrag gibt; die Annahme verfällt */
+export async function reopenAccepted(id: number): Promise<boolean> {
+	const order = await db.select({ id: orders.id }).from(orders).where(eq(orders.offerId, id)).get();
+	if (order) return false;
+	const done = await db
+		.update(offers)
+		.set({ status: 'entwurf', ...NO_RELEASE, ...NO_ACCEPT, updatedAt: new Date() })
+		.where(and(eq(offers.id, id), eq(offers.status, 'angenommen')))
+		.returning({ id: offers.id });
+	return done.length > 0;
+}
+
+/** Der Kunde nimmt an – nur ein freigegebenes Angebot; kommen zwei gleichzeitig, gewinnt das erste */
+export async function customerAccept(id: number, name: string, signature: string): Promise<boolean> {
+	const done = await db
+		.update(offers)
+		.set({ status: 'angenommen', acceptedName: name, acceptedSignature: signature, acceptedAt: new Date(), updatedAt: new Date() })
+		.where(and(eq(offers.id, id), eq(offers.status, 'freigegeben')))
+		.returning({ id: offers.id });
+	return done.length > 0;
+}
+
+/** Der Kunde wünscht Änderungen – das Angebot wartet dann auf die Überarbeitung */
+export async function customerRequestChange(id: number, name: string, message: string): Promise<boolean> {
+	const done = await db
+		.update(offers)
+		.set({ status: 'aenderung', changeRequest: message, changeRequestName: name, changeRequestedAt: new Date(), updatedAt: new Date() })
+		.where(and(eq(offers.id, id), eq(offers.status, 'freigegeben')))
+		.returning({ id: offers.id });
+	return done.length > 0;
+}
+
+export async function deleteOffer(id: number) {
+	await db.delete(offers).where(and(eq(offers.id, id), eq(offers.status, 'entwurf')));
+}
+
+/** Link für den Kunden: 128 Bit Zufall, bleibt dauerhaft gleich */
+export async function ensureOfferToken(id: number): Promise<string> {
+	const row = await db.select({ token: offers.customerToken }).from(offers).where(eq(offers.id, id)).get();
+	if (row?.token) return row.token;
+	const token = randomBytes(16).toString('hex');
+	await db.update(offers).set({ customerToken: token }).where(and(eq(offers.id, id), sql`${offers.customerToken} is null`));
+	const after = await db.select({ token: offers.customerToken }).from(offers).where(eq(offers.id, id)).get();
+	return after?.token ?? token;
+}
+
+export async function markOfferLinkSent(id: number, email: string) {
+	await db.update(offers).set({ customerEmail: email, customerLinkSentAt: new Date() }).where(eq(offers.id, id));
+}
+
+/** Bearbeiten: wer Angebote erstellen darf, solange es in Arbeit ist */
+export function mayEditOffer(user: SessionUser, offer: { status: string }): boolean {
+	return offer.status === 'entwurf' && can(user.role, 'angebote.erstellen');
+}
+
+/** Den Link gibt es, sobald das Angebot einmal freigegeben ist */
+export const offerLinkReady = (status: string) => status === 'freigegeben' || status === 'aenderung' || status === 'angenommen';

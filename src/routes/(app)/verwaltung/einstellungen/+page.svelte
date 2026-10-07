@@ -6,6 +6,7 @@
 	import DatabaseBackup from '@lucide/svelte/icons/database-backup';
 	import Download from '@lucide/svelte/icons/download';
 	import Upload from '@lucide/svelte/icons/upload';
+	import FilePen from '@lucide/svelte/icons/file-pen-line';
 	import History from '@lucide/svelte/icons/history';
 	import ScanBarcode from '@lucide/svelte/icons/scan-barcode';
 	import CircleCheck from '@lucide/svelte/icons/circle-check';
@@ -140,6 +141,58 @@
 			<input id="test-to" name="to" type="email" class="input flex-1" placeholder="E-Mail-Adresse" value={data.myEmail ?? ''} required />
 			<button class="btn btn-secondary" disabled={busy === 'mail'}>Test senden</button>
 		</form>
+	</section>
+
+	<section class="card p-4 lg:col-span-2 lg:p-6" aria-labelledby="h-offers">
+		<h2 id="h-offers" class="flex items-center gap-2 text-xl"><FilePen size={20} aria-hidden="true" />Angebote und Aufträge</h2>
+		<p class="mt-1 text-sm text-ink-2">Briefkopf und Vorlagetexte. Einleitung und Schlusstext kommen in jedes neue Angebot und lassen sich dort ändern.</p>
+
+		<div class="mt-4 grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)]">
+			<div>
+				<p class="field-label">Briefkopf</p>
+				{#if data.letterhead}
+					<img src="/verwaltung/einstellungen/briefkopf" alt="Briefkopf" class="max-h-28 w-full rounded-xl border border-line bg-white object-contain p-2" />
+				{:else}
+					<p class="rounded-xl bg-surface-2 p-3 text-sm text-ink-2">Noch kein Bild – das PDF setzt den Briefkopf aus Text (MONSIPAN, gelber Balken, Anschrift).</p>
+				{/if}
+				<form method="POST" action="?/letterhead" enctype="multipart/form-data" class="mt-3 flex flex-wrap items-center gap-2" use:enhance={done('letterhead', () => 'Briefkopf gespeichert')}>
+					<input type="file" name="bild" accept="image/png,image/jpeg" required class="block w-full max-w-xs text-sm file:mr-3 file:rounded-lg file:border-0 file:bg-surface-3 file:px-3 file:py-2 file:font-medium" />
+					<button class="btn btn-secondary btn-sm" disabled={busy === 'letterhead'}><Upload size={16} aria-hidden="true" />Hochladen</button>
+				</form>
+				{#if data.letterhead}
+					<form method="POST" action="?/letterheadRemove" class="mt-2" use:enhance={done('letterheadRemove', () => 'Briefkopf entfernt')}>
+						<button class="btn btn-ghost btn-sm">Bild entfernen</button>
+					</form>
+				{/if}
+				<p class="field-hint mt-2">PNG oder JPG, am besten der ganze Kopf als breiter Streifen (Logo, Firmenname, Anschrift). Er wird oben mittig eingepasst.</p>
+			</div>
+
+			<form method="POST" action="?/offerTexts" class="space-y-3" use:enhance={done('offerTexts', () => 'Vorlagen gespeichert')}>
+				<label class="block">
+					<span class="field-label">Einleitung</span>
+					<textarea class="textarea" name="intro" rows="2" maxlength="3000">{data.settings.offerIntro}</textarea>
+				</label>
+				<label class="block">
+					<span class="field-label">Schlusstext</span>
+					<textarea class="textarea" name="closing" rows="4" maxlength="5000">{data.settings.offerClosing}</textarea>
+				</label>
+				<div class="grid gap-3 sm:grid-cols-3">
+					<label class="block">
+						<span class="field-label">Fußzeile: Anschrift</span>
+						<textarea class="textarea text-sm" name="footerAddress" rows="4" maxlength="400">{data.settings.offerFooterAddress}</textarea>
+					</label>
+					<label class="block">
+						<span class="field-label">Fußzeile: Bank</span>
+						<textarea class="textarea text-sm" name="footerBank" rows="4" maxlength="400">{data.settings.offerFooterBank}</textarea>
+					</label>
+					<label class="block">
+						<span class="field-label">Fußzeile: Kontakt</span>
+						<textarea class="textarea text-sm" name="footerContact" rows="4" maxlength="400">{data.settings.offerFooterContact}</textarea>
+					</label>
+				</div>
+				<button class="btn btn-secondary" disabled={busy === 'offerTexts'}>Speichern</button>
+			</form>
+		</div>
 	</section>
 
 	<section class="card p-4 lg:p-6" aria-labelledby="h-backup">

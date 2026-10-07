@@ -157,6 +157,48 @@ export function customerReportMail(
 	};
 }
 
+/** Angebot an den Kunden: ansehen, annehmen oder Änderungen wünschen */
+export function customerOfferMail(to: string, offer: { number: string; title: string; accepted: boolean }, link: string): Mail {
+	const what = `Angebot Nr. ${offer.number}${offer.title ? ` – ${offer.title}` : ''}`;
+	const ask = offer.accepted
+		? 'über den folgenden Link können Sie das angenommene Angebot jederzeit ansehen und als PDF herunterladen.'
+		: 'über den folgenden Link können Sie unser Angebot ansehen, mit Ihrem Namen und Ihrer Unterschrift annehmen oder uns Änderungswünsche schicken.';
+	return {
+		to,
+		subject: `${what} – Monsipan`,
+		text: `Guten Tag,\n\n${ask}\n\n${what}\n${link}\n\nDer Link bleibt gültig – Sie können das Angebot jederzeit wieder öffnen oder herunterladen.\n\nMit freundlichen Grüßen\nMonsipan Bautenschutz`,
+		html: layout(
+			offer.accepted ? 'Ihr angenommenes Angebot' : 'Unser Angebot für Sie',
+			`<p>Guten Tag,</p><p>${esc(ask)}</p><p style="font-weight:600">${esc(what)}</p>${button(link, offer.accepted ? 'Angebot öffnen' : 'Angebot ansehen')}<p style="color:#5c626b;font-size:13px">Der Link bleibt gültig – Sie können das Angebot jederzeit wieder öffnen oder herunterladen.</p><p>Mit freundlichen Grüßen<br>Monsipan Bautenschutz</p>`,
+			'Monsipan Bautenschutz'
+		)
+	};
+}
+
+/** Ans Büro: der Kunde hat angenommen oder wünscht Änderungen */
+export function offerAnswerMail(
+	to: string[],
+	offer: { number: string; title: string; customerName: string },
+	answer: { kind: 'angenommen' | 'aenderung'; name: string; message?: string },
+	link: string
+): Mail {
+	const what = `Angebot Nr. ${offer.number}${offer.title ? ` – ${offer.title}` : ''}`;
+	const headline = answer.kind === 'angenommen' ? 'Angebot angenommen' : 'Änderungswunsch zum Angebot';
+	const lead =
+		answer.kind === 'angenommen'
+			? `${answer.name} hat das Angebot für ${offer.customerName} angenommen und unterschrieben. Jetzt lässt sich daraus der Auftrag erstellen.`
+			: `${answer.name} (${offer.customerName}) wünscht Änderungen am Angebot:`;
+	return {
+		to,
+		subject: `${headline}: ${what}`,
+		text: `${lead}${answer.message ? `\n\n${answer.message}` : ''}\n\n${what}\n${link}`,
+		html: layout(
+			headline,
+			`<p>${esc(lead)}</p>${answer.message ? `<blockquote style="margin:12px 0;padding:10px 14px;border-left:4px solid #f8f000;background:#f6f7f8;white-space:pre-line">${esc(answer.message)}</blockquote>` : ''}<p style="font-weight:600">${esc(what)}</p>${button(link, 'Angebot öffnen')}`
+		)
+	};
+}
+
 export function testMail(to: string): Mail {
 	return {
 		to,

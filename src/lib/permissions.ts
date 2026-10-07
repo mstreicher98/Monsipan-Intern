@@ -85,6 +85,17 @@ export const DEFAULT_PERMISSIONS = {
 	'tagesberichte.pruefung.zuruecknehmen': ['admin', 'geschaeftsfuehrer', 'bauleiter', 'buchhaltung'],
 	'tagesberichte.alle.sehen': ['admin', 'geschaeftsfuehrer', 'bauleiter', 'buchhaltung', 'viewer'],
 
+	// Angebote und Aufträge – Preise sieht nur, wer Angebote sehen darf
+	'angebote.sehen': ['admin', 'geschaeftsfuehrer', 'bauleiter', 'buchhaltung', 'viewer'],
+	'angebote.erstellen': ['admin', 'geschaeftsfuehrer', 'bauleiter', 'buchhaltung'],
+	'angebote.freigeben': ['admin', 'geschaeftsfuehrer', 'bauleiter'],
+	'angebote.oeffnen.angenommen': ['admin', 'geschaeftsfuehrer'],
+	'kunden.pflegen': ['admin', 'geschaeftsfuehrer', 'bauleiter', 'buchhaltung'],
+	'auftraege.erstellen': ['admin', 'geschaeftsfuehrer', 'bauleiter', 'buchhaltung'],
+	'auftraege.status': ['admin', 'geschaeftsfuehrer', 'bauleiter', 'partiefuehrer'],
+	// Ohne dieses Recht sieht man nur die Aufträge der eigenen Partie
+	'auftraege.alle.sehen': ['admin', 'geschaeftsfuehrer', 'bauleiter', 'buchhaltung', 'viewer'],
+
 	// Verwaltung
 	'verwaltung.masterdata.manage': ['admin', 'geschaeftsfuehrer', 'bauleiter', 'buchhaltung'],
 	'verwaltung.users.manage': ['admin'],
@@ -168,6 +179,23 @@ export const PERMISSION_GROUPS: { title: string; items: { key: Permission; label
 				hint: 'Prüfung zurücknehmen, solange der Kunde noch nicht unterschrieben hat'
 			},
 			{ key: 'tagesberichte.alle.sehen', label: 'Alle sehen' }
+		]
+	},
+	{
+		title: 'Angebote und Aufträge',
+		items: [
+			{ key: 'angebote.sehen', label: 'Angebote ansehen', hint: 'Mit Preisen' },
+			{ key: 'angebote.erstellen', label: 'Angebote erstellen', hint: 'Anlegen und bearbeiten, solange sie nicht freigegeben sind' },
+			{ key: 'angebote.freigeben', label: 'Angebote freigeben', hint: 'Freigeben und den Link an den Kunden schicken' },
+			{
+				key: 'angebote.oeffnen.angenommen',
+				label: 'Angenommene wieder öffnen',
+				hint: 'Die Annahme des Kunden verfällt – nur solange es noch keinen Auftrag gibt'
+			},
+			{ key: 'kunden.pflegen', label: 'Kunden pflegen', hint: 'Kundenstamm anlegen und ändern' },
+			{ key: 'auftraege.erstellen', label: 'Aufträge erstellen', hint: 'Aus angenommenen Angeboten, Partie zuordnen' },
+			{ key: 'auftraege.status', label: 'Status setzen', hint: 'Auftrag auf „in Arbeit" oder „abgeschlossen" – Partieführer für die eigene Partie' },
+			{ key: 'auftraege.alle.sehen', label: 'Alle Aufträge sehen', hint: 'Sonst nur die der eigenen Partie' }
 		]
 	},
 	{

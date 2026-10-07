@@ -6,3 +6,4 @@ export * from './core';
 export * from './lager';
 export * from './stunden';
 export * from './tagesberichte';
+export * from './auftraege';

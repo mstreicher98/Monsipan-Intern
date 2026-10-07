@@ -10,6 +10,7 @@ import { dataCounts, isResetPhrase, RESET_PHRASE, resetAllData } from '$lib/serv
 import { backupPath, MAX_UPLOAD_BYTES, restoreFromFile, RestoreError, stageUpload } from '$lib/server/restore';
 import { mailInfo, sendMail, testMail } from '$lib/server/mail';
 import { getSettings, updateSettings } from '$lib/server/settings';
+import { letterheadPath, LetterheadError, storeLetterhead } from '$lib/server/letterhead';
 import { ROLES, type Role } from '$lib/permissions';
 import type { Actions, PageServerLoad } from './$types';
 
@@ -37,6 +38,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 	}
 	return {
 		settings,
+		letterhead: !!letterheadPath(settings.letterheadFile),
 		mail: mailInfo(),
 		myEmail: me.email,
 		resetCounts: await dataCounts(me.id),
@@ -60,6 +62,37 @@ export const actions: Actions = {
 		const roles = f.getAll('roles').map(String).filter((r): r is Role => (ROLES as readonly string[]).includes(r));
 		await updateSettings({ alertEmailsEnabled: f.get('enabled') === 'on', alertRoles: roles });
 		return { saved: 'alerts' };
+	},
+	/** Vorlagen für Angebote: Einleitung, Schlusstext, Fußzeile */
+	offerTexts: async ({ request, locals }) => {
+		requirePermission(locals, 'verwaltung.settings.manage');
+		const f = await request.formData();
+		const text = (key: string, max: number) => String(f.get(key) ?? '').replace(/\r\n/g, '\n').trim().slice(0, max);
+		await updateSettings({
+			offerIntro: text('intro', 3000),
+			offerClosing: text('closing', 5000),
+			offerFooterAddress: text('footerAddress', 400),
+			offerFooterBank: text('footerBank', 400),
+			offerFooterContact: text('footerContact', 400)
+		});
+		return { saved: 'offerTexts' };
+	},
+	letterhead: async ({ request, locals }) => {
+		requirePermission(locals, 'verwaltung.settings.manage');
+		const upload = (await request.formData()).get('bild');
+		if (!(upload instanceof File) || upload.size === 0) return fail(400, { message: 'Bitte ein Bild auswählen.' });
+		try {
+			await updateSettings({ letterheadFile: await storeLetterhead(upload) });
+		} catch (err) {
+			if (err instanceof LetterheadError) return fail(400, { message: err.message });
+			throw err;
+		}
+		return { saved: 'letterhead' };
+	},
+	letterheadRemove: async ({ locals }) => {
+		requirePermission(locals, 'verwaltung.settings.manage');
+		await updateSettings({ letterheadFile: null });
+		return { saved: 'letterhead' };
 	},
 	testMail: async ({ request, locals }) => {
 		requirePermission(locals, 'verwaltung.settings.manage');

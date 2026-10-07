@@ -13,12 +13,9 @@
 	import PenLine from '@lucide/svelte/icons/pen-line';
 	import Trash from '@lucide/svelte/icons/trash';
 	import Undo from '@lucide/svelte/icons/undo-2';
-	import LinkIcon from '@lucide/svelte/icons/link';
-	import Copy from '@lucide/svelte/icons/copy';
-	import Share from '@lucide/svelte/icons/share-2';
-	import Send from '@lucide/svelte/icons/send';
 	import CircleCheck from '@lucide/svelte/icons/circle-check';
 	import Signature from '@lucide/svelte/icons/signature';
+	import CustomerLink from '$lib/components/CustomerLink.svelte';
 	import Dialog from '$lib/components/Dialog.svelte';
 	import SignaturePad from '$lib/modules/stunden/components/SignaturePad.svelte';
 	import { SIGNATURE_HEIGHT, SIGNATURE_WIDTH } from '$lib/modules/stunden/signature';
@@ -97,11 +94,7 @@
 	let releaseOpen = $state(false);
 	let checkOpen = $state(false);
 	let signature = $state('');
-	let sending = $state(false);
-	/** Teilen gibt es vor allem am Handy – erst im Browser bekannt */
-	let canShare = $state(false);
 	onMount(() => {
-		canShare = typeof navigator.share === 'function';
 		// Wer an diesem Gerät zuletzt handschriftlich ausgefüllt hat, landet gleich wieder dort
 		if (data.editable && preferredView() === 'handschrift' && page.url.searchParams.get('ansicht') !== 'digital') {
 			void goto(`/tagesberichte/${data.report.id}/handschrift`, { replaceState: true });
@@ -204,27 +197,6 @@
 	/** Vom Kunden vor Ort unterschrieben, aber noch nicht geprüft – der Inhalt ist gesperrt */
 	const lockedByCustomer = $derived(!!report.customerSignature && (report.status === 'entwurf' || report.status === 'freigegeben'));
 
-	async function copyLink() {
-		if (!data.customerUrl) return;
-		try {
-			await navigator.clipboard.writeText(data.customerUrl);
-			toast.success('Link kopiert');
-		} catch {
-			toast.info('Kopieren ging nicht – bitte den Link im Feld markieren und kopieren.');
-		}
-	}
-	async function shareLink() {
-		if (!data.customerUrl) return;
-		try {
-			await navigator.share({
-				title: `Tagesbericht ${report.number}`.trim(),
-				text: report.status === 'abgeschlossen' ? 'Ihr unterschriebener Tagesbericht:' : 'Bitte den Tagesbericht ansehen und unterschreiben:',
-				url: data.customerUrl
-			});
-		} catch {
-			/* abgebrochen */
-		}
-	}
 </script>
 
 {#snippet signed(label: string, path: string | null, text: string)}
@@ -301,68 +273,18 @@
 {/if}
 
 {#if data.canLink}
-	<section class="card mb-4 p-4 lg:p-5">
-		<h2 class="flex items-center gap-2 text-lg"><LinkIcon size={18} aria-hidden="true" />Link für den Kunden</h2>
-		<p class="mt-1 text-sm text-ink-2">
-			{report.status === 'abgeschlossen'
-				? 'Der Kunde hat unterschrieben. Über denselben Link kann er den fertigen Bericht jederzeit wieder als PDF laden.'
-				: 'Über diesen Link sieht der Kunde den Bericht, trägt seinen Namen ein und unterschreibt. Danach kann er ihn jederzeit als PDF laden – der Link bleibt dauerhaft gleich.'}
-		</p>
-		{#if data.customerUrl}
-			<div class="mt-3 flex flex-wrap gap-2">
-				<input
-					class="input min-w-0 flex-[1_1_18rem] font-mono text-sm"
-					readonly
-					value={data.customerUrl}
-					onfocus={(e) => e.currentTarget.select()}
-					aria-label="Link für den Kunden"
-				/>
-				<button type="button" class="btn btn-secondary" onclick={copyLink}><Copy size={18} aria-hidden="true" />Kopieren</button>
-				{#if canShare}
-					<button type="button" class="btn btn-secondary" onclick={shareLink}><Share size={18} aria-hidden="true" />Teilen</button>
-				{/if}
-			</div>
-			{#if data.mailConfigured}
-				<form
-					method="POST"
-					action="?/sendLink"
-					class="mt-3 flex flex-wrap items-end gap-2"
-					use:enhance={() => {
-						sending = true;
-						return async ({ result, update }) => {
-							sending = false;
-							if (result.type === 'success') toast.success('E-Mail an den Kunden verschickt');
-							await update({ reset: false });
-						};
-					}}
-				>
-					<label class="block min-w-0 flex-[1_1_16rem]">
-						<span class="field-label">Per E-Mail an den Kunden</span>
-						<input
-							class="input"
-							type="email"
-							name="email"
-							required
-							maxlength="200"
-							autocomplete="email"
-							placeholder="name@firma.at"
-							value={(form && 'email' in form && form.email) || report.customerEmail || ''}
-						/>
-					</label>
-					<button class="btn btn-secondary" disabled={sending}><Send size={18} aria-hidden="true" />{sending ? 'Wird gesendet …' : 'Senden'}</button>
-				</form>
-			{:else}
-				<p class="field-hint mt-2">Der E-Mail-Versand ist nicht eingerichtet – bitte den Link kopieren oder teilen.</p>
-			{/if}
-			{#if report.customerLinkSentAt && report.customerEmail}
-				<p class="field-hint mt-2">Zuletzt am {dateTime(report.customerLinkSentAt)} an {report.customerEmail} geschickt.</p>
-			{/if}
-		{:else}
-			<form method="POST" action="?/link" class="mt-3" use:enhance>
-				<button class="btn btn-secondary"><LinkIcon size={18} aria-hidden="true" />Link erzeugen</button>
-			</form>
-		{/if}
-	</section>
+	<CustomerLink
+		url={data.customerUrl}
+		description={report.status === 'abgeschlossen'
+			? 'Der Kunde hat unterschrieben. Über denselben Link kann er den fertigen Bericht jederzeit wieder als PDF laden.'
+			: 'Über diesen Link sieht der Kunde den Bericht, trägt seinen Namen ein und unterschreibt. Danach kann er ihn jederzeit als PDF laden – der Link bleibt dauerhaft gleich.'}
+		shareTitle={`Tagesbericht ${report.number}`.trim()}
+		shareText={report.status === 'abgeschlossen' ? 'Ihr unterschriebener Tagesbericht:' : 'Bitte den Tagesbericht ansehen und unterschreiben:'}
+		mailConfigured={data.mailConfigured}
+		email={String((form && 'email' in form && form.email) || report.customerEmail || '')}
+		sentTo={report.customerEmail}
+		sentAt={report.customerLinkSentAt}
+	/>
 {/if}
 
 <form
