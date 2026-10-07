@@ -53,7 +53,8 @@ export function getDetector(): Promise<Detector> {
 	return detectorPromise;
 }
 
-export async function openCamera(): Promise<MediaStream> {
+/** Hintere Kamera öffnen – zum Scannen reicht Full HD, Fotos wollen mehr */
+export async function openCamera(size = { width: 1920, height: 1080 }): Promise<MediaStream> {
 	if (!navigator.mediaDevices?.getUserMedia) {
 		throw new Error(
 			window.isSecureContext
@@ -66,8 +67,8 @@ export async function openCamera(): Promise<MediaStream> {
 			audio: false,
 			video: {
 				facingMode: { ideal: 'environment' },
-				width: { ideal: 1920 },
-				height: { ideal: 1080 }
+				width: { ideal: size.width },
+				height: { ideal: size.height }
 			}
 		});
 	} catch (err) {

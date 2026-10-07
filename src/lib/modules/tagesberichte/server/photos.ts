@@ -59,6 +59,22 @@ export function listPhotos(reportId: number) {
 		.all();
 }
 
+/**
+ * Fotos samt Datei zum Drucken und fürs PDF – mit ihrer Nummer im Bericht
+ * (Foto 1, 2, …), auch wenn nur eines davon gewünscht ist.
+ */
+export async function photosWithFiles(reportId: number, only?: number) {
+	const rows = await db
+		.select({ ...listFields, sha256: dailyReportPhotos.sha256 })
+		.from(dailyReportPhotos)
+		.leftJoin(users, eq(users.id, dailyReportPhotos.createdBy))
+		.where(eq(dailyReportPhotos.reportId, reportId))
+		.orderBy(asc(dailyReportPhotos.createdAt), asc(dailyReportPhotos.id))
+		.all();
+	const numbered = rows.map((r, i) => ({ ...r, number: i + 1 }));
+	return only === undefined ? numbered : numbered.filter((r) => r.id === only);
+}
+
 export async function addPhoto(reportId: number, userId: number, photo: File, thumb: File): Promise<ReportPhoto> {
 	const [{ n }] = await db.select({ n: count() }).from(dailyReportPhotos).where(eq(dailyReportPhotos.reportId, reportId)).all();
 	if (n >= MAX_PHOTOS) throw new PhotoError(`Ein Bericht kann höchstens ${MAX_PHOTOS} Fotos haben.`);

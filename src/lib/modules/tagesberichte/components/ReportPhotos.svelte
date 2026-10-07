@@ -3,17 +3,25 @@
 	 * Fotos zum Tagesbericht – nur intern. Am Handy direkt mit der Kamera
 	 * aufnehmen oder aus der Galerie wählen; vor dem Hochladen werden sie am
 	 * Gerät verkleinert. Antippen öffnet das Foto groß, wischen blättert.
+	 * Alle Fotos (oder eines) lassen sich als PDF laden und drucken.
 	 */
 	import { onMount, tick } from 'svelte';
 	import Camera from '@lucide/svelte/icons/camera';
 	import ImagePlus from '@lucide/svelte/icons/image-plus';
+	import Download from '@lucide/svelte/icons/download';
+	import FileText from '@lucide/svelte/icons/file-text';
+	import Printer from '@lucide/svelte/icons/printer';
 	import ChevronLeft from '@lucide/svelte/icons/chevron-left';
 	import ChevronRight from '@lucide/svelte/icons/chevron-right';
 	import Trash from '@lucide/svelte/icons/trash';
 	import X from '@lucide/svelte/icons/x';
 	import { dateTime } from '$lib/format';
 	import { toast } from '$lib/stores/toast.svelte';
+	import PdfButton from '$lib/components/PdfButton.svelte';
+	import { inNativeApp } from '$lib/native';
+	import { deliverPdf, fetchPdf, isIOS } from '$lib/pdf-download';
 	import { MAX_PHOTOS, PhotoError, shrinkPhoto } from '../photos';
+	import PhotoCamera from './PhotoCamera.svelte';
 
 	interface Photo {
 		id: number;
@@ -36,34 +44,80 @@
 	let pending = $state(0);
 	/** Kamera-Knopf nur, wo es eine Kamera zum Aufnehmen gibt (Handy, Tablet) */
 	let touch = $state(false);
-	onMount(() => (touch = matchMedia('(pointer: coarse)').matches));
+	/**
+	 * In der Android-App öffnet das Dateifeld mit „capture" nur die
+	 * Dateiauswahl – dort kommt die Kamera direkt in der Seite.
+	 */
+	let app = $state(false);
+	let cameraOpen = $state(false);
+	onMount(() => {
+		touch = matchMedia('(pointer: coarse)').matches;
+		app = inNativeApp();
+	});
 
 	const src = (p: Photo, preview = false) => `/tagesberichte/${reportId}/fotos/${p.id}${preview ? '?vorschau' : ''}`;
 	const room = $derived(MAX_PHOTOS - photos.length - pending);
 
-	async function upload(e: Event & { currentTarget: HTMLInputElement }) {
+	function upload(e: Event & { currentTarget: HTMLInputElement }) {
 		const input = e.currentTarget;
 		const files = [...(input.files ?? [])];
 		input.value = '';
-		if (!files.length) return;
 		if (files.length > room) toast.info(`Ein Bericht kann höchstens ${MAX_PHOTOS} Fotos haben.`);
-		const list = files.slice(0, Math.max(0, room));
-		pending += list.length;
-		// Nacheinander – mehrere große Bilder gleichzeitig bringen ältere Handys ins Schwitzen
-		for (const file of list) {
-			try {
-				const { photo, thumb } = await shrinkPhoto(file);
-				const body = new FormData();
-				body.set('foto', photo, 'foto.jpg');
-				body.set('vorschau', thumb, 'vorschau.jpg');
-				const res = await fetch(`/tagesberichte/${reportId}/fotos`, { method: 'POST', body });
-				if (!res.ok) throw new PhotoError((await res.json().catch(() => null))?.message ?? 'Das Foto konnte nicht gespeichert werden.');
-				photos = [...photos, await res.json()];
-			} catch (err) {
-				toast.error(err instanceof PhotoError ? err.message : 'Das Foto konnte nicht hochgeladen werden – bitte noch einmal versuchen.');
-			} finally {
-				pending--;
+		files.slice(0, Math.max(0, room)).forEach(enqueue);
+	}
+
+	/** Aus der Kamera in der Seite – jedes Foto gleich in die Warteschlange */
+	function fromCamera(file: File) {
+		if (room <= 0) {
+			toast.info(`Ein Bericht kann höchstens ${MAX_PHOTOS} Fotos haben.`);
+			cameraOpen = false;
+			return;
+		}
+		enqueue(file);
+	}
+
+	// Nacheinander hochladen – mehrere große Bilder gleichzeitig bringen ältere Handys ins Schwitzen
+	let queue: Promise<void> = Promise.resolve();
+	function enqueue(file: File) {
+		pending++;
+		queue = queue.then(() => send(file));
+	}
+	async function send(file: File) {
+		try {
+			const { photo, thumb } = await shrinkPhoto(file);
+			const body = new FormData();
+			body.set('foto', photo, 'foto.jpg');
+			body.set('vorschau', thumb, 'vorschau.jpg');
+			const res = await fetch(`/tagesberichte/${reportId}/fotos`, { method: 'POST', body });
+			if (!res.ok) throw new PhotoError((await res.json().catch(() => null))?.message ?? 'Das Foto konnte nicht gespeichert werden.');
+			photos = [...photos, await res.json()];
+		} catch (err) {
+			toast.error(err instanceof PhotoError ? err.message : 'Das Foto konnte nicht hochgeladen werden – bitte noch einmal versuchen.');
+		} finally {
+			pending--;
+		}
+	}
+
+	/**
+	 * Einzelnes Foto speichern. Am Computer und im Android-Browser lädt der Link
+	 * das JPG; am iPhone kommt das Teilen-Menü („Bild sichern"), die App
+	 * speichert es als PDF – das kann ihr Speicher-Plugin.
+	 */
+	async function download(e: MouseEvent, p: Photo) {
+		if (!app && !isIOS()) return;
+		e.preventDefault();
+		try {
+			if (app) {
+				await deliverPdf(await fetchPdf(`/tagesberichte/${reportId}/fotos/pdf?foto=${p.id}`));
+				toast.success('Foto als PDF gespeichert', 'Liegt im Ordner „Downloads“.');
+				return;
 			}
+			const blob = await fetch(src(p)).then((r) => (r.ok ? r.blob() : Promise.reject(new Error())));
+			const file = new File([blob], `foto-${p.id}.jpg`, { type: 'image/jpeg' });
+			if (navigator.canShare?.({ files: [file] })) await navigator.share({ files: [file] });
+			else window.open(src(p), '_blank');
+		} catch (err) {
+			if ((err as { name?: string })?.name !== 'AbortError') toast.error('Das Foto ließ sich nicht speichern.');
 		}
 	}
 
@@ -129,9 +183,17 @@
 		<h2 class="flex items-center gap-2 text-lg">
 			<Camera size={18} aria-hidden="true" />Fotos{#if photos.length}<span class="num text-sm font-normal text-ink-3">{photos.length}</span>{/if}
 		</h2>
-		{#if editable}
-			<div class="flex flex-wrap gap-2">
-				{#if touch}
+		<div class="flex flex-wrap gap-2">
+			{#if photos.length}
+				<a href="/tagesberichte/{reportId}/fotos/druck" class="btn btn-secondary btn-sm"><Printer size={16} aria-hidden="true" />Drucken</a>
+				<PdfButton href="/tagesberichte/{reportId}/fotos/pdf" class="btn btn-secondary btn-sm"><FileText size={16} aria-hidden="true" />PDF</PdfButton>
+			{/if}
+			{#if editable}
+				{#if app}
+					<button type="button" class="btn btn-secondary btn-sm" disabled={room <= 0} onclick={() => (cameraOpen = true)}>
+						<Camera size={16} aria-hidden="true" />Foto aufnehmen
+					</button>
+				{:else if touch}
 					<label class="upload btn btn-secondary btn-sm {room <= 0 ? 'pointer-events-none opacity-50' : ''}">
 						<Camera size={16} aria-hidden="true" />Foto aufnehmen
 						<input type="file" accept="image/*" capture="environment" class="sr-only" disabled={room <= 0} onchange={upload} />
@@ -141,8 +203,8 @@
 					<ImagePlus size={16} aria-hidden="true" />{touch ? 'Aus der Galerie' : 'Bilder hochladen'}
 					<input type="file" accept="image/*" multiple class="sr-only" disabled={room <= 0} onchange={upload} />
 				</label>
-			</div>
-		{/if}
+			{/if}
+		</div>
 	</div>
 	<p class="field-hint">Nur intern – Fotos stehen nicht im PDF und nicht beim Kunden.</p>
 
@@ -166,6 +228,8 @@
 	{/if}
 </section>
 
+{#if cameraOpen}<PhotoCamera onphoto={fromCamera} onclose={() => (cameraOpen = false)} />{/if}
+
 <dialog bind:this={dialog} class="foto" aria-label="Foto" onclose={() => (current = null)} onkeydown={onKey}>
 	{#if shown && current !== null}
 		<div class="flex h-full flex-col">
@@ -174,8 +238,10 @@
 					<span class="num font-medium">Foto {current + 1} von {photos.length}</span>
 					<span class="text-white/70"> · {[shown.createdBy, dateTime(shown.createdAt)].filter(Boolean).join(', ')}</span>
 				</p>
+				<a href="{src(shown)}?download" download class="knopf" onclick={(e) => download(e, shown)} aria-label="Foto herunterladen" title="Herunterladen"><Download size={20} /></a>
+				<a href="/tagesberichte/{reportId}/fotos/druck?foto={shown.id}" class="knopf" aria-label="Foto drucken" title="Drucken"><Printer size={20} /></a>
 				{#if editable}
-					<button type="button" class="knopf" onclick={() => (confirmDelete = true)} aria-label="Foto löschen"><Trash size={20} /></button>
+					<button type="button" class="knopf" onclick={() => (confirmDelete = true)} aria-label="Foto löschen" title="Löschen"><Trash size={20} /></button>
 				{/if}
 				<button type="button" class="knopf" data-schliessen onclick={() => dialog?.close()} aria-label="Schließen"><X size={22} /></button>
 			</header>

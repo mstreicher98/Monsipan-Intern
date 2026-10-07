@@ -216,11 +216,19 @@ zum Papierblock.
 Bericht „vom 07.10. bis 09.10.2026" (höchstens 62 Tage). Der Zeitfilter der Liste findet so
 einen Bericht an jedem seiner Tage.
 
-**Fotos** (nur intern – nicht im PDF und nicht beim Kunden): Am Handy oder Tablet direkt mit
-der Kamera aufnehmen (**Foto aufnehmen**) oder aus der Galerie wählen, am Computer hochladen.
-Vor dem Hochladen werden sie am Gerät verkleinert (JPEG, lange Seite 2400 Pixel, dazu eine
-kleine Vorschau) – das schont das Datenvolumen auf der Baustelle. Antippen öffnet ein Foto
-groß, wischen oder die Pfeiltasten blättern. Hinzufügen und löschen kann, wer gerade am
+**Fotos** (nur intern – nicht im Bericht-PDF und nicht beim Kunden): Am Handy oder Tablet
+direkt mit der Kamera aufnehmen (**Foto aufnehmen**) oder aus der Galerie wählen, am Computer
+hochladen. In der Android-App öffnet sich dafür eine Kamera in der Seite (das Dateifeld der
+App-Hülle kommt dort nicht an die Kamera); sie bleibt offen, bis man **Fertig** tippt, und lädt
+jedes Foto gleich hoch. Vor dem Hochladen werden die Bilder am Gerät verkleinert (JPEG, lange
+Seite 2400 Pixel, dazu eine kleine Vorschau) – das schont das Datenvolumen auf der Baustelle.
+Antippen öffnet ein Foto groß, wischen oder die Pfeiltasten blättern.
+
+**Fotos drucken und laden:** **Drucken** und **PDF** neben den Fotos geben alle Fotos aus – zwei
+je A4-Seite, darüber Nummer, Datum und Baustelle des Berichts, darunter je Foto wer es wann
+aufgenommen hat. In der Großansicht gibt es dasselbe für ein einzelnes Foto, dazu
+**Herunterladen** als JPG (am iPhone über das Teilen-Menü „Bild sichern“, in der App als PDF
+im Ordner „Downloads“). Hinzufügen und löschen kann, wer gerade am
 Bericht arbeiten darf – auch nachdem der Kunde vor Ort unterschrieben hat, denn Fotos ändern
 nichts an dem, was er unterschreibt. Höchstens 60 Fotos je Bericht.
 
@@ -481,6 +489,7 @@ eingestellten Filter und eignet sich zum Weiterschicken oder Ablegen:
 | Verbrauch je Monat | `/export/verbrauch.pdf` |
 | Lohnzettel einer Woche (im Aufbau des Formulars aus dem Block) | `/stundenzettel/<id>/pdf` |
 | Tagesbericht (im Aufbau des Vordrucks aus dem Block) | `/tagesberichte/<id>/pdf` |
+| Fotos zum Tagesbericht (zwei je Seite, `?foto=<id>` für eines) | `/tagesberichte/<id>/fotos/pdf` |
 
 **Lohnzettel:** Druckansicht und PDF sind dem Vordruck nachgebaut – Briefkopf mit
 Lohnwoche, das Raster mit je einer Zeile pro Tag und einer schmalen für Zeit von/bis,

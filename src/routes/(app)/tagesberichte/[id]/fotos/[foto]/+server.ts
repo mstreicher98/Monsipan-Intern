@@ -13,7 +13,10 @@ async function open(params: { id: string; foto: string }, locals: App.Locals) {
 	return { user, report };
 }
 
-/** Foto bzw. mit ?vorschau seine kleine Fassung – unveränderlich, darf lange im Zwischenspeicher bleiben */
+/**
+ * Foto bzw. mit ?vorschau seine kleine Fassung – unveränderlich, darf lange im
+ * Zwischenspeicher bleiben. Mit ?download als Datei zum Speichern.
+ */
 export const GET: RequestHandler = async ({ params, locals, url }) => {
 	const { report } = await open(params, locals);
 	const photo = await getPhoto(report.id, Number(params.foto));
@@ -26,7 +29,7 @@ export const GET: RequestHandler = async ({ params, locals, url }) => {
 		headers: {
 			'content-type': 'image/jpeg',
 			'content-length': String(stat.size),
-			'content-disposition': `inline; filename="${name.replace(/[^\w.-]/g, '_')}"`,
+			'content-disposition': `${url.searchParams.has('download') ? 'attachment' : 'inline'}; filename="${name.replace(/[^\w.-]/g, '_')}"`,
 			'cache-control': 'private, max-age=31536000, immutable'
 		}
 	});

@@ -122,13 +122,17 @@ export async function createReport(
 	});
 }
 
-/** Nur was für die Rechte zählt – für Fotos und andere kleine Anfragen */
+/** Kopf und was für die Rechte zählt – für Fotos und andere kleine Anfragen */
 export async function reportAccess(id: number) {
 	if (!Number.isInteger(id)) return null;
 	const row = await db
 		.select({
 			id: dailyReports.id,
 			number: dailyReports.number,
+			date: dailyReports.date,
+			dateTo: dailyReports.dateTo,
+			road: dailyReports.road,
+			site: dailyReports.site,
 			status: dailyReports.status,
 			createdBy: dailyReports.createdBy,
 			partyId: dailyReports.partyId
