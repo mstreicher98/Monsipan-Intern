@@ -23,8 +23,10 @@ export const dailyReports = sqliteTable(
 		id: integer('id').primaryKey({ autoIncrement: true }),
 		/** Nummer vom Block, frei eintragbar – beim Anlegen wird die nächste vorgeschlagen */
 		number: text('number').notNull().default(''),
-		/** Tag des Berichts als "JJJJ-MM-TT" */
+		/** Tag des Berichts als "JJJJ-MM-TT" – bei mehreren Tagen der erste */
 		date: text('date').notNull(),
+		/** Letzter Tag, wenn der Bericht über mehrere Tage geht – sonst leer */
+		dateTo: text('date_to'),
 		/** Bundesstraße Nr. aus dem Kästchen rechts oben */
 		road: text('road').notNull().default(''),
 		/** Baustelle und Kostenstelle; später kommt hier der Auftrag dazu */
@@ -122,6 +124,28 @@ export const dailyReportMaterials = sqliteTable(
 		filmThickness: text('film_thickness').notNull().default('')
 	},
 	(t) => [index('daily_report_materials_report_idx').on(t.reportId, t.sortOrder)]
+);
+
+/**
+ * Fotos zum Bericht – nur intern, nicht im PDF und nicht beim Kunden. Die
+ * Dateien liegen unter /data/fotos/<sha256>.jpg, dazu eine kleine Vorschau.
+ */
+export const dailyReportPhotos = sqliteTable(
+	'daily_report_photos',
+	{
+		id: integer('id').primaryKey({ autoIncrement: true }),
+		reportId: integer('report_id')
+			.notNull()
+			.references(() => dailyReports.id, { onDelete: 'cascade' }),
+		sha256: text('sha256').notNull(),
+		thumbSha256: text('thumb_sha256').notNull(),
+		width: integer('width').notNull(),
+		height: integer('height').notNull(),
+		size: integer('size').notNull(),
+		createdBy: integer('created_by').references(() => users.id, { onDelete: 'set null' }),
+		createdAt: createdAt()
+	},
+	(t) => [index('daily_report_photos_report_idx').on(t.reportId)]
 );
 
 export type DailyReport = typeof dailyReports.$inferSelect;

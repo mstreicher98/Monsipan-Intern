@@ -103,15 +103,23 @@ export function listDocuments(productId: number) {
  * mehr benutzt, werden gelöscht. Abgebrochene Uploads nach einem Tag.
  */
 export async function tidyDocuments(now = new Date()): Promise<{ removed: number }> {
-	if (!fs.existsSync(DOC_DIR)) return { removed: 0 };
 	const used = new Set((await db.select({ sha: productDocuments.sha256 }).from(productDocuments).all()).map((r) => r.sha));
+	return tidyFolder(DOC_DIR, SHA_FILE, used, now);
+}
+
+/**
+ * Ordner mit Dateien nach Prüfsumme aufräumen (auch für die Fotos der
+ * Tagesberichte): `pattern` liefert in Gruppe 1 die Prüfsumme aus dem Dateinamen.
+ */
+export function tidyFolder(dir: string, pattern: RegExp, used: Set<string>, now = new Date()): { removed: number } {
+	if (!fs.existsSync(dir)) return { removed: 0 };
 	const unusedSince = now.getTime() - KEEP_UNUSED_DAYS * 86_400_000;
 	const staleUpload = now.getTime() - 86_400_000;
 	let removed = 0;
-	for (const name of fs.readdirSync(DOC_DIR)) {
-		const file = path.join(DOC_DIR, name);
+	for (const name of fs.readdirSync(dir)) {
+		const file = path.join(dir, name);
 		try {
-			const match = SHA_FILE.exec(name);
+			const match = pattern.exec(name);
 			if (!match) {
 				if (name.endsWith('.tmp') && fs.statSync(file).mtimeMs < staleUpload) fs.rmSync(file, { force: true });
 				continue;

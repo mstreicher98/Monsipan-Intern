@@ -1,6 +1,7 @@
 import nodemailer, { type Transporter } from 'nodemailer';
 import { env } from '$env/dynamic/private';
 import { APP_NAME } from '$lib/app';
+import { reportDateLabel } from '$lib/modules/tagesberichte/sheet';
 
 let transporter: Transporter | null = null;
 
@@ -135,11 +136,10 @@ export function lowStockMail(to: string[], items: LowStockItem[], link: string):
 /** Link für den Kunden: Tagesbericht ansehen, unterschreiben, als PDF laden */
 export function customerReportMail(
 	to: string,
-	report: { number: string; date: string; road: string; site: string; signed: boolean },
+	report: { number: string; date: string; dateTo: string | null; road: string; site: string; signed: boolean },
 	link: string
 ): Mail {
-	const [y, m, d] = report.date.split('-');
-	const what = [`Tagesbericht${report.number ? ` Nr. ${report.number}` : ''} vom ${d}.${m}.${y}`, report.road && `Bundesstraße ${report.road}`, report.site]
+	const what = [`Tagesbericht${report.number ? ` Nr. ${report.number}` : ''} vom ${reportDateLabel(report.date, report.dateTo)}`, report.road && `Bundesstraße ${report.road}`, report.site]
 		.filter(Boolean)
 		.join(', ');
 	const ask = report.signed

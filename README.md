@@ -212,6 +212,18 @@ von Hand eintragen.
 Die Nummer schlägt die App als nächste freie vor, bleibt aber frei änderbar – so passt sie
 zum Papierblock.
 
+**Mehrere Tage:** Neben dem Datum gibt es ein freiwilliges **bis**. Ist es ausgefüllt, steht im
+Bericht „vom 07.10. bis 09.10.2026" (höchstens 62 Tage). Der Zeitfilter der Liste findet so
+einen Bericht an jedem seiner Tage.
+
+**Fotos** (nur intern – nicht im PDF und nicht beim Kunden): Am Handy oder Tablet direkt mit
+der Kamera aufnehmen (**Foto aufnehmen**) oder aus der Galerie wählen, am Computer hochladen.
+Vor dem Hochladen werden sie am Gerät verkleinert (JPEG, lange Seite 2400 Pixel, dazu eine
+kleine Vorschau) – das schont das Datenvolumen auf der Baustelle. Antippen öffnet ein Foto
+groß, wischen oder die Pfeiltasten blättern. Hinzufügen und löschen kann, wer gerade am
+Bericht arbeiten darf – auch nachdem der Kunde vor Ort unterschrieben hat, denn Fotos ändern
+nichts an dem, was er unterschreibt. Höchstens 60 Fotos je Bericht.
+
 **Ablauf** – wie beim Stundenzettel, mit dem Kunden als letztem Schritt:
 
 1. **In Arbeit:** Die Partie füllt den Bericht aus.
@@ -248,7 +260,8 @@ sich unter Verwaltung → Berechtigungen anpassen.
 Datum und Nummer, das Kästchen „Bundesstraße Nr.", je Blatt acht LB-Spalten und 33 Zeilen,
 darunter Material, Einheitssumme, Gesamtmenge, Tagesleistung, LV-Position und die beiden
 Unterschriftszeilen. Mehr Positionen oder Zeilen gehen auf weitere Blätter („Blatt 1 von 2").
-Baustelle und Kostenstelle stehen unter dem Briefkopf. Am Handy zeigt die Druckansicht die
+Die Baustelle steht groß unter dem Briefkopf (mit Linie – am Tablet lässt sie sich auch von
+Hand eintragen), die Kostenstelle klein darunter. Am Handy zeigt die Druckansicht die
 Angaben untereinander.
 
 Wer kein Recht auf „alle sehen" hat, sieht die Berichte der eigenen Partie und die selbst
@@ -513,8 +526,11 @@ Die Sicherungen der Datenbank bleiben dadurch klein.
 **Sicherungen:** Wird ein PDF entfernt oder alles zurückgesetzt, bleibt die Datei noch
 90 Tage liegen. Eine in dieser Zeit eingespielte Sicherung findet ihre PDFs also wieder.
 Danach räumt die tägliche Wartung unbenutzte Dateien weg. Für den Umzug auf einen anderen
-Server das ganze Volume mitnehmen (Datenbank **und** `/data/dokumente`) – eine
+Server das ganze Volume mitnehmen (Datenbank, `/data/dokumente` **und** `/data/fotos`) – eine
 hochgeladene Sicherung allein enthält die PDFs nicht.
+
+Die Fotos der Tagesberichte liegen genauso unter `/data/fotos/<sha256>.jpg` (Foto und Vorschau)
+und bleiben nach dem Löschen ebenfalls 90 Tage liegen.
 
 ## App fürs Handy
 

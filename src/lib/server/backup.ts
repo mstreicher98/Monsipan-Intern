@@ -3,6 +3,7 @@ import path from 'node:path';
 import { client, DATA_DIR } from './db';
 import { purgeExpired } from './auth';
 import { tidyDocuments } from './documents';
+import { tidyPhotos } from '$lib/modules/tagesberichte/server/photos';
 
 export const BACKUP_DIR = path.join(DATA_DIR, 'backups');
 
@@ -130,11 +131,13 @@ export function scheduleMaintenance() {
 			}
 			await purgeExpired();
 			sweepTempFiles();
-			// PDFs einmal am Tag: benutzte markieren, lange unbenutzte löschen
+			// PDFs und Fotos einmal am Tag: benutzte markieren, lange unbenutzte löschen
 			if (lastTidy !== today) {
 				lastTidy = today;
 				const { removed } = await tidyDocuments(now);
 				if (removed) console.info(`[dokumente] ${removed} unbenutzte PDF-Dateien gelöscht`);
+				const photos = await tidyPhotos(now);
+				if (photos.removed) console.info(`[fotos] ${photos.removed} unbenutzte Bilddateien gelöscht`);
 			}
 		} catch (err) {
 			console.error('[backup]', err);

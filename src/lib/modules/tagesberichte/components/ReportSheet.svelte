@@ -6,11 +6,12 @@
 	 */
 	import { dateTime } from '$lib/format';
 	import { SIGNATURE_HEIGHT, SIGNATURE_WIDTH } from '$lib/modules/stunden/signature';
-	import { columnSums, LETTERHEAD, quantityLabel, SHEET_MATERIAL_ROWS, sheets, sumLabel } from '../sheet';
+	import { columnSums, LETTERHEAD, quantityLabel, reportDateLabel, SHEET_MATERIAL_ROWS, sheets, sumLabel } from '../sheet';
 
 	interface Report {
 		number: string;
 		date: string;
+		dateTo: string | null;
 		road: string;
 		site: string;
 		costCenter: string;
@@ -42,16 +43,11 @@
 		Array.from({ length: Math.max(SHEET_MATERIAL_ROWS, report.materials.length) }, (_, i) => report.materials[i] ?? null)
 	);
 	const releaser = $derived([report.releasedByFirst, report.releasedByLast].filter(Boolean).join(' '));
-	const extra = $derived(
-		[report.site && `Baustelle: ${report.site}`, internal && report.costCenter && `Kostenstelle: ${report.costCenter}`].filter(Boolean)
-	);
+	/** Kostenstelle nur intern */
+	const extra = $derived(internal && report.costCenter ? `Kostenstelle: ${report.costCenter}` : '');
 	/** Unter „Einheitssumme" stehen Gesamtmenge, Tagesleistung und LV-Position */
 	const LABELS = ['Gesamtmenge', 'Tagesleistung', 'LV-Position Nr.'];
 
-	const date = (iso: string) => {
-		const [y, m, d] = iso.split('-');
-		return `${d}.${m}.${y}`;
-	};
 	/** Lange Ortsbezeichnungen etwas kleiner, damit sie in der Zeile bleiben */
 	const fit = (text: string) => (text.length > 95 ? '6pt' : text.length > 70 ? '7pt' : undefined);
 	/** Die LB-Spalten sind schmal – längere Nummern und Einheiten werden kleiner geschrieben */
@@ -86,11 +82,13 @@
 				{#each LETTERHEAD.lines as line (line)}<span class="zeile">{line}</span>{/each}
 			</div>
 			<h2 class="titel">Tagesbericht</h2>
-			<p class="vom"><span>vom</span><span class="linie">{date(report.date)}</span></p>
+			<p class="vom"><span>vom</span><span class="linie">{reportDateLabel(report.date, report.dateTo)}</span></p>
 			<p class="nr"><span>Nr.</span><span class="linie">{report.number}</span></p>
-			{#if extra.length || blatt.count > 1}
+			<!-- Steht nicht auf dem Vordruck: die Baustelle groß unter dem Briefkopf -->
+			<p class="baustelle"><span>Baustelle:</span><span class="linie">{report.site}</span></p>
+			{#if extra || blatt.count > 1}
 				<p class="extra">
-					{extra.join(' · ')}{#if blatt.count > 1}<span class="blatt-nr">Blatt {blatt.number} von {blatt.count}</span>{/if}
+					{extra}{#if blatt.count > 1}<span class="blatt-nr">Blatt {blatt.number} von {blatt.count}</span>{/if}
 				</p>
 			{/if}
 			<div class="strasse">
@@ -267,9 +265,27 @@
 	.nr .linie {
 		font-size: 13pt;
 	}
+	.baustelle {
+		position: absolute;
+		top: 22mm;
+		left: 0;
+		width: 84%;
+		display: flex;
+		align-items: baseline;
+		gap: 1.5mm;
+		margin: 0;
+		font-size: 10pt;
+	}
+	.baustelle .linie {
+		padding-left: 0.6mm;
+		text-align: left;
+		font-size: 14pt;
+		font-weight: 700;
+		text-overflow: ellipsis;
+	}
 	.extra {
 		position: absolute;
-		top: 24mm;
+		top: 30.3mm;
 		left: 0;
 		width: 82%;
 		margin: 0;

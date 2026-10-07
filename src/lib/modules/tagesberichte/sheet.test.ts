@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { columnSums, quantityLabel, rowsPerSheet, SHEET_COLUMNS, SHEET_ROWS, sheets, sumLabel } from './sheet';
+import { columnSums, quantityLabel, reportDateLabel, rowsPerSheet, SHEET_COLUMNS, SHEET_ROWS, sheets, sumLabel } from './sheet';
 
 const pos = (n: number) => Array.from({ length: n }, (_, i) => ({ lbPos: String(i + 1) }));
 const row = (label: string, quantities: (number | null)[] = []) => ({ label, quantities });
@@ -60,5 +60,18 @@ describe('Summen und Mengen', () => {
 		expect(quantityLabel(0)).toBe('0');
 		expect(sumLabel(0)).toBe('');
 		expect(sumLabel(4.5)).toBe('4,5');
+	});
+});
+
+describe('reportDateLabel', () => {
+	it('schreibt einen Tag wie bisher', () => {
+		expect(reportDateLabel('2026-10-07')).toBe('07.10.2026');
+		expect(reportDateLabel('2026-10-07', null)).toBe('07.10.2026');
+		expect(reportDateLabel('2026-10-07', '2026-10-07')).toBe('07.10.2026');
+	});
+
+	it('fasst mehrere Tage zusammen', () => {
+		expect(reportDateLabel('2026-10-07', '2026-10-09')).toBe('07.10. bis 09.10.2026');
+		expect(reportDateLabel('2026-12-29', '2027-01-02')).toBe('29.12.2026 bis 02.01.2027');
 	});
 });

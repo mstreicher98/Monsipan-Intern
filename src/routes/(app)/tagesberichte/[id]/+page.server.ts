@@ -3,6 +3,7 @@ import { can } from '$lib/permissions';
 import { requireUser } from '$lib/server/guard';
 import { customerReportMail, isMailConfigured, sendMail } from '$lib/server/mail';
 import {
+	checkDateRange,
 	checkReport,
 	customerSignOnSite,
 	deleteReport,
@@ -22,8 +23,8 @@ import {
 	undoCheck,
 	type SaveReport
 } from '$lib/modules/tagesberichte/server/reports';
-import { isValidIsoDate } from '$lib/modules/stunden/week';
 import { isValidSignature } from '$lib/modules/stunden/signature';
+import { listPhotos } from '$lib/modules/tagesberichte/server/photos';
 import type { Actions, PageServerLoad } from './$types';
 
 async function open(id: number, locals: App.Locals) {
@@ -46,6 +47,9 @@ export const load: PageServerLoad = async ({ params, locals, url }) => {
 	return {
 		report,
 		places: await recentPlaces(),
+		photos: await listPhotos(report.id),
+		// Fotos ändern nichts, was der Kunde unterschreibt – sie gehen, solange am Bericht gearbeitet wird
+		canPhotos: working,
 		// Die Artikelauswahl braucht nur, wer auch eintragen darf
 		products: editable ? await materialProducts() : [],
 		editable,
@@ -66,7 +70,7 @@ export const load: PageServerLoad = async ({ params, locals, url }) => {
  * Das Formular auslesen. Spalten, Mengen und Materialzeilen kommen je Feld in
  * der Reihenfolge der Seite – sie werden über ihre Position zusammengesetzt.
  */
-function readReport(form: FormData): SaveReport {
+function readReport(form: FormData): SaveReport | { message: string } {
 	const all = (name: string) => form.getAll(name).map(String);
 	const lbPos = all('pos.lbpos');
 	const units = all('pos.einheit');
@@ -105,10 +109,15 @@ function readReport(form: FormData): SaveReport {
 		};
 	});
 
+	const date = String(form.get('datum') ?? '');
+	const range = checkDateRange(date, String(form.get('datum_bis') ?? ''));
+	if ('message' in range) return range;
+
 	return {
 		head: {
 			number: String(form.get('nummer') ?? ''),
-			date: String(form.get('datum') ?? ''),
+			date,
+			dateTo: range.dateTo,
 			road: String(form.get('strasse') ?? ''),
 			site: String(form.get('baustelle') ?? ''),
 			costCenter: String(form.get('kostenstelle') ?? ''),
@@ -126,7 +135,7 @@ function readReport(form: FormData): SaveReport {
 async function saveIfEditable(form: FormData, report: { id: number }, editable: boolean) {
 	if (!editable || !form.has('datum')) return null;
 	const data = readReport(form);
-	if (!isValidIsoDate(data.head.date)) return fail(400, { message: 'Das Datum ist ungültig.' });
+	if ('message' in data) return fail(400, data);
 	await saveReport(report.id, data);
 	return null;
 }
@@ -138,7 +147,7 @@ export const actions: Actions = {
 		const { user, report } = await open(Number(params.id), locals);
 		if (!mayEdit(user, report)) return fail(403, { message: 'Dieser Bericht ist nicht (mehr) änderbar.' });
 		const data = readReport(await request.formData());
-		if (!isValidIsoDate(data.head.date)) return fail(400, { message: 'Das Datum ist ungültig.' });
+		if ('message' in data) return fail(400, data);
 		await saveReport(report.id, data);
 		return { saved: true };
 	},
@@ -253,7 +262,7 @@ export const actions: Actions = {
 		const ok = await sendMail(
 			customerReportMail(
 				email,
-				{ number: report.number, date: report.date, road: report.road, site: report.site, signed: report.status === 'abgeschlossen' },
+				{ number: report.number, date: report.date, dateTo: report.dateTo, road: report.road, site: report.site, signed: report.status === 'abgeschlossen' },
 				`${url.origin}/bericht/${token}`
 			)
 		);

@@ -14,7 +14,7 @@
 import { bufferResponse, drawInk, startPdf } from '$lib/server/pdf';
 import { inkInRect, type InkStroke } from '$lib/ink';
 import { SIGNATURE_HEIGHT, SIGNATURE_WIDTH } from '$lib/modules/stunden/signature';
-import { columnSums, LETTERHEAD, quantityLabel, SHEET_MATERIAL_ROWS, sheets, sumLabel } from '../sheet';
+import { columnSums, LETTERHEAD, quantityLabel, reportDateLabel, SHEET_MATERIAL_ROWS, sheets, sumLabel } from '../sheet';
 import type { ReportDetail } from './reports';
 
 const MM = 72 / 25.4;
@@ -36,10 +36,8 @@ const FOOT_H = 7.4 * MM;
 
 const LABELS = ['Gesamtmenge', 'Tagesleistung', 'LV-Position Nr.'];
 
-const date = (iso: string) => {
-	const [y, m, d] = iso.split('-');
-	return `${d}.${m}.${y}`;
-};
+/** Oberlänge der Schrift: so weit liegt die Grundlinie unter dem y, das pdfkit bekommt */
+const ASCENT = 0.905;
 
 export async function tagesberichtPdf(
 	report: ReportDetail,
@@ -119,9 +117,7 @@ export async function tagesberichtPdf(
 	const sums = columnSums(report.rows, report.positions.length);
 	const materialRows = Array.from({ length: Math.max(SHEET_MATERIAL_ROWS, report.materials.length) }, (_, i) => report.materials[i] ?? null);
 	// Kostenstelle und Notiz sind intern – im PDF für den Kunden fehlen sie
-	const extra = [report.site && `Baustelle: ${report.site}`, !forCustomer && report.costCenter && `Kostenstelle: ${report.costCenter}`]
-		.filter(Boolean)
-		.join(' · ');
+	const extra = !forCustomer && report.costCenter ? `Kostenstelle: ${report.costCenter}` : '';
 
 	for (const [n, blatt] of blaetter.entries()) {
 		if (n > 0) doc.addPage();
@@ -147,7 +143,7 @@ export async function tagesberichtPdf(
 		const vomStart = titleX + doc.widthOfString('vom') + 5;
 		const vomEnd = titleX + 0.33 * width;
 		line(vomStart, vomY + 12, vomEnd, vomY + 12);
-		cell(date(report.date), vomStart, vomY - 1, vomEnd - vomStart, 12, { size: 10.5, align: 'center', pad: 0 });
+		cell(reportDateLabel(report.date, report.dateTo), vomStart, vomY - 1, vomEnd - vomStart, 12, { size: 10.5, minSize: 8, align: 'center', pad: 0 });
 
 		const nrX = right - 0.18 * width;
 		const nrY = top + 5 * MM;
@@ -156,21 +152,36 @@ export async function tagesberichtPdf(
 		line(nrStart, nrY + 17, right, nrY + 17);
 		cell(report.number, nrStart, nrY + 1, right - nrStart, 15, { size: 13, minSize: 8, align: 'center', pad: 0 });
 
-		// Baustelle und Kostenstelle stehen nicht auf dem Vordruck – sie kommen unter den Briefkopf
-		const blattText = blatt.count > 1 ? `Blatt ${blatt.number} von ${blatt.count}` : '';
-		if (extra || blattText) {
-			const y = top + 24 * MM;
-			doc.font('Helvetica').fontSize(8.5).fillColor(INK);
-			if (extra) doc.text(extra, left, y, { width: 0.7 * width, lineBreak: false, ellipsis: true });
-			if (blattText) {
-				const x = extra ? left + Math.min(0.7 * width, doc.widthOfString(extra)) + 10 : left;
-				doc.font('Helvetica-Bold').text(blattText, x, y, { lineBreak: false });
-			}
-		}
-
 		// Kästchen „Bundesstraße Nr."
 		const boxW = 0.132 * width;
 		const boxX = right - boxW;
+
+		// Baustelle steht nicht auf dem Vordruck – sie kommt groß unter den Briefkopf, mit
+		// einer Linie wie bei „vom", damit man sie am Tablet auch von Hand eintragen kann
+		const siteY = top + 21.5 * MM;
+		const siteH = 7 * MM;
+		const siteBase = siteY + siteH * 0.74;
+		doc.font('Helvetica').fontSize(10).fillColor(INK).text('Baustelle:', left, siteBase - 10 * ASCENT, { lineBreak: false });
+		const siteX = left + doc.widthOfString('Baustelle:') + 5;
+		const siteW = boxX - 10 - siteX;
+		line(siteX, siteBase + 2.5, siteX + siteW, siteBase + 2.5);
+		if (report.site && !inkInRect(pageInk, siteX, siteY, siteW, siteH)) {
+			doc.font('Helvetica-Bold').fontSize(14);
+			const size = Math.max(9, Math.min(14, (14 * (siteW - 4)) / doc.widthOfString(report.site)));
+			doc.fontSize(size).text(report.site, siteX + 2, siteBase - size * ASCENT, { width: siteW - 4, lineBreak: false, ellipsis: true });
+		}
+
+		// Kostenstelle (nur intern) und Blattnummer klein darunter
+		const blattText = blatt.count > 1 ? `Blatt ${blatt.number} von ${blatt.count}` : '';
+		if (extra || blattText) {
+			const y = top + 30.3 * MM;
+			doc.font('Helvetica').fontSize(8.5).fillColor(INK);
+			if (extra) doc.text(extra, left, y, { width: 0.6 * width, lineBreak: false, ellipsis: true });
+			if (blattText) {
+				const x = extra ? left + Math.min(0.6 * width, doc.widthOfString(extra)) + 10 : left;
+				doc.font('Helvetica-Bold').text(blattText, x, y, { lineBreak: false });
+			}
+		}
 		const boxY = top + 21.8 * MM;
 		const boxH = 12.5 * MM;
 		doc.rect(boxX, boxY, boxW, boxH).lineWidth(0.8).strokeColor(INK).stroke();

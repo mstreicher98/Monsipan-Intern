@@ -24,6 +24,7 @@ import {
 } from '$lib/server/db/schema';
 import type { SessionUser } from '$lib/server/auth';
 import type { InkPages } from '$lib/ink';
+import { addDays, isValidIsoDate } from '$lib/modules/stunden/week';
 import { MAX_MATERIALS, MAX_POSITIONS } from '../sheet';
 
 /** Zeilen, die ein neuer Bericht gleich mitbringt */
@@ -48,7 +49,8 @@ export interface ReportFilter {
 
 export async function listReports(user: SessionUser, filter: ReportFilter = {}, limit = 100) {
 	const where = [scope(user)];
-	if (filter.from) where.push(sql`${dailyReports.date} >= ${filter.from}`);
+	// Berichte über mehrere Tage zählen, sobald einer ihrer Tage im Zeitraum liegt
+	if (filter.from) where.push(sql`coalesce(${dailyReports.dateTo}, ${dailyReports.date}) >= ${filter.from}`);
 	if (filter.to) where.push(sql`${dailyReports.date} <= ${filter.to}`);
 	if (filter.q?.trim()) {
 		const q = `%${filter.q.trim().replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
@@ -66,6 +68,7 @@ export async function listReports(user: SessionUser, filter: ReportFilter = {}, 
 			id: dailyReports.id,
 			number: dailyReports.number,
 			date: dailyReports.date,
+			dateTo: dailyReports.dateTo,
 			road: dailyReports.road,
 			site: dailyReports.site,
 			status: dailyReports.status,
@@ -93,12 +96,16 @@ export async function nextNumber(): Promise<string> {
 	return String(max + 1);
 }
 
-export async function createReport(user: SessionUser, data: { date: string; number: string; road: string; site: string }) {
+export async function createReport(
+	user: SessionUser,
+	data: { date: string; dateTo: string | null; number: string; road: string; site: string }
+) {
 	return db.transaction(async (tx) => {
 		const row = await tx
 			.insert(dailyReports)
 			.values({
 				date: data.date,
+				dateTo: data.dateTo,
 				number: data.number.slice(0, 40),
 				road: data.road.slice(0, 120),
 				site: data.site.slice(0, 200),
@@ -113,6 +120,23 @@ export async function createReport(user: SessionUser, data: { date: string; numb
 		for (let i = 0; i < START_ROWS; i++) await tx.insert(dailyReportRows).values({ reportId: row.id, sortOrder: i });
 		return row.id;
 	});
+}
+
+/** Nur was für die Rechte zählt – für Fotos und andere kleine Anfragen */
+export async function reportAccess(id: number) {
+	if (!Number.isInteger(id)) return null;
+	const row = await db
+		.select({
+			id: dailyReports.id,
+			number: dailyReports.number,
+			status: dailyReports.status,
+			createdBy: dailyReports.createdBy,
+			partyId: dailyReports.partyId
+		})
+		.from(dailyReports)
+		.where(eq(dailyReports.id, id))
+		.get();
+	return row ?? null;
 }
 
 export async function reportDetail(id: number) {
@@ -131,6 +155,7 @@ async function loadReport(where: SQL) {
 			id: dailyReports.id,
 			number: dailyReports.number,
 			date: dailyReports.date,
+			dateTo: dailyReports.dateTo,
 			road: dailyReports.road,
 			site: dailyReports.site,
 			costCenter: dailyReports.costCenter,
@@ -206,6 +231,23 @@ async function loadReport(where: SQL) {
 
 export type ReportDetail = NonNullable<Awaited<ReturnType<typeof reportDetail>>>;
 
+/** Längster Zeitraum eines Berichts – fängt Tippfehler im Jahr ab */
+const MAX_RANGE_DAYS = 62;
+
+/**
+ * Erster und letzter Tag prüfen. „bis" ist freiwillig: leer oder derselbe Tag
+ * heißt ein Tag (null). Sonst der letzte Tag – oder ein Fehlertext.
+ */
+export function checkDateRange(from: string, to: string): { dateTo: string | null } | { message: string } {
+	if (!isValidIsoDate(from)) return { message: 'Das Datum ist ungültig.' };
+	const last = to.trim();
+	if (!last || last === from) return { dateTo: null };
+	if (!isValidIsoDate(last)) return { message: 'Das Datum „bis" ist ungültig.' };
+	if (last < from) return { message: 'Der letzte Tag liegt vor dem ersten – bitte „bis" prüfen.' };
+	if (last > addDays(from, MAX_RANGE_DAYS)) return { message: `Ein Bericht kann höchstens ${MAX_RANGE_DAYS} Tage umfassen.` };
+	return { dateTo: last };
+}
+
 const num = (v: unknown) => {
 	const s = String(v ?? '').trim().replace(',', '.');
 	if (!s) return null;
@@ -217,6 +259,8 @@ export interface SaveReport {
 	head: {
 		number: string;
 		date: string;
+		/** Letzter Tag bei mehreren Tagen, sonst null */
+		dateTo: string | null;
 		road: string;
 		site: string;
 		costCenter: string;
@@ -237,6 +281,7 @@ export async function saveReport(id: number, data: SaveReport) {
 			.set({
 				number: data.head.number.slice(0, 40),
 				date: data.head.date,
+				dateTo: data.head.dateTo,
 				road: data.head.road.slice(0, 120),
 				site: data.head.site.slice(0, 200),
 				costCenter: data.head.costCenter.slice(0, 60),

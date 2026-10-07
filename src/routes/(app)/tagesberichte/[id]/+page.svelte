@@ -29,6 +29,7 @@
 	import { page } from '$app/state';
 	import PdfViewer from '$lib/components/PdfViewer.svelte';
 	import ViewSwitch, { preferredView } from '$lib/components/ViewSwitch.svelte';
+	import ReportPhotos from '$lib/modules/tagesberichte/components/ReportPhotos.svelte';
 	import { hasInk } from '$lib/ink';
 
 	let { data, form } = $props();
@@ -47,6 +48,7 @@
 	let head = $state({
 		number: data.report.number,
 		date: data.report.date,
+		dateTo: data.report.dateTo ?? '',
 		road: data.report.road,
 		site: data.report.site,
 		costCenter: data.report.costCenter,
@@ -404,8 +406,8 @@
 	<input type="hidden" name="kunde_unterschrift" value={customerSignature} />
 
 	<fieldset disabled={!data.editable} class="contents">
-		<section class="card grid gap-4 p-4 sm:grid-cols-2 lg:grid-cols-5 lg:p-5">
-			<label class="block">
+		<section class="card grid grid-cols-2 gap-4 p-4 lg:grid-cols-6 lg:p-5">
+			<label class="col-span-2 block lg:col-span-1">
 				<span class="field-label">Nummer</span>
 				<input class="input num" name="nummer" bind:value={head.number} maxlength="40" />
 			</label>
@@ -414,10 +416,14 @@
 				<input class="input num" type="date" name="datum" bind:value={head.date} required />
 			</label>
 			<label class="block">
+				<span class="field-label">bis <span class="font-normal text-ink-3">(mehrere Tage)</span></span>
+				<input class="input num" type="date" name="datum_bis" bind:value={head.dateTo} min={head.date} />
+			</label>
+			<label class="block">
 				<span class="field-label">Bundesstraße Nr.</span>
 				<input class="input" name="strasse" bind:value={head.road} maxlength="120" list="strassen" />
 			</label>
-			<label class="block">
+			<label class="order-last col-span-2 block lg:order-none lg:col-span-1">
 				<span class="field-label">Baustelle</span>
 				<input class="input" name="baustelle" bind:value={head.site} maxlength="200" list="baustellen" />
 			</label>
@@ -641,6 +647,9 @@
 			</section>
 		</div>
 	</fieldset>
+
+	<!-- Außerhalb des fieldset: Fotos gehen auch, wenn der Kunde schon vor Ort unterschrieben hat. Die Dateifelder haben keinen Namen und gehen beim Speichern nicht mit. -->
+	<ReportPhotos reportId={report.id} photos={data.photos} editable={data.canPhotos} />
 
 	{#if data.editable || data.canRelease || data.canCheck || data.canSignOnSite || data.canRemoveCustomer}
 		<div class="card sticky bottom-24 mt-4 flex flex-wrap items-center gap-2 p-3 lg:bottom-6">

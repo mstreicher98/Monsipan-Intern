@@ -5,10 +5,11 @@
 	 */
 	import { dateTime } from '$lib/format';
 	import { SIGNATURE_HEIGHT, SIGNATURE_WIDTH } from '$lib/modules/stunden/signature';
-	import { columnSums, filmLabel, quantityLabel, sumLabel } from '../sheet';
+	import { columnSums, filmLabel, quantityLabel, reportDateLabel, sumLabel } from '../sheet';
 
 	interface Report {
 		date: string;
+		dateTo: string | null;
 		road: string;
 		site: string;
 		costCenter: string;
@@ -37,10 +38,6 @@
 	const has = (v: number | null | undefined) => v != null && Number.isFinite(v);
 	const rows = $derived(report.rows.filter((r) => r.label.trim() || r.quantities.some(has)));
 	const releaser = $derived([report.releasedByFirst, report.releasedByLast].filter(Boolean).join(' '));
-	const date = (iso: string) => {
-		const [y, m, d] = iso.split('-');
-		return `${d}.${m}.${y}`;
-	};
 </script>
 
 {#snippet signature(label: string, path: string | null, who: string, at: Date | null)}
@@ -60,7 +57,7 @@
 <div class="space-y-4">
 	<p class="num text-sm text-ink-2">
 		{[
-			date(report.date),
+			reportDateLabel(report.date, report.dateTo),
 			report.road && `Bundesstraße ${report.road}`,
 			report.site && `Baustelle ${report.site}`,
 			internal && report.costCenter && `Kostenstelle ${report.costCenter}`

@@ -85,6 +85,17 @@ export function sumLabel(v: number): string {
 	return v ? quantityLabel(v) : '';
 }
 
+/**
+ * Datum wie auf dem Vordruck hinter „vom": „07.10.2026", über mehrere Tage
+ * „07.10. bis 09.10.2026" (über den Jahreswechsel mit beiden Jahren).
+ */
+export function reportDateLabel(from: string, to?: string | null): string {
+	const [y, m, d] = from.split('-');
+	if (!to || to <= from) return `${d}.${m}.${y}`;
+	const [y2, m2, d2] = to.split('-');
+	return y === y2 ? `${d}.${m}. bis ${d2}.${m2}.${y2}` : `${d}.${m}.${y} bis ${d2}.${m2}.${y2}`;
+}
+
 /** Filmdicke für die Liste: eine reine Zahl bekommt „mm", Text bleibt wie eingetragen */
 export function filmLabel(v: string): string {
 	const t = v.trim();

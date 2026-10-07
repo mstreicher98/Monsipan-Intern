@@ -176,6 +176,13 @@
       "when": 1791319123649,
       "tag": "0024_handschrift",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "6",
+      "when": 1791404043958,
+      "tag": "0025_tagesbericht_fotos_mehrtaegig",
+      "breakpoints": true
     }
   ]
 }

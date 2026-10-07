@@ -8,14 +8,16 @@
 	import CircleCheck from '@lucide/svelte/icons/circle-check';
 	import Dialog from '$lib/components/Dialog.svelte';
 	import { dayLabel } from '$lib/modules/stunden/week';
+	import { reportDateLabel } from '$lib/modules/tagesberichte/sheet';
 
-	let { data } = $props();
+	let { data, form } = $props();
 
 	let newOpen = $state(false);
 	// svelte-ignore state_referenced_locally
 	let number = $state(data.suggestion.number);
 	// svelte-ignore state_referenced_locally
 	let date = $state(data.suggestion.date);
+	let dateTo = $state('');
 	let road = $state('');
 	let site = $state('');
 
@@ -30,6 +32,7 @@
 	function openNew() {
 		number = data.suggestion.number;
 		date = data.suggestion.date;
+		dateTo = '';
 		road = '';
 		site = '';
 		newOpen = true;
@@ -76,7 +79,7 @@
 					<span class="min-w-0 flex-1">
 						<span class="block truncate font-medium">{r.road || r.site || 'Ohne Bezeichnung'}</span>
 						<span class="block truncate text-[0.8125rem] text-ink-3">
-							{dayLabel(r.date)}{r.site && r.road ? ` · ${r.site}` : ''}{r.partyName ? ` · ${r.partyName}` : ''}
+							{r.dateTo ? reportDateLabel(r.date, r.dateTo) : dayLabel(r.date)}{r.site && r.road ? ` · ${r.site}` : ''}{r.partyName ? ` · ${r.partyName}` : ''}
 						</span>
 					</span>
 					{#if r.dailyOutput}<span class="hidden truncate text-sm text-ink-2 sm:block">{r.dailyOutput}</span>{/if}
@@ -99,14 +102,18 @@
 
 <Dialog bind:open={newOpen} title="Neuer Tagesbericht">
 	<form method="POST" action="?/create" use:enhance class="space-y-4">
-		<div class="grid gap-4 sm:grid-cols-2">
-			<label class="block">
-				<span class="field-label">Nummer</span>
-				<input class="input num" name="nummer" bind:value={number} maxlength="40" />
-			</label>
+		<label class="block">
+			<span class="field-label">Nummer</span>
+			<input class="input num" name="nummer" bind:value={number} maxlength="40" />
+		</label>
+		<div class="grid grid-cols-2 gap-4">
 			<label class="block">
 				<span class="field-label">Datum *</span>
 				<input class="input num" type="date" name="datum" bind:value={date} required />
+			</label>
+			<label class="block">
+				<span class="field-label">bis <span class="font-normal text-ink-3">(mehrere Tage)</span></span>
+				<input class="input num" type="date" name="datum_bis" bind:value={dateTo} min={date} />
 			</label>
 		</div>
 		<label class="block">
@@ -119,6 +126,7 @@
 		</label>
 		<datalist id="strassen">{#each data.places.roads as r (r)}<option value={r}></option>{/each}</datalist>
 		<datalist id="baustellen">{#each data.places.sites as s (s)}<option value={s}></option>{/each}</datalist>
+		{#if form?.message}<p class="field-error" role="alert">{form.message}</p>{/if}
 		<div class="flex justify-end gap-2 pt-1">
 			<button type="button" class="btn btn-ghost" onclick={() => (newOpen = false)}>Abbrechen</button>
 			<button class="btn btn-primary">Anlegen</button>

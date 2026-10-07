@@ -1,8 +1,8 @@
-import { error, redirect } from '@sveltejs/kit';
+import { error, fail, redirect } from '@sveltejs/kit';
 import { can } from '$lib/permissions';
 import { requireUser } from '$lib/server/guard';
-import { createReport, listReports, nextNumber, recentPlaces } from '$lib/modules/tagesberichte/server/reports';
-import { isValidIsoDate, today } from '$lib/modules/stunden/week';
+import { checkDateRange, createReport, listReports, nextNumber, recentPlaces } from '$lib/modules/tagesberichte/server/reports';
+import { today } from '$lib/modules/stunden/week';
 import type { Actions, PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async ({ locals, url }) => {
@@ -28,9 +28,11 @@ export const actions: Actions = {
 		if (!can(user.role, 'tagesberichte.erfassen')) error(403, 'Dafür fehlt dir die Berechtigung.');
 		const form = await request.formData();
 		const date = String(form.get('datum') ?? '');
-		if (!isValidIsoDate(date)) error(400, 'Ungültiges Datum');
+		const range = checkDateRange(date, String(form.get('datum_bis') ?? ''));
+		if ('message' in range) return fail(400, { message: range.message });
 		const id = await createReport(user, {
 			date,
+			dateTo: range.dateTo,
 			number: String(form.get('nummer') ?? ''),
 			road: String(form.get('strasse') ?? ''),
 			site: String(form.get('baustelle') ?? '')
