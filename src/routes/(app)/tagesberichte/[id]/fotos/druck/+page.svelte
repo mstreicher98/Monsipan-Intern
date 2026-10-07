@@ -56,16 +56,16 @@
 		break-inside: avoid;
 	}
 	.bild {
-		display: grid;
-		place-items: center;
 		height: min(70vh, 34rem);
 		background: var(--c-surface-2);
 		border-radius: 0.75rem;
 		overflow: hidden;
 	}
+	/* Füllt den Rahmen, das Foto selbst bleibt ganz darin – auch im Hochformat */
 	.bild img {
-		max-width: 100%;
-		max-height: 100%;
+		display: block;
+		width: 100%;
+		height: 100%;
 		object-fit: contain;
 	}
 	figcaption {
