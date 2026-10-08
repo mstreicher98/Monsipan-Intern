@@ -119,9 +119,15 @@ Inhaber-Konto immer erhalten. Die Regeln stehen in
 [`src/lib/user-rules.ts`](src/lib/user-rules.ts).
 
 **Berechtigungen:** Was eine Gruppe darf, steht unter **Verwaltung → Berechtigungen**. Oben
-wählt man die Gruppe, darunter steht je Bereich eine Zeile mit denselben Spalten:
+wählt man die Gruppe, darunter steht je Bereich eine Karte mit denselben Zeilen – Stufen
+und Ja/Nein als Umschalter, die Status-Schritte als Knöpfe zum An- und Abwählen. Bereiche
+ohne *Sehen* bleiben zugeklappt („Kein Zugriff“). Was noch nicht gespeichert ist, steht als
+„Geändert“ an der Karte und als Punkt an der Gruppe; erst dann erscheint die Leiste mit
+**Änderungen speichern** und **Verwerfen**. Die Ansicht **Vergleich** zeigt alle Gruppen
+nebeneinander: je Bereich die Stufe beim Sehen und kleine Felder für Erstellen, Bearbeiten,
+Status und Löschen (dunkel = ganz, gelb = teilweise); ein Klick springt zur Karte der Gruppe.
 
-| Spalte | Bedeutung |
+| Zeile | Bedeutung |
 |---|---|
 | **Sehen** | Den Bereich überhaupt öffnen. Bei Stundenzetteln, Tagesberichten und Aufträgen in Stufen: *Nein*, *Eigene Partie* oder *Alle* (Tagesberichte: auch die selbst angelegten); bei Stundenzetteln zusätzlich *Nur eigene* |
 | **Erstellen** | Neu anlegen – im Lager heißt das *Buchen* |
