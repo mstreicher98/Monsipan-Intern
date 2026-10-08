@@ -58,15 +58,21 @@
 		allowed = withImplied(next);
 	}
 
-	type Level = 'none' | 'own' | 'all';
-	const levelOf = (l: PermissionLevel): Level => (has(l.all) ? 'all' : l.own && has(l.own) ? 'own' : 'none');
-	const keysOf = (l: PermissionLevel) => [l.own, l.all].filter((p): p is Permission => !!p);
+	type Level = 'none' | 'self' | 'own' | 'all';
+	const levelOf = (l: PermissionLevel): Level =>
+		has(l.all) ? 'all' : l.own && has(l.own) ? 'own' : l.self && has(l.self) ? 'self' : 'none';
+	const keysOf = (l: PermissionLevel) => [l.self, l.own, l.all].filter((p): p is Permission => !!p);
 
 	function setLevel(area: PermissionArea, which: 'view' | 'edit' | 'remove', value: Level) {
 		const l = area[which]!;
 		if (which === 'view' && value === 'none') {
 			// Wer nichts sieht, darf im Bereich auch sonst nichts
 			change([], [...keysOf(l), ...areaActions(area)]);
+			return;
+		}
+		if (which === 'view' && value === 'self' && l.self) {
+			// Nur den eigenen Zettel ansehen – alles andere im Bereich setzt mehr voraus
+			change([l.self], [l.own, l.all, ...areaActions(area)].filter((p): p is Permission => !!p));
 			return;
 		}
 		if (value === 'none') change([], keysOf(l));
@@ -105,6 +111,7 @@
 			aria-label="{area.title}: {title}"
 		>
 			<option value="none">Nein</option>
+			{#if l.self}<option value="self">{l.selfLabel ?? 'Nur eigene'}</option>{/if}
 			<option value="own">{l.ownLabel ?? 'Eigene'}</option>
 			<option value="all">Alle</option>
 		</select>
@@ -178,13 +185,13 @@
 	{#each sections as [section, areas] (section)}
 		<section class="card mb-4 overflow-hidden">
 			<div class="overflow-x-auto">
-				<table class="w-full min-w-[54rem] border-collapse text-sm">
+				<table class="w-full min-w-[58rem] border-collapse text-sm">
 					<thead>
 						<tr class="border-b border-line bg-surface-2">
 							<th scope="col" class="sticky left-0 z-10 w-[13rem] bg-surface-2 px-4 py-2.5 text-left font-display text-[0.9375rem] font-semibold">{section}</th>
-							<th scope="col" class="w-[9rem] px-3 py-2.5 text-left font-semibold">Sehen</th>
+							<th scope="col" class="w-[10.5rem] px-3 py-2.5 text-left font-semibold">Sehen</th>
 							<th scope="col" class="w-[7rem] px-3 py-2.5 text-left font-semibold">Erstellen</th>
-							<th scope="col" class="w-[9rem] px-3 py-2.5 text-left font-semibold">Bearbeiten</th>
+							<th scope="col" class="w-[10.5rem] px-3 py-2.5 text-left font-semibold">Bearbeiten</th>
 							<th scope="col" class="px-3 py-2.5 text-left font-semibold">Status</th>
 							<th scope="col" class="w-[10rem] px-3 py-2.5 text-left font-semibold">Löschen</th>
 						</tr>
@@ -256,7 +263,7 @@
 	{/if}
 	<p class="field-hint mt-3">
 		Wer in einem Bereich etwas darf, darf ihn auch sehen – das wird gleich mit gesetzt. „Eigene Partie“ heißt: nur die der eigenen Partie
-		(bei Tagesberichten auch die selbst angelegten). Das Schloss markiert Rechte, die dem Admin nicht entzogen werden können – sonst käme niemand mehr an
+		(bei Tagesberichten auch die selbst angelegten). „Nur eigene“ bei Stundenzetteln heißt: nur den Zettel der Person selbst, ohne etwas daran zu ändern. Das Schloss markiert Rechte, die dem Admin nicht entzogen werden können – sonst käme niemand mehr an
 		Benutzer, Berechtigungen und Einstellungen.
 	</p>
 </form>

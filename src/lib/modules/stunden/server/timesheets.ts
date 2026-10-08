@@ -2,11 +2,11 @@
  * Stundenzettel: lesen, anlegen, speichern, freigeben, prüfen.
  *
  * Wer was darf, hängt an zwei Dingen: dem Recht (stunden.*) und der Partie.
- * Standardmäßig sieht und bearbeitet ein Partieführer nur seine eigene Partie;
- * „Andere Partien ansehen" und „Andere Partien bearbeiten" öffnen den Rest und
- * lassen sich unter Berechtigungen auch Partieführern geben. Den eigenen Zettel
- * darf jeder ansehen. Wer „Keine Stundenzettel" hat (etwa ein Admin-Konto),
- * fehlt in der Wochenliste – außer es gibt für diese Woche schon einen Zettel.
+ * Sehen hat drei Stufen: nur den eigenen Zettel (stunden.eigene.sehen), die
+ * eigene Partie (stunden.sehen) oder alle (stunden.alle.sehen). Bearbeiten gilt
+ * für die eigene Partie oder alle. Wer „Keine Stundenzettel" hat (etwa ein
+ * Admin-Konto), fehlt in der Wochenliste – außer es gibt für diese Woche schon
+ * einen Zettel.
  *
  * Aushilfe: War ein Arbeiter diese Woche mehr Tage bei einer anderen Partie,
  * übernimmt deren Partieführer die Woche und schreibt den ganzen Zettel
@@ -26,6 +26,10 @@ import { mondayOf, monthsOfWeek, normalizeRanges, parseHours, weekDaysInMonth, t
 const seesAll = (user: SessionUser) => can(user.role, 'stunden.alle.sehen') || can(user.role, 'stunden.alle.bearbeiten');
 const editsAll = (user: SessionUser) => can(user.role, 'stunden.alle.bearbeiten');
 const samePartyAs = (user: SessionUser, partyId: number | null | undefined) => !!user.partyId && user.partyId === partyId;
+/** Darf die Zettel der eigenen Partie sehen */
+const seesParty = (user: SessionUser) => !!user.partyId && can(user.role, 'stunden.sehen');
+/** Darf den eigenen Zettel sehen – jede höhere Stufe schließt das ein */
+const seesOwn = (user: SessionUser) => can(user.role, 'stunden.eigene.sehen') || can(user.role, 'stunden.sehen') || seesAll(user);
 
 /** Die Partie, die den Zettel schreibt: bei Aushilfe die übernehmende, sonst die eigene */
 export const writerParty = (sheet: { partyId: number | null; writingPartyId?: number | null }) => sheet.writingPartyId ?? sheet.partyId;
@@ -66,13 +70,13 @@ export async function staffFor(user: SessionUser): Promise<Staff[]> {
 	if (seesAll(user)) {
 		return base.where(activeUser).orderBy(asc(users.lastName), asc(users.firstName)).all();
 	}
-	if (can(user.role, 'stunden.sehen') && user.partyId) {
+	if (seesParty(user)) {
 		return base
-			.where(and(activeUser, eq(users.partyId, user.partyId)))
+			.where(and(activeUser, eq(users.partyId, user.partyId!)))
 			.orderBy(asc(users.lastName), asc(users.firstName))
 			.all();
 	}
-	return base.where(eq(users.id, user.id)).all();
+	return seesOwn(user) ? base.where(eq(users.id, user.id)).all() : [];
 }
 
 export interface WeekRow {
@@ -94,13 +98,14 @@ export interface WeekRow {
  */
 export async function weekOverview(user: SessionUser, weekStart: string): Promise<WeekRow[]> {
 	const staff = await staffFor(user);
-	if (user.partyId) {
+	// Aushilfen, die die eigene Partie schreibt – nur für die, die ihre Partie sehen
+	if (seesParty(user)) {
 		const borrowed = await db
 			.selectDistinct(staffFields)
 			.from(timesheets)
 			.innerJoin(users, eq(users.id, timesheets.userId))
 			.leftJoin(parties, eq(parties.id, users.partyId))
-			.where(and(eq(timesheets.weekStart, weekStart), eq(timesheets.writingPartyId, user.partyId)))
+			.where(and(eq(timesheets.weekStart, weekStart), eq(timesheets.writingPartyId, user.partyId!)))
 			.all();
 		for (const b of borrowed) if (!staff.some((s) => s.id === b.id)) staff.push(b);
 	}
@@ -364,10 +369,13 @@ type SheetParties = { partyId: number | null; writingPartyId?: number | null };
  * die schreibende und die eigene des Mitarbeiters (nur lesend).
  */
 export function mayView(user: SessionUser, sheet: SheetParties & { userId: number }): boolean {
-	if (sheet.userId === user.id) return true;
+	if (sheet.userId === user.id && seesOwn(user)) return true;
 	if (seesAll(user)) return true;
-	return can(user.role, 'stunden.sehen') && (samePartyAs(user, sheet.partyId) || samePartyAs(user, sheet.writingPartyId));
+	return seesParty(user) && (samePartyAs(user, sheet.partyId) || samePartyAs(user, sheet.writingPartyId));
 }
+
+/** Darf die Stundenzettel überhaupt öffnen – mindestens den eigenen */
+export const maySeeTimesheets = seesOwn;
 
 /**
  * Darf diese Person Stunden für diesen Mitarbeiter eintragen? „Bearbeiten" gilt

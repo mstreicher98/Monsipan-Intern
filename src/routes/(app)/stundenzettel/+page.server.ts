@@ -1,12 +1,13 @@
 import { error, fail, redirect } from '@sveltejs/kit';
 import { can } from '$lib/permissions';
 import { requireUser } from '$lib/server/guard';
-import { borrowCandidates, borrowWeek, mayRecordFor, openSheet, weekOverview } from '$lib/modules/stunden/server/timesheets';
+import { borrowCandidates, borrowWeek, mayRecordFor, maySeeTimesheets, openSheet, weekOverview } from '$lib/modules/stunden/server/timesheets';
 import { isValidIsoDate, mondayOf, today } from '$lib/modules/stunden/week';
 import type { Actions, PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async ({ locals, url }) => {
 	const user = requireUser(locals);
+	if (!maySeeTimesheets(user)) error(403, 'Dafür fehlt dir die Berechtigung.');
 	const param = url.searchParams.get('woche') ?? '';
 	const weekStart = mondayOf(isValidIsoDate(param) ? param : today());
 	const rows = await weekOverview(user, weekStart);

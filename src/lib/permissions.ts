@@ -4,7 +4,8 @@
  * Jeder Bereich hat dieselben Arten von Rechten: Sehen, Erstellen, Bearbeiten,
  * Status (bereichseigene Schritte wie Freigeben oder Prüfen) und Löschen.
  * Wo es um Partien geht, gibt es Sehen (und teils Bearbeiten und Löschen) in
- * Stufen: eigene Partie bzw. in Arbeit – oder alle.
+ * Stufen: eigene Partie bzw. in Arbeit – oder alle. Bei Stundenzetteln kommt
+ * beim Sehen noch „Nur eigene" davor: nur der Zettel der Person selbst.
  *
  * Im Code stehen die Standardrechte (DEFAULT_PERMISSIONS). Was tatsächlich gilt,
  * verwaltet der Admin unter Verwaltung → Berechtigungen; diese Matrix liegt in der
@@ -72,7 +73,8 @@ export const DEFAULT_PERMISSIONS = {
 	'lager.berichte.sehen': ['admin', 'geschaeftsfuehrer', 'bauleiter', 'buchhaltung', 'viewer'],
 	'lager.warnungen.sehen': ['admin', 'geschaeftsfuehrer', 'bauleiter', 'buchhaltung', 'viewer'],
 
-	// Stundenzettel – den eigenen Zettel sieht jeder
+	// Stundenzettel – sehen in drei Stufen: nur den eigenen, die eigene Partie, alle
+	'stunden.eigene.sehen': ALL,
 	'stunden.sehen': ['admin', 'geschaeftsfuehrer', 'bauleiter', 'buchhaltung', 'partiefuehrer'],
 	'stunden.alle.sehen': BUERO,
 	'stunden.erstellen': ['admin', 'geschaeftsfuehrer', 'bauleiter', 'partiefuehrer'],
@@ -145,13 +147,17 @@ export type Permission = keyof typeof DEFAULT_PERMISSIONS;
 export const PERMISSIONS = Object.keys(DEFAULT_PERMISSIONS) as Permission[];
 
 /**
- * Sehen, Bearbeiten und Löschen gibt es einfach (ja/nein) oder in zwei Stufen:
- * `own` (eigene Partie bzw. nur in Arbeit) und `all` (alle).
+ * Sehen, Bearbeiten und Löschen gibt es einfach (ja/nein) oder in Stufen:
+ * `own` (eigene Partie bzw. nur in Arbeit) und `all` (alle), bei Bedarf
+ * darunter noch `self` (nur das, was die Person selbst betrifft).
  */
 export interface PermissionLevel {
+	self?: Permission;
 	own?: Permission;
 	all: Permission;
-	/** Beschriftung der unteren Stufe, z. B. „Eigene Partie" oder „In Arbeit" */
+	/** Beschriftung der untersten Stufe, z. B. „Nur eigene" */
+	selfLabel?: string;
+	/** Beschriftung der mittleren Stufe, z. B. „Eigene Partie" oder „In Arbeit" */
 	ownLabel?: string;
 	hint?: string;
 }
@@ -214,8 +220,7 @@ export const PERMISSION_AREAS: PermissionArea[] = [
 		key: 'stunden',
 		title: 'Stundenzettel',
 		section: 'Dokumentation',
-		hint: 'Den eigenen Zettel sieht jeder',
-		view: { own: 'stunden.sehen', all: 'stunden.alle.sehen', ownLabel: PARTY },
+		view: { self: 'stunden.eigene.sehen', own: 'stunden.sehen', all: 'stunden.alle.sehen', selfLabel: 'Nur eigene', ownLabel: PARTY },
 		create: { key: 'stunden.erstellen', hint: 'Woche anlegen' },
 		edit: { own: 'stunden.bearbeiten', all: 'stunden.alle.bearbeiten', ownLabel: PARTY },
 		status: [
@@ -331,7 +336,7 @@ export function areaActions(area: PermissionArea): Permission[] {
 
 /**
  * Was zusammengehört, ergänzen: Wer in einem Bereich etwas darf, darf ihn auch
- * sehen (mindestens die untere Stufe); die Stufe „alle" schließt „eigene" ein.
+ * sehen (die Stufe „eigene Partie"); jede Stufe schließt die darunter ein.
  */
 export function withImplied(allowed: Set<string>): Set<string> {
 	const out = new Set(allowed);
@@ -339,8 +344,11 @@ export function withImplied(allowed: Set<string>): Set<string> {
 		const has = (p: Permission | undefined) => !!p && out.has(`${role}|${p}`);
 		const add = (p: Permission | undefined) => p && out.add(`${role}|${p}`);
 		for (const area of PERMISSION_AREAS) {
-			for (const level of [area.view, area.edit, area.remove]) if (level?.own && has(level.all)) add(level.own);
 			if (areaActions(area).some(has)) add(area.view.own ?? area.view.all);
+			for (const level of [area.view, area.edit, area.remove]) {
+				if (level?.own && has(level.all)) add(level.own);
+				if (level?.self && has(level.own ?? level.all)) add(level.self);
+			}
 		}
 	}
 	return out;

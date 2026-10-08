@@ -123,7 +123,7 @@ wählt man die Gruppe, darunter steht je Bereich eine Zeile mit denselben Spalte
 
 | Spalte | Bedeutung |
 |---|---|
-| **Sehen** | Den Bereich überhaupt öffnen. Bei Stundenzetteln, Tagesberichten und Aufträgen in Stufen: *Nein*, *Eigene Partie* oder *Alle* (Tagesberichte: auch die selbst angelegten) |
+| **Sehen** | Den Bereich überhaupt öffnen. Bei Stundenzetteln, Tagesberichten und Aufträgen in Stufen: *Nein*, *Eigene Partie* oder *Alle* (Tagesberichte: auch die selbst angelegten); bei Stundenzetteln zusätzlich *Nur eigene* |
 | **Erstellen** | Neu anlegen – im Lager heißt das *Buchen* |
 | **Bearbeiten** | Ändern – bei Stundenzetteln in Stufen (eigene Partie / alle), bei Bewegungen *Korrigieren* (stornieren und neu buchen) |
 | **Status** | Die Schritte des Bereichs, je ein Haken: z. B. Freigeben, Prüfen, Wieder öffnen, Link an den Kunden, Inventur, In Arbeit/abgeschlossen |
@@ -174,8 +174,11 @@ die Tage des anderen Monats bleiben leer.
 
 **Wer was sieht:** Ein Partieführer sieht und bearbeitet standardmäßig nur die Zettel
 seiner eigenen Partie. Unter **Verwaltung → Berechtigungen** steht dafür bei Stundenzettel
-**Sehen** und **Bearbeiten** je auf *Eigene Partie* oder *Alle*. Bauleitung und Admin sehen
-und bearbeiten alle, die Buchhaltung sieht alle. Den eigenen Zettel darf jeder ansehen.
+**Sehen** auf *Nein*, *Nur eigene*, *Eigene Partie* oder *Alle* und **Bearbeiten** auf
+*Eigene Partie* oder *Alle*. *Nur eigene* heißt: nur den eigenen Zettel ansehen, ohne etwas
+daran zu ändern – so steht es von Haus aus bei Arbeitern und „Nur ansehen“. Bauleitung und
+Admin sehen und bearbeiten alle, die Buchhaltung sieht alle. Bei *Nein* fehlen die
+Stundenzettel in der Navigation ganz.
 
 **Keine Stundenzettel:** Konten, die keine Stunden schreiben – etwa Admin- oder
 Büro-Konten –, bekommen unter **Benutzer** das Häkchen **Keine Stundenzettel**. Sie fehlen

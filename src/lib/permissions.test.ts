@@ -9,7 +9,7 @@ const defaultsSet = () => {
 
 describe('Rechte-Katalog', () => {
 	it('zeigt jedes Recht genau einmal auf der Seite', () => {
-		const shown: Permission[] = PERMISSION_AREAS.flatMap((a) => [a.view.own, a.view.all, ...areaActions(a)].filter((p): p is Permission => !!p));
+		const shown: Permission[] = PERMISSION_AREAS.flatMap((a) => [a.view.self, a.view.own, a.view.all, ...areaActions(a)].filter((p): p is Permission => !!p));
 		expect(new Set(shown).size).toBe(shown.length);
 		expect([...shown].sort()).toEqual([...PERMISSIONS].sort());
 	});
@@ -37,6 +37,23 @@ describe('withImplied', () => {
 		expect(out.has('arbeiter|tagesberichte.sehen')).toBe(true);
 		expect(out.has('arbeiter|angebote.loeschen.entwurf')).toBe(true);
 		expect(out.has('arbeiter|angebote.sehen')).toBe(true);
+	});
+
+	it('nimmt bei drei Stufen beide unteren mit', () => {
+		const out = withImplied(new Set(['arbeiter|stunden.alle.sehen']));
+		expect(out.has('arbeiter|stunden.sehen')).toBe(true);
+		expect(out.has('arbeiter|stunden.eigene.sehen')).toBe(true);
+	});
+
+	it('setzt über ein Recht im Bereich auch „nur eigene"', () => {
+		const out = withImplied(new Set(['arbeiter|stunden.erstellen']));
+		expect(out.has('arbeiter|stunden.sehen')).toBe(true);
+		expect(out.has('arbeiter|stunden.eigene.sehen')).toBe(true);
+	});
+
+	it('lässt bei „nur eigene" die Partie weg', () => {
+		const out = withImplied(new Set(['arbeiter|stunden.eigene.sehen']));
+		expect(out.has('arbeiter|stunden.sehen')).toBe(false);
 	});
 
 	it('setzt bei Stufen die untere Sehen-Stufe, nicht „alle"', () => {

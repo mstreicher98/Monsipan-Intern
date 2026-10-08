@@ -91,7 +91,7 @@ export const MODULES: AppModule[] = [
 		hint: 'Stundenzettel und Tagesberichte',
 		cardsPerItem: true,
 		items: [
-			{ href: '/stundenzettel', label: 'Stundenzettel', icon: Clock, hint: 'Lohnwoche je Mitarbeiter' },
+			{ href: '/stundenzettel', label: 'Stundenzettel', icon: Clock, permission: 'stunden.eigene.sehen', hint: 'Lohnwoche je Mitarbeiter' },
 			{ href: '/tagesberichte', label: 'Tagesberichte', icon: NotebookPen, permission: 'tagesberichte.sehen', hint: 'Leistung je Tag und Baustelle' }
 		]
 	},
