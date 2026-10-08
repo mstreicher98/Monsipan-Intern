@@ -15,15 +15,15 @@ const PAGE_SIZE = 20;
 
 export const load: PageServerLoad = async ({ params, url, depends, locals }) => {
 	depends('app:stock');
-	const user = requireUser(locals);
+	const user = requirePermission(locals, 'lager.artikel.sehen');
 	const id = Number(params.id);
 	if (!Number.isInteger(id)) error(404, 'Artikel nicht gefunden');
 	const product = await productWithLocations(id);
 	if (!product) error(404, 'Artikel nicht gefunden');
 
 	// Arbeiter sehen keine Bewegungen; Verbrauchszahlen nur mit Berichte-Recht
-	const showMovements = can(user.role, 'lager.movements.view');
-	const showReports = can(user.role, 'lager.reports.view');
+	const showMovements = can(user.role, 'lager.bewegungen.sehen');
+	const showReports = can(user.role, 'lager.berichte.sehen');
 	const page = Math.max(1, Number(url.searchParams.get('seite')) || 1);
 	const [codes, full, history, historyCount, consumption, documents] = await Promise.all([
 		db
@@ -65,7 +65,7 @@ export const load: PageServerLoad = async ({ params, url, depends, locals }) => 
 export const actions: Actions = {
 	/** PDF hochladen – nur Admin und Bauleiter */
 	uploadDocument: async ({ request, params, locals }) => {
-		const me = requirePermission(locals, 'lager.products.manage');
+		const me = requirePermission(locals, 'lager.artikel.bearbeiten');
 		const productId = Number(params.id);
 		const product = await db.select({ id: products.id }).from(products).where(eq(products.id, productId)).get();
 		if (!product) return fail(404, { docError: 'Artikel nicht gefunden.' });
@@ -98,7 +98,7 @@ export const actions: Actions = {
 
 	/** Dokument entfernen; die Datei bleibt noch eine Weile für Sicherungen liegen */
 	deleteDocument: async ({ request, params, locals }) => {
-		requirePermission(locals, 'lager.products.manage');
+		requirePermission(locals, 'lager.artikel.bearbeiten');
 		const documentId = Number((await request.formData()).get('documentId'));
 		if (!Number.isInteger(documentId)) return fail(400, { docError: 'Dokument fehlt.' });
 		await db
@@ -108,7 +108,7 @@ export const actions: Actions = {
 	},
 
 	removeCode: async ({ request, params, locals }) => {
-		requirePermission(locals, 'lager.products.manage');
+		requirePermission(locals, 'lager.artikel.bearbeiten');
 		const codeId = Number((await request.formData()).get('codeId'));
 		if (!Number.isInteger(codeId)) return fail(400, { message: 'Ungültiger Code' });
 		await db.delete(productCodes).where(and(eq(productCodes.id, codeId), eq(productCodes.productId, Number(params.id))));

@@ -342,9 +342,9 @@ export async function deleteOffer(id: number, withOrder = false) {
 	});
 }
 
-/** Löschen: in Arbeit, wer Angebote erstellt – in jedem anderen Stand nur mit „Angebote löschen" */
+/** Löschen: „in Arbeit" nur Angebote in Arbeit, „alle" in jedem Stand */
 export function mayDeleteOffer(user: SessionUser, offer: { status: string }): boolean {
-	return can(user.role, 'angebote.loeschen') || (offer.status === 'entwurf' && can(user.role, 'angebote.erstellen'));
+	return can(user.role, 'angebote.loeschen') || (offer.status === 'entwurf' && can(user.role, 'angebote.loeschen.entwurf'));
 }
 
 /** Link für den Kunden: 128 Bit Zufall, bleibt dauerhaft gleich */
@@ -361,9 +361,9 @@ export async function markOfferLinkSent(id: number, email: string) {
 	await db.update(offers).set({ customerEmail: email, customerLinkSentAt: new Date() }).where(eq(offers.id, id));
 }
 
-/** Bearbeiten: wer Angebote erstellen darf, solange es in Arbeit ist */
+/** Bearbeiten: wer Angebote bearbeiten darf, solange es in Arbeit ist */
 export function mayEditOffer(user: SessionUser, offer: { status: string }): boolean {
-	return offer.status === 'entwurf' && can(user.role, 'angebote.erstellen');
+	return offer.status === 'entwurf' && can(user.role, 'angebote.bearbeiten');
 }
 
 /** Den Link gibt es, sobald das Angebot einmal freigegeben ist */

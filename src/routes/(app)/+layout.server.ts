@@ -12,6 +12,6 @@ export const load: LayoutServerLoad = async ({ locals, depends }) => {
 		theme: locals.theme,
 		// Die vom Admin gepflegte Rechte-Matrix, damit `can()` im Browser dasselbe sagt
 		permissions: permissionMatrix(),
-		lowStockCount: can(user.role, 'lager.alerts.view') || can(user.role, 'lager.reports.view') ? await lowStockCount() : 0
+		lowStockCount: can(user.role, 'lager.warnungen.sehen') || can(user.role, 'lager.berichte.sehen') ? await lowStockCount() : 0
 	};
 };

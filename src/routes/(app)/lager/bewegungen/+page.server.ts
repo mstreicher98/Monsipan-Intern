@@ -14,7 +14,7 @@ const PAGE_SIZE = 50;
 
 export const load: PageServerLoad = async ({ url, depends, locals }) => {
 	depends('app:stock');
-	requirePermission(locals, 'lager.movements.view');
+	requirePermission(locals, 'lager.bewegungen.sehen');
 	const query = readMovementQuery(url);
 	const filter = await toMovementFilter(query);
 	const page = Math.max(1, Number(url.searchParams.get('seite')) || 1);
@@ -34,7 +34,7 @@ export const load: PageServerLoad = async ({ url, depends, locals }) => {
 
 export const actions: Actions = {
 	cancel: async ({ request, locals, url }) => {
-		const user = requirePermission(locals, 'lager.movements.correct');
+		const user = requirePermission(locals, 'lager.bewegungen.bearbeiten');
 		const form = await request.formData();
 		const id = intOrNull(form.get('id'));
 		const reason = str(form.get('reason'), 300);
@@ -50,7 +50,7 @@ export const actions: Actions = {
 		}
 	},
 	correct: async ({ request, locals, url }) => {
-		const user = requirePermission(locals, 'lager.movements.correct');
+		const user = requirePermission(locals, 'lager.bewegungen.bearbeiten');
 		const form = await request.formData();
 		const id = intOrNull(form.get('id'));
 		const quantity = intOrNull(form.get('quantity'));

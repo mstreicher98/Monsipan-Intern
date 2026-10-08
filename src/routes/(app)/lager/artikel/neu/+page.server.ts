@@ -9,7 +9,7 @@ import { parseProductForm } from '$lib/modules/lager/server/product-form';
 import type { Actions, PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async ({ locals, url }) => {
-	requirePermission(locals, 'lager.products.manage');
+	requirePermission(locals, 'lager.artikel.erstellen');
 	const [categories, colors, manufacturers] = await Promise.all([
 		categoryOptions(),
 		colorOptions(),
@@ -25,7 +25,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 
 export const actions: Actions = {
 	default: async ({ request, locals }) => {
-		requirePermission(locals, 'lager.products.manage');
+		requirePermission(locals, 'lager.artikel.erstellen');
 		const form = await request.formData();
 		const parsed = parseProductForm(form);
 		if (!parsed.ok) return fail(400, { values: parsed.values, errors: parsed.errors, codeConflict: null });

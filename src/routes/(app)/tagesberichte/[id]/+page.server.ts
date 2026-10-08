@@ -57,6 +57,7 @@ export const load: PageServerLoad = async ({ params, locals, url }) => {
 		// Die Artikelauswahl braucht nur, wer auch eintragen darf
 		products: editable ? await materialProducts() : [],
 		editable,
+		canDelete: report.status === 'entwurf' && editable && can(user.role, 'tagesberichte.loeschen'),
 		canRelease: report.status === 'entwurf' && working && can(user.role, 'tagesberichte.freigeben'),
 		// Vor der Prüfung kann der Kunde auf der Baustelle am Gerät unterschreiben
 		canSignOnSite: working && !report.customerSignature,
@@ -250,8 +251,8 @@ export const actions: Actions = {
 
 	delete: async ({ params, locals }) => {
 		const { user, report } = await open(Number(params.id), locals);
-		if (report.status !== 'entwurf' || !mayEdit(user, report)) {
-			return fail(403, { message: 'Nur Berichte in Arbeit können gelöscht werden.' });
+		if (report.status !== 'entwurf' || !mayEdit(user, report) || !can(user.role, 'tagesberichte.loeschen')) {
+			return fail(403, { message: 'Nur Berichte in Arbeit können gelöscht werden – und nur mit dem Recht zum Löschen.' });
 		}
 		await deleteReport(report.id);
 		redirect(303, '/tagesberichte');

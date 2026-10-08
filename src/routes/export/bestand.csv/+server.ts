@@ -1,5 +1,5 @@
 import { csvResponse, today, toCsv } from '$lib/server/csv';
-import { requireUser } from '$lib/server/guard';
+import { requirePermission } from '$lib/server/guard';
 import { locationOptions } from '$lib/server/options';
 import { stockByLocation } from '$lib/modules/lager/server/products';
 import { listStock, parseStockFilter } from '$lib/modules/lager/server/stock-list';
@@ -7,7 +7,7 @@ import { unitLabel } from '$lib/format';
 import type { RequestHandler } from './$types';
 
 export const GET: RequestHandler = async ({ url, locals }) => {
-	requireUser(locals);
+	requirePermission(locals, 'lager.bestand.sehen');
 	const filter = parseStockFilter(url);
 	const { rows } = await listStock(filter, 100_000, 0);
 	const locs = await locationOptions(false);

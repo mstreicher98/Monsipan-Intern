@@ -13,7 +13,7 @@ type Entity = (typeof ENTITIES)[number];
 
 export const load: PageServerLoad = async ({ locals, url, depends }) => {
 	depends('app:stock');
-	requirePermission(locals, 'verwaltung.masterdata.manage');
+	requirePermission(locals, 'stammdaten.sehen');
 	const tab = (ENTITIES as readonly string[]).includes(url.searchParams.get('tab') ?? '') ? (url.searchParams.get('tab') as Entity) : 'orte';
 
 	const [locs, partyRows, cats, cols] = await Promise.all([
@@ -93,10 +93,11 @@ async function nextSort(table: typeof locations | typeof categories | typeof col
 
 export const actions: Actions = {
 	save: async ({ request, locals }) => {
-		requirePermission(locals, 'verwaltung.masterdata.manage');
 		const f = await request.formData();
 		const entity = String(f.get('entity')) as Entity;
 		const id = intOrNull(f.get('id'));
+		// Ändern und Anlegen sind getrennte Rechte
+		requirePermission(locals, id ? 'stammdaten.bearbeiten' : 'stammdaten.erstellen');
 		const name = str(f.get('name'), 80);
 		if (!name) return fail(400, { entity, message: 'Bitte einen Namen eingeben.' });
 		try {
@@ -144,7 +145,7 @@ export const actions: Actions = {
 	},
 
 	toggle: async ({ request, locals }) => {
-		requirePermission(locals, 'verwaltung.masterdata.manage');
+		requirePermission(locals, 'stammdaten.bearbeiten');
 		const f = await request.formData();
 		const entity = String(f.get('entity')) as Entity;
 		const id = intOrNull(f.get('id'));
@@ -169,7 +170,7 @@ export const actions: Actions = {
 	},
 
 	delete: async ({ request, locals }) => {
-		requirePermission(locals, 'verwaltung.masterdata.manage');
+		requirePermission(locals, 'stammdaten.loeschen');
 		const f = await request.formData();
 		const entity = String(f.get('entity')) as Entity;
 		const id = intOrNull(f.get('id'));
@@ -211,7 +212,7 @@ export const actions: Actions = {
 	},
 
 	move: async ({ request, locals }) => {
-		requirePermission(locals, 'verwaltung.masterdata.manage');
+		requirePermission(locals, 'stammdaten.bearbeiten');
 		const f = await request.formData();
 		const entity = String(f.get('entity')) as Entity;
 		const id = intOrNull(f.get('id'));

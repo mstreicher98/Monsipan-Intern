@@ -5,12 +5,12 @@ import { eq } from 'drizzle-orm';
 import { db } from '$lib/server/db';
 import { productDocuments } from '$lib/server/db/schema';
 import { documentFile } from '$lib/server/documents';
-import { requireUser } from '$lib/server/guard';
+import { requirePermission } from '$lib/server/guard';
 import type { RequestHandler } from './$types';
 
-/** PDF ausliefern – zum Anzeigen (Standard) oder mit ?download zum Speichern. Alle Angemeldeten. */
+/** PDF ausliefern – zum Anzeigen (Standard) oder mit ?download zum Speichern. Wer Artikel sehen darf. */
 export const GET: RequestHandler = async ({ params, url, locals, request }) => {
-	requireUser(locals);
+	requirePermission(locals, 'lager.artikel.sehen');
 	const id = Number(params.id);
 	if (!Number.isInteger(id)) error(404, 'Dokument nicht gefunden');
 	const doc = await db.select().from(productDocuments).where(eq(productDocuments.id, id)).get();

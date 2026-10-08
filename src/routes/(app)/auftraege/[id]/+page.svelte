@@ -291,7 +291,7 @@
 			<button class="btn btn-ghost" name="status" value="in_arbeit" disabled={busy}><Undo size={18} aria-hidden="true" />Wieder in Arbeit</button>
 		</form>
 	{/if}
-	{#if data.canManage && order.status !== 'erstellt'}
+	{#if data.canReset && order.status !== 'erstellt'}
 		<button type="button" class="btn btn-ghost" onclick={() => (resetOpen = true)}><Undo size={18} aria-hidden="true" />Zurück auf „Auftrag erstellt"</button>
 	{/if}
 	{#if data.canDelete}

@@ -17,8 +17,14 @@
 	import { findRal } from '$lib/ral';
 	import { toast } from '$lib/stores/toast.svelte';
 	import { withParams } from '$lib/url';
+	import { can } from '$lib/permissions';
 
 	let { data } = $props();
+
+	/** Ansehen darf, wer Stammdaten sieht – Anlegen, Ändern und Löschen sind eigene Rechte */
+	const canCreate = $derived(can(data.user.role, 'stammdaten.erstellen'));
+	const canEdit = $derived(can(data.user.role, 'stammdaten.bearbeiten'));
+	const canDelete = $derived(can(data.user.role, 'stammdaten.loeschen'));
 
 	const TABS = [
 		{ value: 'orte', label: 'Lagerorte', icon: Warehouse },
@@ -102,12 +108,14 @@
 			{:else if tab === 'materialarten'}Gruppiert Artikel für Filter und Berichte.
 			{:else}Farbmuster erscheinen als Streifen am Artikel.{/if}
 		</p>
-		<button
-			class="btn btn-primary btn-sm"
-			onclick={() => edit({ id: null, name: '', description: '', note: '', hex: '#9AA0A6' })}
-		>
-			<Plus size={16} aria-hidden="true" />{noun} anlegen
-		</button>
+		{#if canCreate}
+			<button
+				class="btn btn-primary btn-sm"
+				onclick={() => edit({ id: null, name: '', description: '', note: '', hex: '#9AA0A6' })}
+			>
+				<Plus size={16} aria-hidden="true" />{noun} anlegen
+			</button>
+		{/if}
 	</div>
 
 	{#snippet order(id: number, first: boolean, last: boolean)}
@@ -138,15 +146,16 @@
 		{#if tab === 'orte'}
 			{#each data.locations as l, i (l.id)}
 				<li class="flex items-center gap-3 px-4 py-3 lg:px-6" animate:flip={{ duration: 220 }} class:opacity-60={!l.active}>
-					{@render order(l.id, i === 0, i === data.locations.length - 1)}
+					{#if canEdit}{@render order(l.id, i === 0, i === data.locations.length - 1)}{/if}
 					<div class="min-w-0 flex-1">
 						<p class="font-medium">{l.name}{#if !l.active}<span class="badge ml-2">Inaktiv</span>{/if}</p>
 						<p class="text-sm text-ink-3">
 							{l.units > 0 ? `${l.units} Stück in ${l.articles} Artikeln` : 'Leer'}{l.description ? `, ${l.description}` : ''}
 						</p>
 					</div>
-					{@render toggle(l.id, l.active)}
-					<button class="btn btn-ghost btn-sm btn-icon" aria-label="{l.name} bearbeiten" onclick={() => edit({ id: l.id, name: l.name, description: l.description })}><Pencil size={16} /></button>
+					{#if canEdit}{@render toggle(l.id, l.active)}{/if}
+					{#if canEdit}<button class="btn btn-ghost btn-sm btn-icon" aria-label="{l.name} bearbeiten" onclick={() => edit({ id: l.id, name: l.name, description: l.description })}><Pencil size={16} /></button>{/if}
+					{#if canDelete}
 					<button
 						class="btn btn-ghost btn-sm btn-icon hover:text-danger"
 						aria-label="{l.name} löschen"
@@ -155,6 +164,7 @@
 							confirmOpen = true;
 						}}><Trash size={16} /></button
 					>
+					{/if}
 				</li>
 			{/each}
 		{:else if tab === 'partien'}
@@ -171,8 +181,9 @@
 								.join(', ')}
 						</p>
 					</div>
-					{@render toggle(p.id, p.active)}
-					<button class="btn btn-ghost btn-sm btn-icon" aria-label="{p.name} bearbeiten" onclick={() => edit({ id: p.id, name: p.name, note: p.note })}><Pencil size={16} /></button>
+					{#if canEdit}{@render toggle(p.id, p.active)}{/if}
+					{#if canEdit}<button class="btn btn-ghost btn-sm btn-icon" aria-label="{p.name} bearbeiten" onclick={() => edit({ id: p.id, name: p.name, note: p.note })}><Pencil size={16} /></button>{/if}
+					{#if canDelete}
 					<button
 						class="btn btn-ghost btn-sm btn-icon hover:text-danger"
 						aria-label="{p.name} löschen"
@@ -189,6 +200,7 @@
 							confirmOpen = true;
 						}}><Trash size={16} /></button
 					>
+					{/if}
 				</li>
 			{:else}
 				<li class="px-6 py-12 text-center text-ink-3">Noch keine Partien. Lege die Partien an, an die Material ausgegeben wird.</li>
@@ -196,12 +208,13 @@
 		{:else if tab === 'materialarten'}
 			{#each data.categories as c, i (c.id)}
 				<li class="flex items-center gap-3 px-4 py-3 lg:px-6" animate:flip={{ duration: 220 }}>
-					{@render order(c.id, i === 0, i === data.categories.length - 1)}
+					{#if canEdit}{@render order(c.id, i === 0, i === data.categories.length - 1)}{/if}
 					<div class="min-w-0 flex-1">
 						<p class="font-medium">{c.name}</p>
 						<p class="text-sm text-ink-3">{c.products} Artikel</p>
 					</div>
-					<button class="btn btn-ghost btn-sm btn-icon" aria-label="{c.name} bearbeiten" onclick={() => edit({ id: c.id, name: c.name })}><Pencil size={16} /></button>
+					{#if canEdit}<button class="btn btn-ghost btn-sm btn-icon" aria-label="{c.name} bearbeiten" onclick={() => edit({ id: c.id, name: c.name })}><Pencil size={16} /></button>{/if}
+					{#if canDelete}
 					<button
 						class="btn btn-ghost btn-sm btn-icon hover:text-danger"
 						aria-label="{c.name} löschen"
@@ -210,12 +223,13 @@
 							confirmOpen = true;
 						}}><Trash size={16} /></button
 					>
+					{/if}
 				</li>
 			{/each}
 		{:else}
 			{#each data.colors as c, i (c.id)}
 				<li class="flex items-center gap-3 px-4 py-3 lg:px-6" animate:flip={{ duration: 220 }}>
-					{@render order(c.id, i === 0, i === data.colors.length - 1)}
+					{#if canEdit}{@render order(c.id, i === 0, i === data.colors.length - 1)}{/if}
 					<span class="size-8 shrink-0 rounded-lg border border-black/10" style:background={c.hex}></span>
 					<div class="min-w-0 flex-1">
 						<p class="font-medium">{c.name}{#if c.ral}<span class="badge num ml-2">RAL {c.ral}</span>{/if}</p>
@@ -223,7 +237,8 @@
 							{[findRal(c.ral)?.name, c.hex.toUpperCase(), `${c.products} Artikel`].filter(Boolean).join(', ')}
 						</p>
 					</div>
-					<button class="btn btn-ghost btn-sm btn-icon" aria-label="{c.name} bearbeiten" onclick={() => edit({ id: c.id, name: c.name, ral: c.ral, hex: c.hex })}><Pencil size={16} /></button>
+					{#if canEdit}<button class="btn btn-ghost btn-sm btn-icon" aria-label="{c.name} bearbeiten" onclick={() => edit({ id: c.id, name: c.name, ral: c.ral, hex: c.hex })}><Pencil size={16} /></button>{/if}
+					{#if canDelete}
 					<button
 						class="btn btn-ghost btn-sm btn-icon hover:text-danger"
 						aria-label="{c.name} löschen"
@@ -232,6 +247,7 @@
 							confirmOpen = true;
 						}}><Trash size={16} /></button
 					>
+					{/if}
 				</li>
 			{/each}
 		{/if}

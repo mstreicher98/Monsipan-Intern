@@ -13,19 +13,20 @@ import {
 import type { Actions, PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async ({ locals, url }) => {
-	requirePermission(locals, 'kunden.pflegen');
+	requirePermission(locals, 'kunden.sehen');
 	const filter = { q: url.searchParams.get('q') ?? '', all: url.searchParams.get('alle') === '1' };
 	return { customers: await listCustomers(filter), filter };
 };
 
 export const actions: Actions = {
 	save: async ({ request, locals }) => {
-		requirePermission(locals, 'kunden.pflegen');
 		const form = await request.formData();
+		const id = Number(form.get('id'));
+		// Ändern und Anlegen sind getrennte Rechte
+		requirePermission(locals, Number.isInteger(id) && id > 0 ? 'kunden.bearbeiten' : 'kunden.erstellen');
 		const data = readCustomer(form);
 		const problem = customerProblem(data);
 		if (problem) return fail(400, { message: problem });
-		const id = Number(form.get('id'));
 		if (Number.isInteger(id) && id > 0) {
 			if (!(await getCustomer(id))) return fail(404, { message: 'Diesen Kunden gibt es nicht mehr.' });
 			await updateCustomer(id, data);
@@ -35,7 +36,7 @@ export const actions: Actions = {
 	},
 
 	active: async ({ request, locals }) => {
-		requirePermission(locals, 'kunden.pflegen');
+		requirePermission(locals, 'kunden.bearbeiten');
 		const form = await request.formData();
 		const id = Number(form.get('id'));
 		if (!Number.isInteger(id)) return fail(400, { message: 'Unbekannter Kunde' });
@@ -44,7 +45,7 @@ export const actions: Actions = {
 	},
 
 	delete: async ({ request, locals }) => {
-		requirePermission(locals, 'kunden.pflegen');
+		requirePermission(locals, 'kunden.loeschen');
 		const id = Number((await request.formData()).get('id'));
 		if (!Number.isInteger(id)) return fail(400, { message: 'Unbekannter Kunde' });
 		if (!(await deleteCustomer(id))) {

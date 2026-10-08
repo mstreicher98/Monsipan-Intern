@@ -7,7 +7,7 @@ import { routeParts, signedQty } from '$lib/modules/lager/movement-view';
 import type { RequestHandler } from './$types';
 
 export const GET: RequestHandler = async ({ url, locals }) => {
-	requirePermission(locals, 'lager.movements.view');
+	requirePermission(locals, 'lager.bewegungen.sehen');
 	const { facts, notice, rows } = await movementsPrintData(url);
 
 	return pdfResponse(`bewegungen-${today()}.pdf`, {

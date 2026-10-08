@@ -35,9 +35,10 @@ const START_ROWS = 10;
 const releaser = alias(users, 'releaser');
 const checker = alias(users, 'checker');
 
-/** Nur eigene bzw. Partie-Berichte, wenn das Recht auf alle fehlt */
+/** Alle, nur eigene bzw. Partie-Berichte – oder gar keine */
 function scope(user: SessionUser) {
 	if (can(user.role, 'tagesberichte.alle.sehen')) return undefined;
+	if (!can(user.role, 'tagesberichte.sehen')) return eq(dailyReports.id, -1);
 	const own = eq(dailyReports.createdBy, user.id);
 	return user.partyId ? or(own, eq(dailyReports.partyId, user.partyId)) : own;
 }
@@ -489,18 +490,19 @@ export async function deleteReport(id: number) {
 
 export function mayView(user: SessionUser, report: { createdBy: number | null; partyId: number | null }): boolean {
 	if (can(user.role, 'tagesberichte.alle.sehen')) return true;
+	if (!can(user.role, 'tagesberichte.sehen')) return false;
 	if (report.createdBy === user.id) return true;
 	return !!user.partyId && user.partyId === report.partyId;
 }
 
 /**
- * Am Bericht arbeiten: in Arbeit wer erfassen darf, freigegeben nur noch wer
+ * Am Bericht arbeiten: in Arbeit wer bearbeiten darf, freigegeben nur noch wer
  * prüft (um vor dem Prüfen zu korrigieren). Geprüfte und abgeschlossene
  * Berichte nur nach dem Wieder öffnen.
  */
 export function mayWork(user: SessionUser, report: { createdBy: number | null; partyId: number | null; status: string }): boolean {
 	if (!mayView(user, report)) return false;
-	if (report.status === 'entwurf') return can(user.role, 'tagesberichte.erfassen');
+	if (report.status === 'entwurf') return can(user.role, 'tagesberichte.bearbeiten');
 	if (report.status === 'freigegeben') return can(user.role, 'tagesberichte.pruefen');
 	return false;
 }

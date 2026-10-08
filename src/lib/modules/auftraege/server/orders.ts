@@ -19,8 +19,8 @@ const statusUser = alias(users, 'status_user');
 
 function scope(user: SessionUser): SQL | undefined {
 	if (can(user.role, 'auftraege.alle.sehen')) return undefined;
-	// Ohne Partie gibt es nichts zu sehen
-	return user.partyId ? eq(orders.partyId, user.partyId) : eq(orders.id, -1);
+	// Ohne Recht oder ohne Partie gibt es nichts zu sehen
+	return can(user.role, 'auftraege.sehen') && user.partyId ? eq(orders.partyId, user.partyId) : eq(orders.id, -1);
 }
 
 export interface OrderFilter {
@@ -240,20 +240,19 @@ export async function deleteOrder(id: number) {
 	await db.delete(orders).where(eq(orders.id, id));
 }
 
-/** Löschen: noch nicht begonnene, wer Aufträge erstellt – sonst nur mit „Aufträge löschen" */
+/** Löschen: „nicht begonnene" nur Aufträge im Stand „Auftrag erstellt", „alle" in jedem Stand */
 export function mayDeleteOrder(user: SessionUser, order: { status: string }): boolean {
-	return can(user.role, 'auftraege.loeschen') || (order.status === 'erstellt' && can(user.role, 'auftraege.erstellen'));
+	return can(user.role, 'auftraege.loeschen') || (order.status === 'erstellt' && can(user.role, 'auftraege.loeschen.neu'));
 }
 
 export function mayViewOrder(user: SessionUser, order: { partyId: number | null }): boolean {
 	if (can(user.role, 'auftraege.alle.sehen')) return true;
-	return !!user.partyId && user.partyId === order.partyId;
+	return can(user.role, 'auftraege.sehen') && !!user.partyId && user.partyId === order.partyId;
 }
 
-/** Status setzen: die eigene Partie – das Büro (Aufträge erstellen) bei allen */
+/** In Arbeit / abgeschlossen setzen: bei den Aufträgen, die man sieht */
 export function maySetOrderStatus(user: SessionUser, order: { partyId: number | null }): boolean {
-	if (!can(user.role, 'auftraege.status')) return false;
-	return can(user.role, 'auftraege.erstellen') || (!!user.partyId && user.partyId === order.partyId);
+	return can(user.role, 'auftraege.status') && mayViewOrder(user, order);
 }
 
 /** Aktive Partien zur Auswahl */

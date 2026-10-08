@@ -24,7 +24,7 @@
 	let resultOpen = $state(false);
 	let result = $state<LookupResult | null>(null);
 
-	const showAlerts = $derived(can(data.user.role, 'lager.alerts.view'));
+	const showAlerts = $derived(can(data.user.role, 'lager.warnungen.sehen'));
 
 	onMount(() => {
 		const uninstall = installWedgeListener();
@@ -94,8 +94,9 @@
 <ScanResultDialog
 	bind:open={resultOpen}
 	{result}
-	canBook={can(data.user.role, 'lager.stock.book')}
-	canManage={can(data.user.role, 'lager.products.manage')}
+	canBook={can(data.user.role, 'lager.bestand.buchen')}
+	canCreate={can(data.user.role, 'lager.artikel.erstellen')}
+	canManage={can(data.user.role, 'lager.artikel.bearbeiten')}
 />
 
 {#if scanner.open}

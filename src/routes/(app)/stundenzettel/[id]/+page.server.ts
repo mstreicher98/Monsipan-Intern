@@ -34,6 +34,7 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 		totals: totals(sheet.days),
 		sites: await recentSites(),
 		editable: mayEdit(user, sheet),
+		canDelete: sheet.status === 'entwurf' && mayEdit(user, sheet) && can(user.role, 'stunden.loeschen'),
 		canRelease: can(user.role, 'stunden.freigeben'),
 		canCheck: can(user.role, 'stunden.pruefen'),
 		canReopen: mayReopen(user.role, sheet.status),
@@ -162,8 +163,8 @@ export const actions: Actions = {
 
 	delete: async ({ params, locals }) => {
 		const { user, sheet } = await load_(Number(params.id), locals);
-		if (!mayEdit(user, sheet) || sheet.status !== 'entwurf') {
-			return fail(403, { message: 'Nur Wochen in Arbeit können gelöscht werden.' });
+		if (!mayEdit(user, sheet) || sheet.status !== 'entwurf' || !can(user.role, 'stunden.loeschen')) {
+			return fail(403, { message: 'Nur Wochen in Arbeit können gelöscht werden – und nur mit dem Recht zum Löschen.' });
 		}
 		const week = sheet.weekStart;
 		await deleteSheet(sheet.id);

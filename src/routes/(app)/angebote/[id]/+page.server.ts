@@ -41,9 +41,9 @@ export const load: PageServerLoad = async ({ params, locals, url }) => {
 		offer,
 		editable,
 		customers: editable ? await listCustomers() : [],
-		canAddCustomer: editable && can(user.role, 'kunden.pflegen'),
+		canAddCustomer: editable && can(user.role, 'kunden.erstellen'),
 		canRelease: offer.status === 'entwurf' && can(user.role, 'angebote.freigeben'),
-		canWithdraw: (offer.status === 'freigegeben' || offer.status === 'aenderung') && can(user.role, 'angebote.erstellen'),
+		canWithdraw: (offer.status === 'freigegeben' || offer.status === 'aenderung') && can(user.role, 'angebote.bearbeiten'),
 		canReopen: offer.status === 'angenommen' && !offer.order && can(user.role, 'angebote.oeffnen.angenommen'),
 		canDelete: mayDeleteOffer(user, offer),
 		// Den Auftrag gleich mitlöschen darf, wer ihn auch einzeln löschen dürfte
@@ -151,7 +151,7 @@ export const actions: Actions = {
 	/** Zurück in Arbeit – zum Überarbeiten, etwa nach einem Änderungswunsch */
 	withdraw: async ({ params, locals }) => {
 		const { user, offer } = await open(Number(params.id), locals);
-		if (!can(user.role, 'angebote.erstellen')) return fail(403, { message: 'Dafür fehlt dir die Berechtigung.' });
+		if (!can(user.role, 'angebote.bearbeiten')) return fail(403, { message: 'Dafür fehlt dir die Berechtigung.' });
 		await withdrawOffer(offer.id);
 		return { withdrawn: true };
 	},
@@ -175,7 +175,7 @@ export const actions: Actions = {
 	/** Neuer Kunde direkt aus dem Angebot – er wird gleich ausgewählt */
 	newCustomer: async ({ params, request, locals }) => {
 		const { user, offer } = await open(Number(params.id), locals);
-		if (!mayEditOffer(user, offer) || !can(user.role, 'kunden.pflegen')) return fail(403, { customerMessage: 'Dafür fehlt dir die Berechtigung.' });
+		if (!mayEditOffer(user, offer) || !can(user.role, 'kunden.erstellen')) return fail(403, { customerMessage: 'Dafür fehlt dir die Berechtigung.' });
 		const data = readCustomer(await request.formData());
 		const problem = customerProblem(data);
 		if (problem) return fail(400, { customerMessage: problem });

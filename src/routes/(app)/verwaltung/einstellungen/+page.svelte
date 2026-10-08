@@ -16,11 +16,13 @@
 	import Dialog from '$lib/components/Dialog.svelte';
 	import PasswordInput from '$lib/components/PasswordInput.svelte';
 	import { dateTime, int } from '$lib/format';
-	import { ROLE_LABELS, ROLES } from '$lib/permissions';
+	import { can, ROLE_LABELS, ROLES } from '$lib/permissions';
 	import { isResetPhrase } from '$lib/reset-phrase';
 	import { toast } from '$lib/stores/toast.svelte';
 
 	let { data } = $props();
+	/** Ansehen darf, wer Einstellungen sieht – ändern (auch Sicherungen) nur mit „Bearbeiten" */
+	const canEdit = $derived(can(data.user.role, 'einstellungen.bearbeiten'));
 	let busy = $state('');
 
 	// Sicherung wiederherstellen
@@ -96,8 +98,10 @@
 <div class="pt-2 pb-5">
 	<h1 class="text-[2rem] leading-tight">Einstellungen</h1>
 	<p class="text-ink-2">Warnungen, E-Mail-Versand und Datensicherung.</p>
+	{#if !canEdit}<p class="mt-2 rounded-xl bg-surface-2 px-3 py-2 text-sm text-ink-2">Nur zum Ansehen – ändern darf, wer Einstellungen bearbeiten darf.</p>{/if}
 </div>
 
+<fieldset disabled={!canEdit} class="contents">
 <div class="grid gap-4 lg:grid-cols-2">
 	<section class="card p-4 lg:p-6" aria-labelledby="h-alerts">
 		<h2 id="h-alerts" class="flex items-center gap-2 text-xl"><Bell size={20} aria-hidden="true" />Warn-Mails zum Mindestbestand</h2>
@@ -225,9 +229,11 @@
 					>
 						<History size={16} />
 					</button>
-					<a href="/export/backup/{b.file}" class="btn btn-ghost btn-sm btn-icon" aria-label="Sicherung vom {dateTime(b.createdAt)} herunterladen" download>
-						<Download size={16} />
-					</a>
+					{#if canEdit}
+						<a href="/export/backup/{b.file}" class="btn btn-ghost btn-sm btn-icon" aria-label="Sicherung vom {dateTime(b.createdAt)} herunterladen" download>
+							<Download size={16} />
+						</a>
+					{/if}
 				</li>
 			{:else}
 				<li class="px-3 py-4 text-sm text-ink-3">Noch keine Sicherung vorhanden.</li>
@@ -268,6 +274,7 @@
 		</div>
 	</section>
 </div>
+</fieldset>
 
 <Dialog bind:open={resetOpen} title="Wirklich alle Daten löschen?" description="Dieser Schritt lässt sich in der App nicht rückgängig machen.">
 	<form

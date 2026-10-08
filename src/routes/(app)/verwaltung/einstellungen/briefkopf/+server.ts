@@ -7,7 +7,7 @@ import type { RequestHandler } from './$types';
 
 /** Vorschau des Briefkopfs in den Einstellungen */
 export const GET: RequestHandler = async ({ locals }) => {
-	requirePermission(locals, 'verwaltung.settings.manage');
+	requirePermission(locals, 'einstellungen.sehen');
 	const file = letterheadPath((await getSettings()).letterheadFile);
 	if (!file) error(404, 'Kein Briefkopf hinterlegt');
 	return new Response(await fs.promises.readFile(file), {

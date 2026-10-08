@@ -9,13 +9,21 @@
 	import CustomerFields from '$lib/modules/auftraege/components/CustomerFields.svelte';
 	import { addressLines } from '$lib/modules/auftraege/offer';
 	import { toast } from '$lib/stores/toast.svelte';
+	import { can } from '$lib/permissions';
 
 	let { data, form } = $props();
+
+	/** Ansehen darf, wer Kunden sieht – Anlegen, Ändern und Löschen sind eigene Rechte */
+	const canCreate = $derived(can(data.user.role, 'kunden.erstellen'));
+	const canEdit = $derived(can(data.user.role, 'kunden.bearbeiten'));
+	const canDelete = $derived(can(data.user.role, 'kunden.loeschen'));
 
 	type Row = (typeof data.customers)[number];
 	let editing = $state<Row | null>(null);
 	let open = $state(false);
 	let busy = $state(false);
+	/** Neu anlegen oder ändern – sonst nur ansehen */
+	const writable = $derived(editing ? canEdit : canCreate);
 
 	function edit(c: Row | null) {
 		editing = c;
@@ -30,7 +38,7 @@
 		<h1 class="flex items-center gap-2 text-[2rem] leading-tight"><Building size={26} aria-hidden="true" />Kunden</h1>
 		<p class="text-ink-2">Anschriften für Angebote – im Angebot einfach auswählen.</p>
 	</div>
-	<button class="btn btn-primary" onclick={() => edit(null)}><Plus size={18} aria-hidden="true" />Neuer Kunde</button>
+	{#if canCreate}<button class="btn btn-primary" onclick={() => edit(null)}><Plus size={18} aria-hidden="true" />Neuer Kunde</button>{/if}
 </div>
 
 <form method="GET" class="card mb-4 flex flex-wrap items-end gap-3 p-3">
@@ -75,7 +83,7 @@
 	</ul>
 </div>
 
-<Dialog bind:open title={editing ? 'Kunde bearbeiten' : 'Neuer Kunde'} wide>
+<Dialog bind:open title={editing ? (canEdit ? 'Kunde bearbeiten' : 'Kunde') : 'Neuer Kunde'} wide>
 	<form
 		method="POST"
 		action="?/save"
@@ -93,21 +101,23 @@
 		}}
 	>
 		{#if editing}<input type="hidden" name="id" value={editing.id} />{/if}
-		<CustomerFields customer={editing} />
+		<fieldset disabled={!writable} class="contents"><CustomerFields customer={editing} /></fieldset>
 		{#if form && 'message' in form && form.message}<p class="field-error" role="alert">{form.message}</p>{/if}
 		<div class="flex flex-wrap justify-end gap-2 pt-1">
 			<button type="button" class="btn btn-ghost" onclick={() => (open = false)}>Abbrechen</button>
-			<button class="btn btn-primary" disabled={busy}>{busy ? 'Wird gespeichert …' : 'Speichern'}</button>
+			{#if writable}<button class="btn btn-primary" disabled={busy}>{busy ? 'Wird gespeichert …' : 'Speichern'}</button>{/if}
 		</div>
 	</form>
-	{#if editing}
+	{#if editing && (canEdit || (canDelete && editing.offers === 0))}
 		<div class="mt-4 flex flex-wrap gap-2 border-t border-line pt-4">
+			{#if canEdit}
 			<form method="POST" action="?/active" use:enhance={() => async ({ update }) => ((open = false), await update())}>
 				<input type="hidden" name="id" value={editing.id} />
 				<input type="hidden" name="active" value={editing.active ? '0' : '1'} />
 				<button class="btn btn-ghost btn-sm">{editing.active ? 'Ausblenden' : 'Wieder einblenden'}</button>
 			</form>
-			{#if editing.offers === 0}
+			{/if}
+			{#if canDelete && editing.offers === 0}
 				<form
 					method="POST"
 					action="?/delete"

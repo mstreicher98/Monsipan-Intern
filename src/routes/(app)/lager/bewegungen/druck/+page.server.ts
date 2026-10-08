@@ -4,6 +4,6 @@ import type { PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async ({ url, depends, locals }) => {
 	depends('app:stock');
-	requirePermission(locals, 'lager.movements.view');
+	requirePermission(locals, 'lager.bewegungen.sehen');
 	return movementsPrintData(url);
 };

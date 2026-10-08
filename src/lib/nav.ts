@@ -47,8 +47,8 @@ export function allNavItems(role: Role): NavItem[] {
 /** Rechter Reiter der Handy-Leiste: Bewegungen, ohne Einblick in Bewegungen stattdessen Buchen */
 export function bottomRightTab(role: Role): NavItem | null {
 	const lager = MODULES.find((m) => m.key === 'lager')!;
-	if (can(role, 'lager.movements.view')) return lager.items.find((i) => i.href === '/lager/bewegungen')!;
-	if (can(role, 'lager.stock.book')) return lager.items.find((i) => i.href === '/lager/buchen')!;
+	if (can(role, 'lager.bewegungen.sehen')) return lager.items.find((i) => i.href === '/lager/bewegungen')!;
+	if (can(role, 'lager.bestand.buchen')) return lager.items.find((i) => i.href === '/lager/buchen')!;
 	return null;
 }
 

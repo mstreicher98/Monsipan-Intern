@@ -75,8 +75,8 @@ export const MODULES: AppModule[] = [
 		cardsPerItem: true,
 		items: [
 			{ href: '/angebote', label: 'Angebote', icon: FilePen, permission: 'angebote.sehen', hint: 'Mit Preisen, Link zum Annehmen' },
-			{ href: '/auftraege', label: 'Aufträge', icon: HardHat, hint: 'Arbeiten je Partie' },
-			{ href: '/kunden', label: 'Kunden', icon: Building, permission: 'kunden.pflegen', hint: 'Anschriften für Angebote' }
+			{ href: '/auftraege', label: 'Aufträge', icon: HardHat, permission: 'auftraege.sehen', hint: 'Arbeiten je Partie' },
+			{ href: '/kunden', label: 'Kunden', icon: Building, permission: 'kunden.sehen', hint: 'Anschriften für Angebote' }
 		]
 	},
 	{ key: 'planung', label: 'Planung', icon: CalendarDays, href: '/planung', group: 'betrieb', status: 'geplant', items: [] },
@@ -92,7 +92,7 @@ export const MODULES: AppModule[] = [
 		cardsPerItem: true,
 		items: [
 			{ href: '/stundenzettel', label: 'Stundenzettel', icon: Clock, hint: 'Lohnwoche je Mitarbeiter' },
-			{ href: '/tagesberichte', label: 'Tagesberichte', icon: NotebookPen, hint: 'Leistung je Tag und Baustelle' }
+			{ href: '/tagesberichte', label: 'Tagesberichte', icon: NotebookPen, permission: 'tagesberichte.sehen', hint: 'Leistung je Tag und Baustelle' }
 		]
 	},
 	{
@@ -104,12 +104,12 @@ export const MODULES: AppModule[] = [
 		status: 'aktiv',
 		hint: 'Bestand, Buchen, Inventur, Bestellliste',
 		items: [
-			{ href: '/lager/bestand', label: 'Bestand', icon: Boxes },
-			{ href: '/lager/buchen', label: 'Buchen', icon: ScanLine, permission: 'lager.stock.book' },
-			{ href: '/lager/inventur', label: 'Inventur', icon: ClipboardCheck, permission: 'lager.stock.inventory' },
-			{ href: '/lager/bewegungen', label: 'Bewegungen', icon: ArrowLeftRight, permission: 'lager.movements.view' },
-			{ href: '/lager/bestellliste', label: 'Bestellliste', icon: ClipboardList, permission: 'lager.reports.view', badge: 'lowStock' },
-			{ href: '/lager/berichte', label: 'Berichte', icon: ChartColumn, permission: 'lager.reports.view' }
+			{ href: '/lager/bestand', label: 'Bestand', icon: Boxes, permission: 'lager.bestand.sehen' },
+			{ href: '/lager/buchen', label: 'Buchen', icon: ScanLine, permission: 'lager.bestand.buchen' },
+			{ href: '/lager/inventur', label: 'Inventur', icon: ClipboardCheck, permission: 'lager.bestand.inventur' },
+			{ href: '/lager/bewegungen', label: 'Bewegungen', icon: ArrowLeftRight, permission: 'lager.bewegungen.sehen' },
+			{ href: '/lager/bestellliste', label: 'Bestellliste', icon: ClipboardList, permission: 'lager.berichte.sehen', badge: 'lowStock' },
+			{ href: '/lager/berichte', label: 'Berichte', icon: ChartColumn, permission: 'lager.berichte.sehen' }
 		]
 	},
 	{ key: 'bestellungen', label: 'Bestellungen', icon: ShoppingCart, href: '/bestellungen', group: 'material', status: 'geplant', items: [] },
@@ -124,8 +124,8 @@ export const MODULES: AppModule[] = [
 		status: 'aktiv',
 		hint: 'Zugänge, Gruppen und Rechte',
 		items: [
-			{ href: '/verwaltung/benutzer', label: 'Benutzer', icon: UserCog, permission: 'verwaltung.users.manage' },
-			{ href: '/verwaltung/berechtigungen', label: 'Berechtigungen', icon: ShieldCheck, permission: 'verwaltung.permissions.manage' }
+			{ href: '/verwaltung/benutzer', label: 'Benutzer', icon: UserCog, permission: 'benutzer.sehen' },
+			{ href: '/verwaltung/berechtigungen', label: 'Berechtigungen', icon: ShieldCheck, permission: 'berechtigungen.sehen' }
 		]
 	},
 	{
@@ -137,8 +137,8 @@ export const MODULES: AppModule[] = [
 		status: 'aktiv',
 		hint: 'Stammdaten, Einstellungen, Sicherungen',
 		items: [
-			{ href: '/verwaltung/stammdaten', label: 'Stammdaten', icon: Database, permission: 'verwaltung.masterdata.manage' },
-			{ href: '/verwaltung/einstellungen', label: 'Einstellungen', icon: Settings, permission: 'verwaltung.settings.manage' }
+			{ href: '/verwaltung/stammdaten', label: 'Stammdaten', icon: Database, permission: 'stammdaten.sehen' },
+			{ href: '/verwaltung/einstellungen', label: 'Einstellungen', icon: Settings, permission: 'einstellungen.sehen' }
 		]
 	}
 ];

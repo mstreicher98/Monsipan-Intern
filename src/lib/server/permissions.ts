@@ -10,6 +10,7 @@ import {
 	PERMISSIONS,
 	ROLES,
 	setPermissionMatrix,
+	withImplied,
 	type Permission,
 	type PermissionMatrix,
 	type Role
@@ -69,8 +70,12 @@ export async function setPermission(role: Role, permission: Permission, allowed:
 	await reloadPermissions();
 }
 
-/** Ganze Matrix aus dem Formular übernehmen */
-export async function savePermissions(allowed: Set<string>) {
+/**
+ * Ganze Matrix aus dem Formular übernehmen. Was zusammengehört, wird ergänzt:
+ * wer in einem Bereich etwas darf, darf ihn auch sehen; „alle" schließt „eigene" ein.
+ */
+export async function savePermissions(chosen: Set<string>) {
+	const allowed = withImplied(chosen);
 	await db.transaction(async (tx) => {
 		for (const permission of PERMISSIONS) {
 			for (const role of ROLES) {

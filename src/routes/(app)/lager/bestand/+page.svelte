@@ -19,7 +19,7 @@
 
 	let { data } = $props();
 
-	const canManage = $derived(can(data.user.role, 'lager.products.manage'));
+	const canManage = $derived(can(data.user.role, 'lager.artikel.erstellen'));
 	let q = $state(page.url.searchParams.get('q') ?? '');
 	let showFilters = $state(false);
 	let timer: ReturnType<typeof setTimeout>;

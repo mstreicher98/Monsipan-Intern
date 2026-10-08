@@ -5,7 +5,7 @@ import { resetPermissions, savePermissions } from '$lib/server/permissions';
 import type { Actions, PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async ({ locals }) => {
-	requirePermission(locals, 'verwaltung.permissions.manage');
+	requirePermission(locals, 'berechtigungen.sehen');
 	return { matrix: permissionMatrix() };
 };
 
@@ -14,7 +14,7 @@ const isPermission = (v: string): v is Permission => (PERMISSIONS as string[]).i
 
 export const actions: Actions = {
 	save: async ({ request, locals }) => {
-		requirePermission(locals, 'verwaltung.permissions.manage');
+		requirePermission(locals, 'berechtigungen.bearbeiten');
 		const form = await request.formData();
 		const allowed = new Set<string>();
 		for (const value of form.getAll('erlaubt')) {
@@ -27,7 +27,7 @@ export const actions: Actions = {
 	},
 
 	reset: async ({ locals }) => {
-		requirePermission(locals, 'verwaltung.permissions.manage');
+		requirePermission(locals, 'berechtigungen.bearbeiten');
 		await resetPermissions();
 		return { reset: true };
 	}

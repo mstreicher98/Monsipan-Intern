@@ -5,7 +5,7 @@ import { monthLong, unitLabel } from '$lib/format';
 import type { RequestHandler } from './$types';
 
 export const GET: RequestHandler = async ({ url, locals }) => {
-	requirePermission(locals, 'lager.reports.view');
+	requirePermission(locals, 'lager.berichte.sehen');
 	const months = [6, 12, 24].includes(Number(url.searchParams.get('monate'))) ? Number(url.searchParams.get('monate')) : 12;
 	const { keys, rows } = await consumptionMatrix(months, {
 		categoryId: Number(url.searchParams.get('kat')) || null,

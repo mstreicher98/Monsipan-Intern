@@ -15,7 +15,7 @@ import { ROLES, type Role } from '$lib/permissions';
 import type { Actions, PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async ({ locals }) => {
-	const me = requirePermission(locals, 'verwaltung.settings.manage');
+	const me = requirePermission(locals, 'einstellungen.sehen');
 	const [settings, counts] = await Promise.all([
 		getSettings(),
 		Promise.all([
@@ -57,7 +57,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 
 export const actions: Actions = {
 	alerts: async ({ request, locals }) => {
-		requirePermission(locals, 'verwaltung.settings.manage');
+		requirePermission(locals, 'einstellungen.bearbeiten');
 		const f = await request.formData();
 		const roles = f.getAll('roles').map(String).filter((r): r is Role => (ROLES as readonly string[]).includes(r));
 		await updateSettings({ alertEmailsEnabled: f.get('enabled') === 'on', alertRoles: roles });
@@ -65,7 +65,7 @@ export const actions: Actions = {
 	},
 	/** Vorlagen für Angebote: Einleitung, Schlusstext, Fußzeile */
 	offerTexts: async ({ request, locals }) => {
-		requirePermission(locals, 'verwaltung.settings.manage');
+		requirePermission(locals, 'einstellungen.bearbeiten');
 		const f = await request.formData();
 		const text = (key: string, max: number) => String(f.get(key) ?? '').replace(/\r\n/g, '\n').trim().slice(0, max);
 		await updateSettings({
@@ -78,7 +78,7 @@ export const actions: Actions = {
 		return { saved: 'offerTexts' };
 	},
 	letterhead: async ({ request, locals }) => {
-		requirePermission(locals, 'verwaltung.settings.manage');
+		requirePermission(locals, 'einstellungen.bearbeiten');
 		const upload = (await request.formData()).get('bild');
 		if (!(upload instanceof File) || upload.size === 0) return fail(400, { message: 'Bitte ein Bild auswählen.' });
 		try {
@@ -90,12 +90,12 @@ export const actions: Actions = {
 		return { saved: 'letterhead' };
 	},
 	letterheadRemove: async ({ locals }) => {
-		requirePermission(locals, 'verwaltung.settings.manage');
+		requirePermission(locals, 'einstellungen.bearbeiten');
 		await updateSettings({ letterheadFile: null });
 		return { saved: 'letterhead' };
 	},
 	testMail: async ({ request, locals }) => {
-		requirePermission(locals, 'verwaltung.settings.manage');
+		requirePermission(locals, 'einstellungen.bearbeiten');
 		const to = str((await request.formData()).get('to'), 120);
 		if (!to.includes('@')) return fail(400, { message: 'Bitte eine E-Mail-Adresse angeben.' });
 		const ok = await sendMail(testMail(to));
@@ -103,14 +103,14 @@ export const actions: Actions = {
 		return { mailed: to };
 	},
 	backup: async ({ locals }) => {
-		requirePermission(locals, 'verwaltung.settings.manage');
+		requirePermission(locals, 'einstellungen.bearbeiten');
 		const name = await createBackup();
 		return { backup: name };
 	},
 	/** Alles zurücksetzen – doppelt bestätigt: Bestätigungstext + eigenes Passwort */
 	/** Sicherung einspielen: aus der Liste oder als hochgeladene Datei */
 	restore: async ({ request, locals, getClientAddress }) => {
-		const me = requirePermission(locals, 'verwaltung.settings.manage');
+		const me = requirePermission(locals, 'einstellungen.bearbeiten');
 		const f = await request.formData();
 		const key = `restore:${getClientAddress()}:${me.id}`;
 		if (isRateLimited(key, 5)) return fail(429, { restore: true, message: 'Zu viele Versuche. Bitte in 15 Minuten erneut versuchen.' });
@@ -144,7 +144,7 @@ export const actions: Actions = {
 	},
 
 	reset: async ({ request, locals, getClientAddress }) => {
-		const me = requirePermission(locals, 'verwaltung.settings.manage');
+		const me = requirePermission(locals, 'einstellungen.bearbeiten');
 		const f = await request.formData();
 		if (!isResetPhrase(String(f.get('phrase') ?? ''))) {
 			return fail(400, { reset: true, message: `Bitte genau „${RESET_PHRASE}“ eintippen.` });

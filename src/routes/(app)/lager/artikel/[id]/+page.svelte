@@ -29,9 +29,9 @@
 
 	let { data } = $props();
 	const p = $derived(data.product);
-	const canBook = $derived(can(data.user.role, 'lager.stock.book'));
-	const canInventory = $derived(can(data.user.role, 'lager.stock.inventory'));
-	const canManage = $derived(can(data.user.role, 'lager.products.manage'));
+	const canBook = $derived(can(data.user.role, 'lager.bestand.buchen'));
+	const canInventory = $derived(can(data.user.role, 'lager.bestand.inventur'));
+	const canManage = $derived(can(data.user.role, 'lager.artikel.bearbeiten'));
 	const maxQty = $derived(Math.max(1, ...p.locations.map((l) => l.quantity)));
 
 	const KIND_LABEL = { ean: 'EAN / GTIN', artikel: 'Artikelnummer', sonstige: 'Weiterer Code' } as const;

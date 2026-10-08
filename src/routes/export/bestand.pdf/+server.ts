@@ -1,4 +1,4 @@
-import { requireUser } from '$lib/server/guard';
+import { requirePermission } from '$lib/server/guard';
 import { stockPrintData } from '$lib/modules/lager/server/print';
 import { pdfResponse } from '$lib/server/pdf';
 import { today } from '$lib/server/csv';
@@ -6,7 +6,7 @@ import { unitLabel } from '$lib/format';
 import type { RequestHandler } from './$types';
 
 export const GET: RequestHandler = async ({ url, locals }) => {
-	requireUser(locals);
+	requirePermission(locals, 'lager.bestand.sehen');
 	const { facts, notice, items } = await stockPrintData(url);
 
 	return pdfResponse(`bestand-${today()}.pdf`, {

@@ -1,8 +1,13 @@
 /**
  * Rollen und Rechte.
  *
+ * Jeder Bereich hat dieselben Arten von Rechten: Sehen, Erstellen, Bearbeiten,
+ * Status (bereichseigene Schritte wie Freigeben oder Prüfen) und Löschen.
+ * Wo es um Partien geht, gibt es Sehen (und teils Bearbeiten und Löschen) in
+ * Stufen: eigene Partie bzw. in Arbeit – oder alle.
+ *
  * Im Code stehen die Standardrechte (DEFAULT_PERMISSIONS). Was tatsächlich gilt,
- * verwaltet der Admin unter Benutzer → Berechtigungen; diese Matrix liegt in der
+ * verwaltet der Admin unter Verwaltung → Berechtigungen; diese Matrix liegt in der
  * Datenbank und wird beim Start in `current` geladen – auf dem Server wie im
  * Browser. `can()` bleibt dadurch eine einfache, synchrone Abfrage.
  */
@@ -21,10 +26,10 @@ export const ROLE_LABELS: Record<Role, string> = {
 
 export const ROLE_DESCRIPTIONS: Record<Role, string> = {
 	admin: 'Alles, inklusive Benutzer, Berechtigungen und Einstellungen',
-	geschaeftsfuehrer: 'Sieht und prüft alles – Lager, Stunden, Tagesberichte, Berichte; Benutzer und Einstellungen bleiben beim Admin',
-	bauleiter: 'Buchen, Inventur, Korrekturen, Artikel und Stammdaten pflegen, Berichte, Stunden und Tagesberichte',
-	buchhaltung: 'Stundenzettel prüfen, Tagesberichte und Auswertungen einsehen, Stammdaten pflegen – ohne Lagerbuchungen',
-	partiefuehrer: 'Bestand und Bewegungen ansehen, buchen, Stundenzettel und Tagesberichte der eigenen Partie',
+	geschaeftsfuehrer: 'Sieht und prüft alles – Lager, Stunden, Tagesberichte, Angebote, Aufträge; Benutzer und Einstellungen bleiben beim Admin',
+	bauleiter: 'Buchen, Inventur, Korrekturen, Artikel und Stammdaten pflegen, Stunden, Tagesberichte, Angebote und Aufträge',
+	buchhaltung: 'Stundenzettel und Tagesberichte prüfen, Angebote und Aufträge schreiben, Stammdaten pflegen – ohne Lagerbuchungen',
+	partiefuehrer: 'Bestand und Bewegungen ansehen, buchen, Stundenzettel, Tagesberichte und Aufträge der eigenen Partie',
 	arbeiter: 'Bestand ansehen, ein- und ausbuchen, umlagern – ohne Einblick in Bewegungen',
 	viewer: 'Alles ansehen außer Stammdaten, Benutzer und Einstellungen – ohne Änderungen'
 };
@@ -44,193 +49,314 @@ export function mayHaveParty(role: Role | undefined | null): boolean {
 	return !!role && (PARTY_ROLES.includes(role) || OPTIONAL_PARTY_ROLES.includes(role));
 }
 
+const ALL: Role[] = [...ROLES];
+const LEITUNG: Role[] = ['admin', 'geschaeftsfuehrer', 'bauleiter'];
+const BUERO: Role[] = ['admin', 'geschaeftsfuehrer', 'bauleiter', 'buchhaltung'];
+
 /**
- * Standardrechte je Bereich. Ein neuer Bereich ergänzt nur seinen eigenen Block;
- * fehlende Einträge werden beim Start aus dieser Tabelle in die Datenbank übernommen.
+ * Standardrechte. Ein neuer Bereich ergänzt nur seinen eigenen Block; fehlende
+ * Einträge werden beim Start aus dieser Tabelle in die Datenbank übernommen.
  * Der Geschäftsführer hat von Haus aus alles, was Bauleitung oder Buchhaltung haben.
  */
 export const DEFAULT_PERMISSIONS = {
 	// Lager
-	'lager.stock.book': ['admin', 'geschaeftsfuehrer', 'bauleiter', 'partiefuehrer', 'arbeiter'],
-	'lager.stock.inventory': ['admin', 'geschaeftsfuehrer', 'bauleiter'],
-	'lager.movements.view': ['admin', 'geschaeftsfuehrer', 'bauleiter', 'buchhaltung', 'partiefuehrer', 'viewer'],
-	'lager.movements.correct': ['admin', 'geschaeftsfuehrer', 'bauleiter'],
-	'lager.products.manage': ['admin', 'geschaeftsfuehrer', 'bauleiter'],
-	'lager.reports.view': ['admin', 'geschaeftsfuehrer', 'bauleiter', 'buchhaltung', 'viewer'],
-	'lager.alerts.view': ['admin', 'geschaeftsfuehrer', 'bauleiter', 'buchhaltung', 'viewer'],
+	'lager.bestand.sehen': ALL,
+	'lager.bestand.buchen': ['admin', 'geschaeftsfuehrer', 'bauleiter', 'partiefuehrer', 'arbeiter'],
+	'lager.bestand.inventur': LEITUNG,
+	'lager.bewegungen.sehen': ['admin', 'geschaeftsfuehrer', 'bauleiter', 'buchhaltung', 'partiefuehrer', 'viewer'],
+	'lager.bewegungen.bearbeiten': LEITUNG,
+	'lager.artikel.sehen': ALL,
+	'lager.artikel.erstellen': LEITUNG,
+	'lager.artikel.bearbeiten': LEITUNG,
+	'lager.artikel.loeschen': LEITUNG,
+	'lager.berichte.sehen': ['admin', 'geschaeftsfuehrer', 'bauleiter', 'buchhaltung', 'viewer'],
+	'lager.warnungen.sehen': ['admin', 'geschaeftsfuehrer', 'bauleiter', 'buchhaltung', 'viewer'],
 
-	// Stundenzettel
-	'stunden.erfassen': ['admin', 'geschaeftsfuehrer', 'bauleiter', 'partiefuehrer'],
+	// Stundenzettel – den eigenen Zettel sieht jeder
+	'stunden.sehen': ['admin', 'geschaeftsfuehrer', 'bauleiter', 'buchhaltung', 'partiefuehrer'],
+	'stunden.alle.sehen': BUERO,
+	'stunden.erstellen': ['admin', 'geschaeftsfuehrer', 'bauleiter', 'partiefuehrer'],
+	'stunden.bearbeiten': ['admin', 'geschaeftsfuehrer', 'bauleiter', 'partiefuehrer'],
+	'stunden.alle.bearbeiten': LEITUNG,
 	'stunden.freigeben': ['admin', 'geschaeftsfuehrer', 'bauleiter', 'partiefuehrer'],
-	'stunden.pruefen': ['admin', 'geschaeftsfuehrer', 'bauleiter', 'buchhaltung'],
-	// Status zurücksetzen – die Unterschriften verfallen dabei
-	'stunden.oeffnen.freigegeben': ['admin', 'geschaeftsfuehrer', 'bauleiter', 'buchhaltung'],
-	'stunden.oeffnen.geprueft': ['admin', 'geschaeftsfuehrer', 'bauleiter', 'buchhaltung'],
-	'stunden.pruefung.zuruecknehmen': ['admin', 'geschaeftsfuehrer', 'bauleiter', 'buchhaltung'],
-	// Ohne diese beiden Rechte sieht und bearbeitet man nur die eigene Partie
-	'stunden.alle.sehen': ['admin', 'geschaeftsfuehrer', 'bauleiter', 'buchhaltung'],
-	'stunden.alle.bearbeiten': ['admin', 'geschaeftsfuehrer', 'bauleiter'],
-	// Arbeiter einer anderen Partie für eine Woche übernehmen
+	'stunden.pruefen': BUERO,
+	'stunden.pruefung.zuruecknehmen': BUERO,
+	'stunden.oeffnen.freigegeben': BUERO,
+	'stunden.oeffnen.geprueft': BUERO,
 	'stunden.aushilfe': ['admin', 'geschaeftsfuehrer', 'bauleiter', 'partiefuehrer'],
+	'stunden.loeschen': ['admin', 'geschaeftsfuehrer', 'bauleiter', 'partiefuehrer'],
 
-	// Tagesberichte
-	'tagesberichte.erfassen': ['admin', 'geschaeftsfuehrer', 'bauleiter', 'partiefuehrer'],
-	'tagesberichte.freigeben': ['admin', 'geschaeftsfuehrer', 'bauleiter', 'partiefuehrer'],
-	'tagesberichte.pruefen': ['admin', 'geschaeftsfuehrer', 'bauleiter', 'buchhaltung'],
-	'tagesberichte.kundenlink': ['admin', 'geschaeftsfuehrer', 'bauleiter', 'buchhaltung'],
-	// Wieder öffnen je Status – den vom Kunden unterschriebenen Bericht nur die Leitung
-	'tagesberichte.oeffnen.freigegeben': ['admin', 'geschaeftsfuehrer', 'bauleiter', 'buchhaltung'],
-	'tagesberichte.oeffnen.geprueft': ['admin', 'geschaeftsfuehrer', 'bauleiter', 'buchhaltung'],
-	'tagesberichte.oeffnen.abgeschlossen': ['admin', 'geschaeftsfuehrer'],
-	'tagesberichte.pruefung.zuruecknehmen': ['admin', 'geschaeftsfuehrer', 'bauleiter', 'buchhaltung'],
+	// Tagesberichte – „sehen" heißt: die der eigenen Partie und die selbst angelegten
+	'tagesberichte.sehen': ALL,
 	'tagesberichte.alle.sehen': ['admin', 'geschaeftsfuehrer', 'bauleiter', 'buchhaltung', 'viewer'],
+	'tagesberichte.erstellen': ['admin', 'geschaeftsfuehrer', 'bauleiter', 'partiefuehrer'],
+	'tagesberichte.bearbeiten': ['admin', 'geschaeftsfuehrer', 'bauleiter', 'partiefuehrer'],
+	'tagesberichte.freigeben': ['admin', 'geschaeftsfuehrer', 'bauleiter', 'partiefuehrer'],
+	'tagesberichte.pruefen': BUERO,
+	'tagesberichte.pruefung.zuruecknehmen': BUERO,
+	'tagesberichte.oeffnen.freigegeben': BUERO,
+	'tagesberichte.oeffnen.geprueft': BUERO,
+	'tagesberichte.oeffnen.abgeschlossen': ['admin', 'geschaeftsfuehrer'],
+	'tagesberichte.kundenlink': BUERO,
+	'tagesberichte.loeschen': ['admin', 'geschaeftsfuehrer', 'bauleiter', 'partiefuehrer'],
 
-	// Angebote und Aufträge – Preise sieht nur, wer Angebote sehen darf
+	// Angebote – Preise sieht nur, wer Angebote sehen darf
 	'angebote.sehen': ['admin', 'geschaeftsfuehrer', 'bauleiter', 'buchhaltung', 'viewer'],
-	'angebote.erstellen': ['admin', 'geschaeftsfuehrer', 'bauleiter', 'buchhaltung'],
-	'angebote.freigeben': ['admin', 'geschaeftsfuehrer', 'bauleiter'],
+	'angebote.erstellen': BUERO,
+	'angebote.bearbeiten': BUERO,
+	'angebote.freigeben': LEITUNG,
 	'angebote.oeffnen.angenommen': ['admin', 'geschaeftsfuehrer'],
-	// Löschen in jedem Stand – Angebote in Arbeit löscht auch, wer sie erstellt
+	'angebote.loeschen.entwurf': BUERO,
 	'angebote.loeschen': ['admin', 'geschaeftsfuehrer'],
-	'kunden.pflegen': ['admin', 'geschaeftsfuehrer', 'bauleiter', 'buchhaltung'],
-	'auftraege.erstellen': ['admin', 'geschaeftsfuehrer', 'bauleiter', 'buchhaltung'],
-	'auftraege.status': ['admin', 'geschaeftsfuehrer', 'bauleiter', 'partiefuehrer'],
-	// Löschen in jedem Stand – noch nicht begonnene löscht auch, wer Aufträge erstellt
-	'auftraege.loeschen': ['admin', 'geschaeftsfuehrer'],
-	// Ohne dieses Recht sieht man nur die Aufträge der eigenen Partie
+
+	// Aufträge – „sehen" heißt: die der eigenen Partie
+	'auftraege.sehen': ALL,
 	'auftraege.alle.sehen': ['admin', 'geschaeftsfuehrer', 'bauleiter', 'buchhaltung', 'viewer'],
+	'auftraege.erstellen': BUERO,
+	'auftraege.bearbeiten': BUERO,
+	'auftraege.status': ['admin', 'geschaeftsfuehrer', 'bauleiter', 'partiefuehrer'],
+	'auftraege.status.zuruecksetzen': BUERO,
+	'auftraege.loeschen.neu': BUERO,
+	'auftraege.loeschen': ['admin', 'geschaeftsfuehrer'],
+
+	// Kunden
+	'kunden.sehen': BUERO,
+	'kunden.erstellen': BUERO,
+	'kunden.bearbeiten': BUERO,
+	'kunden.loeschen': BUERO,
 
 	// Verwaltung
-	'verwaltung.masterdata.manage': ['admin', 'geschaeftsfuehrer', 'bauleiter', 'buchhaltung'],
-	'verwaltung.users.manage': ['admin'],
-	'verwaltung.permissions.manage': ['admin'],
-	'verwaltung.settings.manage': ['admin']
+	'stammdaten.sehen': BUERO,
+	'stammdaten.erstellen': BUERO,
+	'stammdaten.bearbeiten': BUERO,
+	'stammdaten.loeschen': BUERO,
+	'benutzer.sehen': ['admin'],
+	'benutzer.erstellen': ['admin'],
+	'benutzer.bearbeiten': ['admin'],
+	'benutzer.loeschen': ['admin'],
+	'berechtigungen.sehen': ['admin'],
+	'berechtigungen.bearbeiten': ['admin'],
+	'einstellungen.sehen': ['admin'],
+	'einstellungen.bearbeiten': ['admin']
 } as const satisfies Record<string, readonly Role[]>;
 
 export type Permission = keyof typeof DEFAULT_PERMISSIONS;
 
 export const PERMISSIONS = Object.keys(DEFAULT_PERMISSIONS) as Permission[];
 
-/** Beschriftung in der Rechteverwaltung, nach Bereichen gruppiert */
-export const PERMISSION_GROUPS: { title: string; items: { key: Permission; label: string; hint?: string }[] }[] = [
+/**
+ * Sehen, Bearbeiten und Löschen gibt es einfach (ja/nein) oder in zwei Stufen:
+ * `own` (eigene Partie bzw. nur in Arbeit) und `all` (alle).
+ */
+export interface PermissionLevel {
+	own?: Permission;
+	all: Permission;
+	/** Beschriftung der unteren Stufe, z. B. „Eigene Partie" oder „In Arbeit" */
+	ownLabel?: string;
+	hint?: string;
+}
+
+/** Ein Bereich in der Rechteverwaltung: eine Zeile je Gruppe */
+export interface PermissionArea {
+	key: string;
+	title: string;
+	section: string;
+	hint?: string;
+	view: PermissionLevel;
+	create?: { key: Permission; label?: string; hint?: string };
+	edit?: PermissionLevel & { label?: string };
+	status?: { key: Permission; label: string; hint?: string }[];
+	remove?: PermissionLevel;
+}
+
+const PARTY = 'Eigene Partie';
+
+/** Alle Bereiche mit ihren Rechten, in der Reihenfolge der Seite */
+export const PERMISSION_AREAS: PermissionArea[] = [
 	{
-		title: 'Lager',
-		items: [
-			{ key: 'lager.stock.book', label: 'Buchen', hint: 'Ein-, Aus- und Umbuchen, Rückgaben' },
-			{ key: 'lager.stock.inventory', label: 'Inventur' },
-			{ key: 'lager.movements.view', label: 'Bewegungen ansehen' },
-			{ key: 'lager.movements.correct', label: 'Buchungen korrigieren', hint: 'Stornieren und neu buchen' },
-			{ key: 'lager.products.manage', label: 'Artikel pflegen', hint: 'Anlegen, ändern, Codes und PDFs' },
-			{ key: 'lager.reports.view', label: 'Berichte und Bestellliste' },
-			{ key: 'lager.alerts.view', label: 'Warnungen sehen', hint: 'Hinweis auf Mindestbestand' }
-		]
+		key: 'lager.bestand',
+		title: 'Bestand',
+		section: 'Lager',
+		view: { all: 'lager.bestand.sehen', hint: 'Bestandsliste' },
+		create: { key: 'lager.bestand.buchen', label: 'Buchen', hint: 'Ein-, Aus- und Umbuchen, Rückgaben' },
+		status: [{ key: 'lager.bestand.inventur', label: 'Inventur', hint: 'Gezählte Mengen buchen' }]
 	},
 	{
+		key: 'lager.bewegungen',
+		title: 'Bewegungen',
+		section: 'Lager',
+		view: { all: 'lager.bewegungen.sehen', hint: 'Liste und Verlauf am Artikel' },
+		edit: { all: 'lager.bewegungen.bearbeiten', label: 'Korrigieren', hint: 'Stornieren und neu buchen' }
+	},
+	{
+		key: 'lager.artikel',
+		title: 'Artikel',
+		section: 'Lager',
+		view: { all: 'lager.artikel.sehen' },
+		create: { key: 'lager.artikel.erstellen' },
+		edit: { all: 'lager.artikel.bearbeiten', hint: 'Auch Codes und PDFs' },
+		remove: { all: 'lager.artikel.loeschen' }
+	},
+	{
+		key: 'lager.berichte',
+		title: 'Berichte und Bestellliste',
+		section: 'Lager',
+		view: { all: 'lager.berichte.sehen', hint: 'Auch Exporte' }
+	},
+	{
+		key: 'lager.warnungen',
+		title: 'Warnungen',
+		section: 'Lager',
+		hint: 'Hinweis auf den Mindestbestand',
+		view: { all: 'lager.warnungen.sehen' }
+	},
+	{
+		key: 'stunden',
 		title: 'Stundenzettel',
-		items: [
-			{ key: 'stunden.erfassen', label: 'Erfassen', hint: 'Wochen der eigenen Partie ausfüllen' },
+		section: 'Dokumentation',
+		hint: 'Den eigenen Zettel sieht jeder',
+		view: { own: 'stunden.sehen', all: 'stunden.alle.sehen', ownLabel: PARTY },
+		create: { key: 'stunden.erstellen', hint: 'Woche anlegen' },
+		edit: { own: 'stunden.bearbeiten', all: 'stunden.alle.bearbeiten', ownLabel: PARTY },
+		status: [
 			{ key: 'stunden.freigeben', label: 'Freigeben', hint: 'Woche unterschreiben und einreichen' },
 			{ key: 'stunden.pruefen', label: 'Prüfen', hint: 'Geprüft-Haken setzen, Auslöse bestätigen' },
-			{
-				key: 'stunden.oeffnen.freigegeben',
-				label: 'Freigegebene wieder öffnen',
-				hint: 'Woche wieder änderbar machen – die Unterschrift der Freigabe verfällt'
-			},
-			{
-				key: 'stunden.oeffnen.geprueft',
-				label: 'Geprüfte wieder öffnen',
-				hint: 'Woche wieder änderbar machen – beide Unterschriften verfallen'
-			},
-			{
-				key: 'stunden.pruefung.zuruecknehmen',
-				label: 'Zurück auf freigegeben',
-				hint: 'Prüfung zurücknehmen – die Freigabe samt Unterschrift bleibt'
-			},
-			{ key: 'stunden.alle.sehen', label: 'Andere Partien ansehen', hint: 'Zettel aller Partien lesen' },
-			{ key: 'stunden.alle.bearbeiten', label: 'Andere Partien bearbeiten', hint: 'Zettel aller Partien ausfüllen und freigeben' },
-			{
-				key: 'stunden.aushilfe',
-				label: 'Aushilfen übernehmen',
-				hint: 'Arbeiter einer anderen Partie für eine Woche übernehmen und seinen Zettel schreiben'
-			}
-		]
+			{ key: 'stunden.pruefung.zuruecknehmen', label: 'Prüfung zurücknehmen', hint: 'Die Freigabe samt Unterschrift bleibt' },
+			{ key: 'stunden.oeffnen.freigegeben', label: 'Freigegebene öffnen', hint: 'Die Unterschrift der Freigabe verfällt' },
+			{ key: 'stunden.oeffnen.geprueft', label: 'Geprüfte öffnen', hint: 'Beide Unterschriften verfallen' },
+			{ key: 'stunden.aushilfe', label: 'Aushilfe übernehmen', hint: 'Arbeiter einer anderen Partie für eine Woche' }
+		],
+		remove: { all: 'stunden.loeschen', hint: 'Wochen in Arbeit' }
 	},
 	{
+		key: 'tagesberichte',
 		title: 'Tagesberichte',
-		items: [
-			{ key: 'tagesberichte.erfassen', label: 'Erfassen', hint: 'Berichte der eigenen Partie anlegen und ausfüllen' },
-			{ key: 'tagesberichte.freigeben', label: 'Freigeben', hint: 'Bericht für den Auftragnehmer unterschreiben und einreichen' },
-			{ key: 'tagesberichte.pruefen', label: 'Prüfen', hint: 'Freigegebene Berichte korrigieren und als geprüft markieren' },
-			{ key: 'tagesberichte.kundenlink', label: 'Link an den Kunden', hint: 'Link zum Unterschreiben kopieren, teilen oder per E-Mail schicken' },
-			{
-				key: 'tagesberichte.oeffnen.freigegeben',
-				label: 'Freigegebene wieder öffnen',
-				hint: 'Bericht wieder änderbar machen – die Unterschrift der Freigabe verfällt'
-			},
-			{
-				key: 'tagesberichte.oeffnen.geprueft',
-				label: 'Geprüfte wieder öffnen',
-				hint: 'Bericht wieder änderbar machen – Freigabe und Prüfung verfallen'
-			},
-			{
-				key: 'tagesberichte.oeffnen.abgeschlossen',
-				label: 'Vom Kunden unterschriebene wieder öffnen',
-				hint: 'Auch die Unterschrift des Kunden verfällt – er unterschreibt danach über denselben Link neu'
-			},
-			{
-				key: 'tagesberichte.pruefung.zuruecknehmen',
-				label: 'Zurück auf freigegeben',
-				hint: 'Prüfung zurücknehmen, solange der Kunde noch nicht unterschrieben hat'
-			},
-			{ key: 'tagesberichte.alle.sehen', label: 'Alle sehen' }
-		]
+		section: 'Dokumentation',
+		view: { own: 'tagesberichte.sehen', all: 'tagesberichte.alle.sehen', ownLabel: PARTY, hint: 'Eigene Partie: auch die selbst angelegten' },
+		create: { key: 'tagesberichte.erstellen' },
+		edit: { all: 'tagesberichte.bearbeiten', hint: 'In Arbeit, auch Handschrift und Fotos' },
+		status: [
+			{ key: 'tagesberichte.freigeben', label: 'Freigeben', hint: 'Für den Auftragnehmer unterschreiben' },
+			{ key: 'tagesberichte.pruefen', label: 'Prüfen', hint: 'Vorher noch korrigieren' },
+			{ key: 'tagesberichte.kundenlink', label: 'Link an den Kunden', hint: 'Kopieren, teilen oder mailen' },
+			{ key: 'tagesberichte.pruefung.zuruecknehmen', label: 'Prüfung zurücknehmen' },
+			{ key: 'tagesberichte.oeffnen.freigegeben', label: 'Freigegebene öffnen' },
+			{ key: 'tagesberichte.oeffnen.geprueft', label: 'Geprüfte öffnen' },
+			{ key: 'tagesberichte.oeffnen.abgeschlossen', label: 'Vom Kunden unterschriebene öffnen' }
+		],
+		remove: { all: 'tagesberichte.loeschen', hint: 'Berichte in Arbeit' }
 	},
 	{
-		title: 'Angebote und Aufträge',
-		items: [
-			{ key: 'angebote.sehen', label: 'Angebote ansehen', hint: 'Mit Preisen' },
-			{ key: 'angebote.erstellen', label: 'Angebote erstellen', hint: 'Anlegen und bearbeiten, solange sie nicht freigegeben sind' },
-			{ key: 'angebote.freigeben', label: 'Angebote freigeben', hint: 'Freigeben und den Link an den Kunden schicken' },
-			{
-				key: 'angebote.oeffnen.angenommen',
-				label: 'Angenommene wieder öffnen',
-				hint: 'Die Annahme des Kunden verfällt – nur solange es noch keinen Auftrag gibt'
-			},
-			{
-				key: 'angebote.loeschen',
-				label: 'Angebote löschen',
-				hint: 'Auch freigegebene und angenommene – der Link des Kunden funktioniert danach nicht mehr'
-			},
-			{ key: 'kunden.pflegen', label: 'Kunden pflegen', hint: 'Kundenstamm anlegen und ändern' },
-			{ key: 'auftraege.erstellen', label: 'Aufträge erstellen', hint: 'Aus angenommenen Angeboten, Partie zuordnen' },
-			{ key: 'auftraege.status', label: 'Status setzen', hint: 'Auftrag auf „in Arbeit" oder „abgeschlossen" – Partieführer für die eigene Partie' },
-			{
-				key: 'auftraege.loeschen',
-				label: 'Aufträge löschen',
-				hint: 'Auch begonnene und abgeschlossene – ihre Tagesberichte bleiben, nur ohne Auftrag'
-			},
-			{ key: 'auftraege.alle.sehen', label: 'Alle Aufträge sehen', hint: 'Sonst nur die der eigenen Partie' }
-		]
+		key: 'angebote',
+		title: 'Angebote',
+		section: 'Aufträge/Angebote',
+		view: { all: 'angebote.sehen', hint: 'Mit Preisen' },
+		create: { key: 'angebote.erstellen' },
+		edit: { all: 'angebote.bearbeiten', hint: 'In Arbeit, auch überarbeiten' },
+		status: [
+			{ key: 'angebote.freigeben', label: 'Freigeben', hint: 'Und den Link an den Kunden schicken' },
+			{ key: 'angebote.oeffnen.angenommen', label: 'Angenommene öffnen', hint: 'Nur ohne Auftrag – die Annahme verfällt' }
+		],
+		remove: { own: 'angebote.loeschen.entwurf', all: 'angebote.loeschen', ownLabel: 'In Arbeit' }
 	},
 	{
-		title: 'Verwaltung',
-		items: [
-			{ key: 'verwaltung.masterdata.manage', label: 'Stammdaten pflegen' },
-			{ key: 'verwaltung.users.manage', label: 'Benutzer verwalten' },
-			{ key: 'verwaltung.permissions.manage', label: 'Berechtigungen ändern' },
-			{ key: 'verwaltung.settings.manage', label: 'Einstellungen' }
-		]
+		key: 'auftraege',
+		title: 'Aufträge',
+		section: 'Aufträge/Angebote',
+		view: { own: 'auftraege.sehen', all: 'auftraege.alle.sehen', ownLabel: PARTY },
+		create: { key: 'auftraege.erstellen', hint: 'Aus angenommenen Angeboten' },
+		edit: { all: 'auftraege.bearbeiten', hint: 'Partie, Ausführungsort, Hinweis, Unterlagen' },
+		status: [
+			{ key: 'auftraege.status', label: 'In Arbeit / abgeschlossen', hint: 'Bei den Aufträgen, die man sieht' },
+			{ key: 'auftraege.status.zuruecksetzen', label: 'Zurück auf „Auftrag erstellt"' }
+		],
+		remove: { own: 'auftraege.loeschen.neu', all: 'auftraege.loeschen', ownLabel: 'Nur neue', hint: 'Neu: noch nicht begonnen' }
+	},
+	{
+		key: 'kunden',
+		title: 'Kunden',
+		section: 'Aufträge/Angebote',
+		view: { all: 'kunden.sehen' },
+		create: { key: 'kunden.erstellen', hint: 'Auch direkt aus dem Angebot' },
+		edit: { all: 'kunden.bearbeiten', hint: 'Auch ausblenden' },
+		remove: { all: 'kunden.loeschen', hint: 'Nur ohne Angebote' }
+	},
+	{
+		key: 'stammdaten',
+		title: 'Stammdaten',
+		section: 'Verwaltung',
+		hint: 'Lagerorte, Materialarten, Farben, Partien',
+		view: { all: 'stammdaten.sehen' },
+		create: { key: 'stammdaten.erstellen' },
+		edit: { all: 'stammdaten.bearbeiten', hint: 'Auch aktiv/inaktiv und Reihenfolge' },
+		remove: { all: 'stammdaten.loeschen' }
+	},
+	{
+		key: 'benutzer',
+		title: 'Benutzer',
+		section: 'Verwaltung',
+		view: { all: 'benutzer.sehen' },
+		create: { key: 'benutzer.erstellen', hint: 'Auch einladen' },
+		edit: { all: 'benutzer.bearbeiten', hint: 'Auch Passwort zurücksetzen' },
+		remove: { all: 'benutzer.loeschen' }
+	},
+	{
+		key: 'berechtigungen',
+		title: 'Berechtigungen',
+		section: 'Verwaltung',
+		view: { all: 'berechtigungen.sehen' },
+		edit: { all: 'berechtigungen.bearbeiten' }
+	},
+	{
+		key: 'einstellungen',
+		title: 'Einstellungen',
+		section: 'Verwaltung',
+		hint: 'E-Mail, Sicherungen, Vorlagen für Angebote',
+		view: { all: 'einstellungen.sehen' },
+		edit: { all: 'einstellungen.bearbeiten', hint: 'Auch Sicherungen laden und einspielen' }
 	}
 ];
+
+/** Alle Rechte eines Bereichs außer „Sehen" */
+export function areaActions(area: PermissionArea): Permission[] {
+	return [
+		area.create?.key,
+		area.edit?.own,
+		area.edit?.all,
+		...(area.status ?? []).map((s) => s.key),
+		area.remove?.own,
+		area.remove?.all
+	].filter((p): p is Permission => !!p);
+}
+
+/**
+ * Was zusammengehört, ergänzen: Wer in einem Bereich etwas darf, darf ihn auch
+ * sehen (mindestens die untere Stufe); die Stufe „alle" schließt „eigene" ein.
+ */
+export function withImplied(allowed: Set<string>): Set<string> {
+	const out = new Set(allowed);
+	for (const role of ROLES) {
+		const has = (p: Permission | undefined) => !!p && out.has(`${role}|${p}`);
+		const add = (p: Permission | undefined) => p && out.add(`${role}|${p}`);
+		for (const area of PERMISSION_AREAS) {
+			for (const level of [area.view, area.edit, area.remove]) if (level?.own && has(level.all)) add(level.own);
+			if (areaActions(area).some(has)) add(area.view.own ?? area.view.all);
+		}
+	}
+	return out;
+}
 
 /**
  * Rechte, die dem Admin nicht genommen werden können – sonst sperrt sich die
  * Firma aus der Benutzer- und Rechteverwaltung aus.
  */
 export const LOCKED: { role: Role; permission: Permission }[] = [
-	{ role: 'admin', permission: 'verwaltung.users.manage' },
-	{ role: 'admin', permission: 'verwaltung.permissions.manage' },
-	{ role: 'admin', permission: 'verwaltung.settings.manage' }
+	{ role: 'admin', permission: 'benutzer.sehen' },
+	{ role: 'admin', permission: 'benutzer.bearbeiten' },
+	{ role: 'admin', permission: 'berechtigungen.sehen' },
+	{ role: 'admin', permission: 'berechtigungen.bearbeiten' },
+	{ role: 'admin', permission: 'einstellungen.sehen' },
+	{ role: 'admin', permission: 'einstellungen.bearbeiten' }
 ];
 
 export function isLocked(role: Role, permission: Permission): boolean {

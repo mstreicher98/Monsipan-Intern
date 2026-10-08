@@ -118,13 +118,30 @@ lässt sich die Inhaberschaft mit Passwortbestätigung an einen anderen aktiven 
 Inhaber-Konto immer erhalten. Die Regeln stehen in
 [`src/lib/user-rules.ts`](src/lib/user-rules.ts).
 
-**Berechtigungen:** Was eine Gruppe darf, steht unter **Benutzer → Berechtigungen** – eine
-Tabelle mit allen Rechten je Gruppe, zum Anhaken. Änderungen gelten sofort, auch für bereits
-angemeldete Geräte. Die ausgelieferten Standardrechte stehen in
-[`src/lib/permissions.ts`](src/lib/permissions.ts); ein neuer Bereich bringt seine Rechte dort
-mit und sie werden beim Start automatisch ergänzt. Mit **Auf Standard zurücksetzen** geht es
-jederzeit zurück. Drei Haken sind fest: Benutzer, Berechtigungen und Einstellungen bleiben beim
-Admin, damit sich niemand aussperrt.
+**Berechtigungen:** Was eine Gruppe darf, steht unter **Verwaltung → Berechtigungen**. Oben
+wählt man die Gruppe, darunter steht je Bereich eine Zeile mit denselben Spalten:
+
+| Spalte | Bedeutung |
+|---|---|
+| **Sehen** | Den Bereich überhaupt öffnen. Bei Stundenzetteln, Tagesberichten und Aufträgen in Stufen: *Nein*, *Eigene Partie* oder *Alle* (Tagesberichte: auch die selbst angelegten) |
+| **Erstellen** | Neu anlegen – im Lager heißt das *Buchen* |
+| **Bearbeiten** | Ändern – bei Stundenzetteln in Stufen (eigene Partie / alle), bei Bewegungen *Korrigieren* (stornieren und neu buchen) |
+| **Status** | Die Schritte des Bereichs, je ein Haken: z. B. Freigeben, Prüfen, Wieder öffnen, Link an den Kunden, Inventur, In Arbeit/abgeschlossen |
+| **Löschen** | Wo es Löschen gibt. Bei Angeboten und Aufträgen in Stufen: nur in Arbeit bzw. nur neue – oder alle |
+
+Bereiche: Bestand, Bewegungen, Artikel, Berichte und Bestellliste, Warnungen,
+Stundenzettel, Tagesberichte, Angebote, Aufträge, Kunden, Stammdaten, Benutzer,
+Berechtigungen, Einstellungen. Wer in einem Bereich etwas darf, darf ihn auch sehen – das
+wird beim Anhaken gleich mit gesetzt. Ohne *Bearbeiten* oder *Löschen* zeigen Stammdaten,
+Benutzer, Kunden und Einstellungen alles nur zum Ansehen.
+
+Änderungen gelten sofort, auch für bereits angemeldete Geräte. Die ausgelieferten
+Standardrechte stehen in [`src/lib/permissions.ts`](src/lib/permissions.ts); ein neuer
+Bereich bringt seine Zeile dort mit (`PERMISSION_AREAS`), und fehlende Rechte werden beim
+Start automatisch ergänzt. Mit **Auf Standard zurücksetzen** geht es jederzeit zurück. Ein
+paar Haken sind fest: Benutzer, Berechtigungen und Einstellungen sehen und bearbeiten bleibt
+beim Admin, damit sich niemand aussperrt. Beim Umstieg auf diese Einteilung wurden die
+bisherigen Einstellungen übernommen (Migration `0028_rechte_einheitlich`).
 
 ## Stundenzettel
 
@@ -156,10 +173,9 @@ landet also wieder im richtigen. Im Zettel führt ein Link zum anderen Teil. Aus
 die Tage des anderen Monats bleiben leer.
 
 **Wer was sieht:** Ein Partieführer sieht und bearbeitet standardmäßig nur die Zettel
-seiner eigenen Partie. Unter **Benutzer → Berechtigungen** lassen sich dafür zwei Rechte
-vergeben: **Andere Partien ansehen** (nur lesen) und **Andere Partien bearbeiten**
-(ausfüllen und freigeben). Bauleitung und Admin haben beides, die Buchhaltung das Ansehen.
-Den eigenen Zettel darf jeder ansehen.
+seiner eigenen Partie. Unter **Verwaltung → Berechtigungen** steht dafür bei Stundenzettel
+**Sehen** und **Bearbeiten** je auf *Eigene Partie* oder *Alle*. Bauleitung und Admin sehen
+und bearbeiten alle, die Buchhaltung sieht alle. Den eigenen Zettel darf jeder ansehen.
 
 **Keine Stundenzettel:** Konten, die keine Stunden schreiben – etwa Admin- oder
 Büro-Konten –, bekommen unter **Benutzer** das Häkchen **Keine Stundenzettel**. Sie fehlen
@@ -192,8 +208,8 @@ Partie).
 - **Wieder öffnen** (nach Rückfrage) macht die Woche erneut änderbar. Die Unterschriften
   verfallen, weil sich der Inhalt danach noch ändern kann.
 
-Wer zurücksetzen darf, steht unter **Benutzer → Berechtigungen** in drei eigenen Rechten:
-**Freigegebene wieder öffnen**, **Geprüfte wieder öffnen** und **Zurück auf freigegeben**.
+Wer zurücksetzen darf, steht unter **Verwaltung → Berechtigungen** bei Stundenzettel in der
+Spalte Status: **Freigegebene öffnen**, **Geprüfte öffnen** und **Prüfung zurücknehmen**.
 Standardmäßig haben sie Admin, Bauleitung und Buchhaltung.
 
 **Drucken** und **PDF** geben das Blatt im Aufbau des Vordrucks aus. Die Unterschriften
@@ -343,10 +359,9 @@ Arbeit). Das Büro sieht alle, wechselt die Partie, ändert den Hinweis, setzt z
 angenommen und der Auftrag lässt sich neu erstellen. Auftrag und Angebot gibt es als PDF
 und zum Drucken.
 
-**Löschen:** Angebote in Arbeit löscht, wer Angebote erstellt; noch nicht begonnene Aufträge,
-wer Aufträge erstellt. In jedem anderen Stand (freigegeben, angenommen, in Arbeit,
-abgeschlossen) braucht es das Recht **Angebote löschen** bzw. **Aufträge löschen** – von Haus
-aus Admin und Geschäftsführung. Beim Löschen eines Angebots mit Auftrag lässt sich wählen, ob
+**Löschen** hat bei Angeboten und Aufträgen zwei Stufen: *In Arbeit* bzw. *Nur neue* (noch
+nicht begonnen) – von Haus aus das Büro – oder *Alle*, also auch freigegebene, angenommene,
+laufende und abgeschlossene – von Haus aus Admin und Geschäftsführung. Beim Löschen eines Angebots mit Auftrag lässt sich wählen, ob
 der Auftrag mitgeht; sonst bleibt er ohne Angebot bestehen. Ein gelöschter Auftrag nimmt
 Positionen und Unterlagen mit, seine Tagesberichte bleiben (ohne Auftrag), das Angebot bleibt
 angenommen. Der Link des Kunden zu einem gelöschten Angebot funktioniert nicht mehr.
@@ -742,7 +757,7 @@ Die Artikelsuche findet Artikel auch über die RAL-Nummer.
 src/
   lib/
     modules.ts     Alle Bereiche: Beschriftung, Symbol, Pfad, Recht, aktiv oder geplant
-    permissions.ts Rollen und Rechte, ein Block je Bereich (lager.*, verwaltung.*)
+    permissions.ts Rollen und Rechte: je Bereich Sehen, Erstellen, Bearbeiten, Status, Löschen
     app.ts         Name der Anwendung und Seitentitel
     nav.ts         Navigation, gefiltert nach Rolle
     components/    Geteilte Bausteine (Dialog, Tabelle, Diagramm, PDF-Ansicht, Navigation,

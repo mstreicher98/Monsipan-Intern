@@ -648,7 +648,7 @@
 	{#if data.canReopen}
 		<button type="button" class="btn btn-ghost" onclick={() => (confirmReopen = true)}><LockOpen size={18} aria-hidden="true" />Wieder öffnen</button>
 	{/if}
-	{#if report.status === 'entwurf' && data.editable}
+	{#if data.canDelete}
 		<button type="button" class="btn btn-ghost ml-auto text-danger hover:bg-danger-soft" onclick={() => (confirmDelete = true)}>
 			<Trash size={18} aria-hidden="true" />Löschen
 		</button>

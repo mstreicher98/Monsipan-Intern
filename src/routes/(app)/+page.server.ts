@@ -11,8 +11,8 @@ export const load: PageServerLoad = async ({ depends, locals }) => {
 	depends('app:stock');
 	const user = requireUser(locals);
 	// Bewegungen und Auswertungen nur für Rollen, die sie sehen dürfen
-	const showMovements = can(user.role, 'lager.movements.view');
-	const showReports = can(user.role, 'lager.reports.view');
+	const showMovements = can(user.role, 'lager.bewegungen.sehen');
+	const showReports = can(user.role, 'lager.berichte.sehen');
 	const startOfDay = new Date();
 	startOfDay.setHours(0, 0, 0, 0);
 

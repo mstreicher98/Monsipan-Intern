@@ -21,7 +21,7 @@ import { canBecomeOwner, denyReason, type UserAction, type UserRef } from '$lib/
 import type { Actions, PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async ({ locals }) => {
-	requirePermission(locals, 'verwaltung.users.manage');
+	requirePermission(locals, 'benutzer.sehen');
 	const [list, partyList] = await Promise.all([
 		db
 			.select({
@@ -136,7 +136,7 @@ async function activeAdminCount(exceptId: number) {
 
 export const actions: Actions = {
 	create: async ({ request, locals, url }) => {
-		requirePermission(locals, 'verwaltung.users.manage');
+		requirePermission(locals, 'benutzer.erstellen');
 		const f = await request.formData();
 		const parsed = await readUser(f);
 		if (!parsed.ok) return fail(400, { message: parsed.message });
@@ -160,7 +160,7 @@ export const actions: Actions = {
 	},
 
 	update: async ({ request, locals }) => {
-		const me = requirePermission(locals, 'verwaltung.users.manage');
+		const me = requirePermission(locals, 'benutzer.bearbeiten');
 		const f = await request.formData();
 		const id = intOrNull(f.get('id'));
 		if (!id) return fail(400, { message: 'Benutzer fehlt' });
@@ -187,7 +187,7 @@ export const actions: Actions = {
 	},
 
 	delete: async ({ request, locals }) => {
-		const me = requirePermission(locals, 'verwaltung.users.manage');
+		const me = requirePermission(locals, 'benutzer.loeschen');
 		const id = intOrNull((await request.formData()).get('id'));
 		if (!id) return fail(400, { message: 'Benutzer fehlt' });
 		if (id === me.id) return fail(400, { message: 'Du kannst dich nicht selbst löschen.' });
@@ -227,7 +227,7 @@ export const actions: Actions = {
 	},
 
 	reset: async ({ request, locals, url }) => {
-		const me = requirePermission(locals, 'verwaltung.users.manage');
+		const me = requirePermission(locals, 'benutzer.bearbeiten');
 		const f = await request.formData();
 		const id = intOrNull(f.get('id'));
 		const user = id ? await db.select().from(users).where(and(eq(users.id, id), isNull(users.deletedAt))).get() : null;
@@ -252,7 +252,7 @@ export const actions: Actions = {
 
 	/** Inhaberschaft an einen anderen aktiven Admin übergeben – nur der Inhaber, mit Passwort */
 	transferOwner: async ({ request, locals, getClientAddress }) => {
-		const me = requirePermission(locals, 'verwaltung.users.manage');
+		const me = requirePermission(locals, 'benutzer.bearbeiten');
 		if (!me.owner) return fail(403, { message: 'Die Inhaberschaft kann nur der Inhaber übergeben.' });
 		const f = await request.formData();
 		const id = intOrNull(f.get('id'));

@@ -2,9 +2,11 @@ import { error } from '@sveltejs/kit';
 import { and, eq } from 'drizzle-orm';
 import { db } from '$lib/server/db';
 import { productDocuments, products } from '$lib/server/db/schema';
+import { requirePermission } from '$lib/server/guard';
 import type { PageServerLoad } from './$types';
 
-export const load: PageServerLoad = async ({ params }) => {
+export const load: PageServerLoad = async ({ params, locals }) => {
+	requirePermission(locals, 'lager.artikel.sehen');
 	const productId = Number(params.id);
 	const docId = Number(params.docId);
 	if (!Number.isInteger(productId) || !Number.isInteger(docId)) error(404, 'Dokument nicht gefunden');

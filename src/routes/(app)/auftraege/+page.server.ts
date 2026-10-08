@@ -1,10 +1,10 @@
 import { can } from '$lib/permissions';
-import { requireUser } from '$lib/server/guard';
+import { requirePermission } from '$lib/server/guard';
 import { activeParties, listOrders } from '$lib/modules/auftraege/server/orders';
 import type { PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async ({ locals, url }) => {
-	const user = requireUser(locals);
+	const user = requirePermission(locals, 'auftraege.sehen');
 	const all = can(user.role, 'auftraege.alle.sehen');
 	const party = Number(url.searchParams.get('partie'));
 	const filter = {

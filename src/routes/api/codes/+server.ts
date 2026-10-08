@@ -14,7 +14,7 @@ const Body = z.object({
 
 /** Code einem bestehenden Artikel zuordnen (z. B. neuer Lieferanten-Barcode) */
 export const POST: RequestHandler = async ({ request, locals }) => {
-	requirePermission(locals, 'lager.products.manage');
+	requirePermission(locals, 'lager.artikel.bearbeiten');
 	const parsed = Body.safeParse(await request.json().catch(() => null));
 	if (!parsed.success) error(400, 'Ungültige Angaben');
 	try {

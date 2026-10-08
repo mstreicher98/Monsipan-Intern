@@ -22,7 +22,7 @@
 
 	let { data } = $props();
 
-	const canCorrect = $derived(can(data.user.role, 'lager.movements.correct'));
+	const canCorrect = $derived(can(data.user.role, 'lager.bewegungen.bearbeiten'));
 	let q = $state(page.url.searchParams.get('q') ?? '');
 	let showFilters = $state(false);
 	let timer: ReturnType<typeof setTimeout>;

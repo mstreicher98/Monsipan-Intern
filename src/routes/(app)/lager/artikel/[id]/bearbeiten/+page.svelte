@@ -34,9 +34,11 @@
 <a href="/lager/artikel/{p.id}" class="mt-1 inline-flex items-center gap-1.5 text-sm font-medium text-ink-2 hover:text-ink"><ArrowLeft size={16} aria-hidden="true" />{p.name}</a>
 <div class="mt-3 mb-5 flex flex-wrap items-end justify-between gap-3">
 	<h1 class="text-[2rem] leading-tight">Artikel bearbeiten</h1>
-	<button class="btn btn-ghost text-danger hover:bg-danger-soft hover:text-danger" onclick={() => (confirmDelete = true)}>
-		<Trash size={18} aria-hidden="true" />Löschen
-	</button>
+	{#if data.canDelete}
+		<button class="btn btn-ghost text-danger hover:bg-danger-soft hover:text-danger" onclick={() => (confirmDelete = true)}>
+			<Trash size={18} aria-hidden="true" />Löschen
+		</button>
+	{/if}
 </div>
 
 {#key form}

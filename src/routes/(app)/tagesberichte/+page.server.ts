@@ -1,19 +1,19 @@
 import { error, fail, redirect } from '@sveltejs/kit';
 import { can } from '$lib/permissions';
-import { requireUser } from '$lib/server/guard';
+import { requirePermission, requireUser } from '$lib/server/guard';
 import { checkDateRange, createReport, listReports, nextNumber, recentPlaces } from '$lib/modules/tagesberichte/server/reports';
 import { linkableOrders } from '$lib/modules/auftraege/server/orders';
 import { today } from '$lib/modules/stunden/week';
 import type { Actions, PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async ({ locals, url }) => {
-	const user = requireUser(locals);
+	const user = requirePermission(locals, 'tagesberichte.sehen');
 	const filter = {
 		q: url.searchParams.get('q') ?? '',
 		from: url.searchParams.get('von') ?? '',
 		to: url.searchParams.get('bis') ?? ''
 	};
-	const canCreate = can(user.role, 'tagesberichte.erfassen');
+	const canCreate = can(user.role, 'tagesberichte.erstellen');
 	const [reports, places, number, orders] = await Promise.all([
 		listReports(user, filter),
 		recentPlaces(),
@@ -35,7 +35,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 export const actions: Actions = {
 	create: async ({ request, locals }) => {
 		const user = requireUser(locals);
-		if (!can(user.role, 'tagesberichte.erfassen')) error(403, 'Dafür fehlt dir die Berechtigung.');
+		if (!can(user.role, 'tagesberichte.erstellen')) error(403, 'Dafür fehlt dir die Berechtigung.');
 		const form = await request.formData();
 		const date = String(form.get('datum') ?? '');
 		const range = checkDateRange(date, String(form.get('datum_bis') ?? ''));

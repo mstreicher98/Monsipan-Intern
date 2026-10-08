@@ -1,11 +1,13 @@
 import { categoryOptions, colorOptions, locationOptions } from '$lib/server/options';
 import { stockByLocation } from '$lib/modules/lager/server/products';
 import { listStock, parseStockFilter } from '$lib/modules/lager/server/stock-list';
+import { requirePermission } from '$lib/server/guard';
 import type { PageServerLoad } from './$types';
 
 const PAGE_SIZE = 50;
 
-export const load: PageServerLoad = async ({ url, depends }) => {
+export const load: PageServerLoad = async ({ url, depends, locals }) => {
+	requirePermission(locals, 'lager.bestand.sehen');
 	depends('app:stock');
 	const filter = parseStockFilter(url);
 	const page = Math.max(1, Number(url.searchParams.get('seite')) || 1);

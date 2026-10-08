@@ -7,7 +7,7 @@ import type { RequestHandler } from './$types';
 
 /** ?m=<id>:<menge> je Zeile übernimmt die auf der Seite angepassten Mengen */
 export const GET: RequestHandler = async ({ url, locals }) => {
-	requirePermission(locals, 'lager.reports.view');
+	requirePermission(locals, 'lager.berichte.sehen');
 	const chosen = new Map<number, number>();
 	for (const m of url.searchParams.getAll('m')) {
 		const [id, q] = m.split(':').map(Number);

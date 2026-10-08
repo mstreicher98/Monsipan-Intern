@@ -7,7 +7,7 @@ import { counterpart } from '$lib/modules/lager/movement-view';
 import type { RequestHandler } from './$types';
 
 export const GET: RequestHandler = async ({ url, locals }) => {
-	requirePermission(locals, 'lager.movements.view');
+	requirePermission(locals, 'lager.bewegungen.sehen');
 	const filter = await toMovementFilter(readMovementQuery(url));
 	const rows = await listMovements(filter, 100_000, 0);
 	const header = [

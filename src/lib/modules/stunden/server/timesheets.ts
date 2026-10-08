@@ -66,7 +66,7 @@ export async function staffFor(user: SessionUser): Promise<Staff[]> {
 	if (seesAll(user)) {
 		return base.where(activeUser).orderBy(asc(users.lastName), asc(users.firstName)).all();
 	}
-	if (can(user.role, 'stunden.erfassen') && user.partyId) {
+	if (can(user.role, 'stunden.sehen') && user.partyId) {
 		return base
 			.where(and(activeUser, eq(users.partyId, user.partyId)))
 			.orderBy(asc(users.lastName), asc(users.firstName))
@@ -366,21 +366,22 @@ type SheetParties = { partyId: number | null; writingPartyId?: number | null };
 export function mayView(user: SessionUser, sheet: SheetParties & { userId: number }): boolean {
 	if (sheet.userId === user.id) return true;
 	if (seesAll(user)) return true;
-	return can(user.role, 'stunden.erfassen') && (samePartyAs(user, sheet.partyId) || samePartyAs(user, sheet.writingPartyId));
+	return can(user.role, 'stunden.sehen') && (samePartyAs(user, sheet.partyId) || samePartyAs(user, sheet.writingPartyId));
 }
 
 /**
- * Darf diese Person Stunden für diesen Mitarbeiter erfassen (Zettel anlegen, ausfüllen)?
- * Maßgeblich ist die schreibende Partie – bei Aushilfe also die übernehmende.
+ * Darf diese Person Stunden für diesen Mitarbeiter eintragen? „Bearbeiten" gilt
+ * für die eigene Partie, „alle bearbeiten" für jede. Maßgeblich ist die
+ * schreibende Partie – bei Aushilfe also die übernehmende.
  */
 export function mayRecordFor(user: SessionUser, sheet: SheetParties): boolean {
-	if (!can(user.role, 'stunden.erfassen')) return false;
-	return editsAll(user) || samePartyAs(user, writerParty(sheet));
+	if (editsAll(user)) return true;
+	return can(user.role, 'stunden.bearbeiten') && samePartyAs(user, writerParty(sheet));
 }
 
 /** Arbeiter und Partieführer anderer Partien, die diese Person als Aushilfe übernehmen könnte */
 export async function borrowCandidates(user: SessionUser): Promise<Staff[]> {
-	if (!user.partyId || !can(user.role, 'stunden.aushilfe') || !can(user.role, 'stunden.erfassen')) return [];
+	if (!user.partyId || !can(user.role, 'stunden.aushilfe') || !can(user.role, 'stunden.bearbeiten')) return [];
 	return db
 		.select(staffFields)
 		.from(users)

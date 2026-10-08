@@ -17,7 +17,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 		rows,
 		ownPartyId: user.partyId,
 		candidates: (await borrowCandidates(user)).filter((c) => !taken.has(c.id)),
-		canCreate: can(user.role, 'stunden.erfassen'),
+		canCreate: can(user.role, 'stunden.erstellen'),
 		canCheck: can(user.role, 'stunden.pruefen')
 	};
 };
@@ -36,8 +36,8 @@ export const actions: Actions = {
 		const allowed = await weekOverview(user, weekStart);
 		const row = allowed.find((r) => r.user.id === userId && r.month === month);
 		if (!row) error(403, 'Für diese Person darfst du keine Stunden erfassen.');
-		// Ansehen reicht zum Öffnen; anlegen darf nur, wer für diese Partie erfasst
-		if (!row.sheetId && !mayRecordFor(user, { partyId: row.user.partyId, writingPartyId: row.writingPartyId })) {
+		// Ansehen reicht zum Öffnen; anlegen darf nur, wer erstellen und für diese Partie eintragen darf
+		if (!row.sheetId && (!can(user.role, 'stunden.erstellen') || !mayRecordFor(user, { partyId: row.user.partyId, writingPartyId: row.writingPartyId }))) {
 			error(403, 'Für diese Person darfst du keinen Stundenzettel anlegen – sie gehört zu einer anderen Partie.');
 		}
 

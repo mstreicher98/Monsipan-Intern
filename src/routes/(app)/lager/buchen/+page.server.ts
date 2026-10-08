@@ -12,7 +12,7 @@ import type { Actions, PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async ({ locals, url, depends }) => {
 	depends('app:stock');
-	const user = requirePermission(locals, 'lager.stock.book');
+	const user = requirePermission(locals, 'lager.bestand.buchen');
 	// Die Inventur hat einen eigenen Bereich; alte Links und Lesezeichen landen dort
 	if (url.searchParams.get('art') === 'INVENTORY') redirect(307, '/lager/inventur');
 	const productId = Number(url.searchParams.get('produkt'));
@@ -56,7 +56,7 @@ const Payload = z.object({
 
 export const actions: Actions = {
 	book: async ({ request, locals, url }) => {
-		const user = requirePermission(locals, 'lager.stock.book');
+		const user = requirePermission(locals, 'lager.bestand.buchen');
 		let raw: unknown;
 		try {
 			raw = JSON.parse(String((await request.formData()).get('payload') ?? ''));
@@ -65,7 +65,7 @@ export const actions: Actions = {
 		}
 		const parsed = Payload.safeParse(raw);
 		if (!parsed.success) return fail(400, { message: 'Buchungsdaten unvollständig – bitte Eingaben prüfen.' });
-		if (parsed.data.type === 'INVENTORY' && !can(user.role, 'lager.stock.inventory')) {
+		if (parsed.data.type === 'INVENTORY' && !can(user.role, 'lager.bestand.inventur')) {
 			return fail(403, { message: 'Inventur ist der Bauleitung vorbehalten.' });
 		}
 		const { recipientSelf, ...input } = parsed.data;

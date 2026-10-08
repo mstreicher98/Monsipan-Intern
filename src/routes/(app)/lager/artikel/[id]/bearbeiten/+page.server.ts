@@ -8,10 +8,11 @@ import { CodeConflictError, refreshSearchText, syncCodes } from '$lib/modules/la
 import { parseProductForm } from '$lib/modules/lager/server/product-form';
 import { displayGtin } from '$lib/modules/lager/scan/parse';
 import { totalSql } from '$lib/modules/lager/server/products';
+import { can } from '$lib/permissions';
 import type { Actions, PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async ({ locals, params }) => {
-	requirePermission(locals, 'lager.products.manage');
+	const user = requirePermission(locals, 'lager.artikel.bearbeiten');
 	const id = Number(params.id);
 	const product = await db
 		.select({
@@ -50,13 +51,14 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 		colors,
 		manufacturers: manufacturers.map((m) => m.m).sort(),
 		codes: codes.map((c) => ({ code: c.kind === 'ean' ? displayGtin(c.normalized) : c.code, kind: c.kind })),
-		hasMovements: Number(moveCount?.n ?? 0) > 0
+		hasMovements: Number(moveCount?.n ?? 0) > 0,
+		canDelete: can(user.role, 'lager.artikel.loeschen')
 	};
 };
 
 export const actions: Actions = {
 	save: async ({ request, locals, params }) => {
-		requirePermission(locals, 'lager.products.manage');
+		requirePermission(locals, 'lager.artikel.bearbeiten');
 		const id = Number(params.id);
 		const form = await request.formData();
 		const parsed = parseProductForm(form);
@@ -95,7 +97,7 @@ export const actions: Actions = {
 		redirect(303, `/lager/artikel/${id}`);
 	},
 	delete: async ({ locals, params }) => {
-		requirePermission(locals, 'lager.products.manage');
+		requirePermission(locals, 'lager.artikel.loeschen');
 		const id = Number(params.id);
 		const used = await db.select({ n: sql<number>`count(*)` }).from(movements).where(eq(movements.productId, id)).get();
 		if (Number(used?.n ?? 0) > 0) {

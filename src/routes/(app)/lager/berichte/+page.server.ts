@@ -8,7 +8,7 @@ import type { PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async ({ locals, url, depends }) => {
 	depends('app:stock');
-	requirePermission(locals, 'lager.reports.view');
+	requirePermission(locals, 'lager.berichte.sehen');
 	const view = url.searchParams.get('ansicht') === 'bestand' ? 'bestand' : 'verbrauch';
 
 	if (view === 'bestand') {

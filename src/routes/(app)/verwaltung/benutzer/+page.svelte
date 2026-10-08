@@ -11,11 +11,16 @@
 	import Dialog from '$lib/components/Dialog.svelte';
 	import PasswordInput from '$lib/components/PasswordInput.svelte';
 	import { fullName, initials, relativeDateTime } from '$lib/format';
-	import { mayHaveParty, needsParty, ROLE_DESCRIPTIONS, ROLE_LABELS, ROLES, type Role } from '$lib/permissions';
+	import { can, mayHaveParty, needsParty, ROLE_DESCRIPTIONS, ROLE_LABELS, ROLES, type Role } from '$lib/permissions';
 	import { canBecomeOwner, denyReason, OWNER_HINT, OWNER_LABEL, type UserAction } from '$lib/user-rules';
 	import { toast } from '$lib/stores/toast.svelte';
 
 	let { data } = $props();
+
+	/** Ansehen darf, wer Benutzer sieht – Anlegen, Ändern und Löschen sind eigene Rechte */
+	const canCreate = $derived(can(data.user.role, 'benutzer.erstellen'));
+	const canEdit = $derived(can(data.user.role, 'benutzer.bearbeiten'));
+	const canDelete = $derived(can(data.user.role, 'benutzer.loeschen'));
 	type U = (typeof data.users)[number];
 
 	let formOpen = $state(false);
@@ -96,7 +101,7 @@
 		<h1 class="text-[2rem] leading-tight">Benutzer</h1>
 		<p class="text-ink-2">{data.users.filter((u) => u.active).length} aktive Zugänge</p>
 	</div>
-	<button class="btn btn-primary" onclick={openCreate}><UserPlus size={18} aria-hidden="true" />Benutzer anlegen</button>
+	{#if canCreate}<button class="btn btn-primary" onclick={openCreate}><UserPlus size={18} aria-hidden="true" />Benutzer anlegen</button>{/if}
 </div>
 
 <section class="card overflow-hidden">
@@ -122,6 +127,7 @@
 					{#if u.owner}<span class="badge badge-brand"><Crown size={13} aria-hidden="true" />{OWNER_LABEL}</span>{/if}
 					{#if u.timesheetExempt}<span class="badge">Keine Stundenzettel</span>{/if}
 					<span class="badge {roleTone[u.role]}">{ROLE_LABELS[u.role]}</span>
+					{#if canEdit}
 					<button
 						class="btn btn-ghost btn-sm btn-icon"
 						aria-label="Passwort von {fullName(u)} zurücksetzen"
@@ -140,7 +146,8 @@
 					>
 						<Pencil size={16} />
 					</button>
-					{#if u.id !== data.user.id}
+					{/if}
+					{#if canDelete && u.id !== data.user.id}
 						<button
 							class="btn btn-ghost btn-sm btn-icon hover:text-danger"
 							aria-label="{fullName(u)} löschen"
@@ -169,7 +176,7 @@
 			Kein Konto ist als {OWNER_LABEL} gekennzeichnet. {OWNER_HINT}
 		{/if}
 	</p>
-	{#if data.user.owner}
+	{#if data.user.owner && canEdit}
 		<button class="btn btn-secondary mt-3" disabled={transferable.length === 0} onclick={() => ((transferTo = transferable[0]?.id ?? null), (transferPassword = ''), (transferError = ''), (transferOpen = true))}>
 			<Crown size={18} aria-hidden="true" />Inhaberschaft übergeben
 		</button>

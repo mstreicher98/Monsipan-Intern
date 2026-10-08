@@ -20,9 +20,12 @@
 		open: boolean;
 		result: LookupResult | null;
 		canBook: boolean;
+		/** Code einem anderen Artikel zuordnen */
 		canManage: boolean;
+		/** Neuen Artikel anlegen */
+		canCreate?: boolean;
 	}
-	let { open = $bindable(), result, canBook, canManage }: Props = $props();
+	let { open = $bindable(), result, canBook, canManage, canCreate = false }: Props = $props();
 	let assigning = $state(false);
 	let busy = $state(false);
 	let conflict = $state<{ product: ProductSummary; message: string } | null>(null);
@@ -187,14 +190,18 @@
 			</div>
 		</div>
 
-		{#if canManage}
+		{#if canManage || canCreate}
 			<div class="mt-5 grid gap-2 sm:grid-cols-2">
-				<button class="btn btn-primary" onclick={() => go(`/lager/artikel/neu?scan=${encodeURIComponent(parsed?.input ?? '')}`)}>
-					<Plus size={18} aria-hidden="true" />Neuen Artikel anlegen
-				</button>
-				<button class="btn btn-secondary" onclick={() => (assigning = true)}>
-					<Link size={18} aria-hidden="true" />Artikel zuordnen
-				</button>
+				{#if canCreate}
+					<button class="btn btn-primary" onclick={() => go(`/lager/artikel/neu?scan=${encodeURIComponent(parsed?.input ?? '')}`)}>
+						<Plus size={18} aria-hidden="true" />Neuen Artikel anlegen
+					</button>
+				{/if}
+				{#if canManage}
+					<button class="btn {canCreate ? 'btn-secondary' : 'btn-primary'}" onclick={() => (assigning = true)}>
+						<Link size={18} aria-hidden="true" />Artikel zuordnen
+					</button>
+				{/if}
 			</div>
 			<p class="field-hint">Zuordnen, wenn der Artikel schon existiert, aber z. B. vom Lieferanten einen neuen Barcode bekommen hat.</p>
 		{:else}

@@ -21,10 +21,10 @@
 	// Bereiche der Anwendung; wächst mit jedem freigeschalteten Modul
 	const areas = $derived(overviewCards(data.user.role));
 
-	const canBook = $derived(can(data.user.role, 'lager.stock.book'));
+	const canBook = $derived(can(data.user.role, 'lager.bestand.buchen'));
 	// Ohne Berichte-Recht führt "Nachbestellen" in den gefilterten Bestand statt zur Bestellliste
-	const lowHref = $derived(can(data.user.role, 'lager.reports.view') ? '/lager/bestellliste' : '/lager/bestand?status=nachbestellen');
-	const lowLinkLabel = $derived(can(data.user.role, 'lager.reports.view') ? 'Bestellliste' : 'Im Bestand ansehen');
+	const lowHref = $derived(can(data.user.role, 'lager.berichte.sehen') ? '/lager/bestellliste' : '/lager/bestand?status=nachbestellen');
+	const lowLinkLabel = $derived(can(data.user.role, 'lager.berichte.sehen') ? 'Bestellliste' : 'Im Bestand ansehen');
 	const hour = new Date().getHours();
 	const greeting = hour < 11 ? 'Guten Morgen' : hour < 18 ? 'Guten Tag' : 'Guten Abend';
 	const today = new Intl.DateTimeFormat('de-AT', { weekday: 'long', day: 'numeric', month: 'long' }).format(new Date());

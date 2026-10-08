@@ -9,7 +9,7 @@ import type { Actions, PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async ({ locals, url, depends }) => {
 	depends('app:stock');
-	requirePermission(locals, 'lager.stock.inventory');
+	requirePermission(locals, 'lager.bestand.inventur');
 	const locations = await locationOptions();
 	const wanted = Number(url.searchParams.get('ort'));
 	const locationId = locations.some((l) => l.id === wanted) ? wanted : null;
@@ -31,7 +31,7 @@ const Payload = z.object({
 
 export const actions: Actions = {
 	save: async ({ request, locals, url }) => {
-		const user = requirePermission(locals, 'lager.stock.inventory');
+		const user = requirePermission(locals, 'lager.bestand.inventur');
 		let raw: unknown;
 		try {
 			raw = JSON.parse(String((await request.formData()).get('payload') ?? ''));
