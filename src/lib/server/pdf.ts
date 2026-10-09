@@ -10,6 +10,7 @@ import path from 'node:path';
 import PDFDocument from 'pdfkit';
 import { APP_NAME } from '$lib/app';
 import { strokePath, type InkStroke } from '$lib/ink';
+import { LOGO } from '$lib/logo';
 
 /**
  * Die eingebaute Helvetica von pdfkit kennt nur westeuropäische Zeichen – Namen
@@ -141,6 +142,25 @@ export function drawInk(doc: PDFKit.PDFDocument, strokes: InkStroke[] | undefine
 		doc.path(strokePath(s.p)).lineWidth(s.w).lineCap('round').lineJoin('round').strokeColor(s.c).stroke();
 	}
 	doc.restore();
+}
+
+/**
+ * Das Logo als Vektor: links oben bei (x, y), so breit wie angegeben. Gibt
+ * die Höhe zurück, damit darunter weitergesetzt werden kann.
+ */
+export function drawLogo(doc: PDFKit.PDFDocument, x: number, y: number, width: number): number {
+	const scale = width / LOGO.width;
+	doc.save();
+	doc.translate(x, y).scale(scale);
+	for (const p of LOGO.paths) {
+		doc
+			.path(p.d)
+			.lineWidth(p.strokeWidth)
+			.lineJoin('round')
+			.fillAndStroke(p.fill, p.stroke, p.evenOdd ? 'even-odd' : 'non-zero');
+	}
+	doc.restore();
+	return LOGO.height * scale;
 }
 
 export function bufferResponse(filename: string, buffer: Buffer): Response {

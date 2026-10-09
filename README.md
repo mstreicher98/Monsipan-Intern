@@ -105,6 +105,13 @@ Beim Ausbuchen („Ausgabe an“) und bei Rückgaben („Zurück von“) ist die
 Wer zu keiner Partie gehört, bucht standardmäßig auf sich selbst – in der Bewegungsliste
 steht dann der eigene Name. Eine Partie lässt sich jederzeit auswählen.
 
+**Benutzerliste:** Unter **Verwaltung → Benutzer** stehen die Zugänge nach Gruppen
+(Admin, Geschäftsführer, … in der Reihenfolge der Rollen), deaktivierte gesammelt am Ende.
+Je Person steht, wann sie die App **zuletzt geöffnet** hat – ein grüner Punkt heißt „gerade
+aktiv“ (in den letzten 10 Minuten). Gezählt wird jeder Seitenaufruf, gespeichert höchstens
+alle 5 Minuten; Konten, die seit dieser Anzeige noch nicht da waren, zeigen ihre letzte
+Anmeldung. Oben und je Gruppe steht, wie viele heute schon da waren.
+
 **Benutzer löschen:** Wer nie gebucht hat, wird vollständig entfernt. Wer schon gebucht hat,
 kann sich danach nicht mehr anmelden und verschwindet aus der Liste; der Name bleibt in der
 Historie erhalten, Benutzername und E-Mail werden frei.
@@ -341,7 +348,10 @@ Bankverbindung und Kontakt.
 - Einleitung und Schlusstext kommen aus der Vorlage unter **Einstellungen → Angebote,
   Aufträge und Rechnungen** und lassen sich im einzelnen Angebot ändern. Dort stehen auch die drei Spalten
   der Fußzeile und der **Briefkopf**: als hochgeladenes Bild (PNG/JPG, oben mittig
-  eingepasst) oder – ohne Bild – aus Text gesetzt.
+  eingepasst) oder – ohne Bild – aus dem Logo mit Firma und Anschrift darunter.
+- **Logo:** Alle PDFs (Angebot, Auftrag, Rechnung, Summenblatt, Tagesbericht, Lohnzettel)
+  und die Druckansichten von Tagesbericht und Lohnzettel setzen das Monsipan-Logo als
+  Vektor – die Pfade stehen in [`src/lib/logo.ts`](src/lib/logo.ts).
 
 **Ablauf:**
 

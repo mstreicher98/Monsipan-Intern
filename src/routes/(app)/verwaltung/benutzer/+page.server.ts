@@ -37,7 +37,8 @@ export const load: PageServerLoad = async ({ locals }) => {
 				owner: users.owner,
 				mustChangePassword: users.mustChangePassword,
 				timesheetExempt: users.timesheetExempt,
-				lastLoginAt: users.lastLoginAt
+				lastLoginAt: users.lastLoginAt,
+				lastSeenAt: users.lastSeenAt
 			})
 			.from(users)
 			.leftJoin(parties, eq(parties.id, users.partyId))

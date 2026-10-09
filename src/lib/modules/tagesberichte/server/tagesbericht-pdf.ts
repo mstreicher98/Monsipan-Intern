@@ -11,7 +11,7 @@
  * obenauf gezeichnet; wo in einem Feld von Hand geschrieben steht, fällt der
  * getippte Wert weg – sonst stünde er doppelt da.
  */
-import { bufferResponse, drawInk, startPdf } from '$lib/server/pdf';
+import { bufferResponse, drawInk, drawLogo, startPdf } from '$lib/server/pdf';
 import { inkInRect, type InkStroke } from '$lib/ink';
 import { SIGNATURE_HEIGHT, SIGNATURE_WIDTH } from '$lib/modules/stunden/signature';
 import { columnSums, LETTERHEAD, quantityLabel, reportDateLabel, SHEET_MATERIAL_ROWS, sheets, sumLabel } from '../sheet';
@@ -130,7 +130,9 @@ export async function tagesberichtPdf(
 		/* ------------------------------------------------------- Briefkopf */
 		const briefW = 0.348 * width;
 		const briefH = 20 * MM;
-		doc.font('Helvetica').fontSize(12.5).fillColor(INK).text(LETTERHEAD.brand, left, top + 1, { characterSpacing: 7.6, lineBreak: false });
+		// Logo oben, darunter Firma und Anschrift wie auf dem Vordruck
+		drawLogo(doc, left, top - 2, 92);
+		doc.fillColor(INK);
 		LETTERHEAD.lines.forEach((l, i) => {
 			doc.font('Helvetica').fontSize(8.5).text(l, left, top + 18 + i * 9.6, { lineBreak: false });
 		});

@@ -8,7 +8,7 @@
  * Kunden – dafür mit Partie, Ansprechpartner und Hinweis.
  */
 import { dateTime } from '$lib/format';
-import { bufferResponse, startPdf } from '$lib/server/pdf';
+import { bufferResponse, drawLogo, startPdf } from '$lib/server/pdf';
 import { getSettings } from '$lib/server/settings';
 import { letterheadPath } from '$lib/server/letterhead';
 import { SIGNATURE_HEIGHT, SIGNATURE_WIDTH } from '$lib/modules/stunden/signature';
@@ -34,7 +34,6 @@ const MM = 72 / 25.4;
 const INK = '#1d2127';
 const MUTED = '#5c626b';
 const LINE = '#b9bdc3';
-const YELLOW = '#f2d500';
 
 const LEFT = 25 * MM;
 const RIGHT = 190 * MM;
@@ -56,21 +55,17 @@ function letterhead(doc: Doc, image: string | null) {
 		doc.image(image, LEFT, top, { fit: [WIDTH, 34 * MM], align: 'center', valign: 'center' });
 		return;
 	}
-	const cx = doc.page.width / 2;
-	doc.font('Helvetica-Bold').fontSize(28).fillColor('#3a3f45');
-	const brand = LETTERHEAD.brand;
-	const spacing = 4;
-	const w = doc.widthOfString(brand, { characterSpacing: spacing });
-	doc.text(brand, cx - w / 2, top, { characterSpacing: spacing, lineBreak: false });
-	doc.rect(cx - 62 * MM, top + 30, 124 * MM, 2.2 * MM).fill(YELLOW);
-	const center = (t: string, y: number, size: number, bold = false) => {
+	// Logo mittig, darunter Firma und Anschrift
+	const logoW = 85 * MM;
+	const y = top + drawLogo(doc, (doc.page.width - logoW) / 2, top, logoW) + 5;
+	const center = (t: string, yy: number, size: number, bold = false) => {
 		doc.font(bold ? 'Helvetica-Bold' : 'Helvetica').fontSize(size).fillColor(INK);
-		doc.text(t, LEFT, y, { width: WIDTH, align: 'center', lineBreak: false });
+		doc.text(t, LEFT, yy, { width: WIDTH, align: 'center', lineBreak: false });
 	};
-	center('BAUTENSCHUTZ GESELLSCHAFT M. B. H.', top + 40, 6.5, true);
-	center('Bodenmarkierungen', top + 49, 9, true);
-	center(`${LETTERHEAD.lines[1]}, ${LETTERHEAD.lines[2]}`, top + 61, 6.5);
-	center(LETTERHEAD.lines[3], top + 69, 6.5);
+	center('BAUTENSCHUTZ GESELLSCHAFT M. B. H.', y, 6.5, true);
+	center('Bodenmarkierungen', y + 9, 9, true);
+	center(`${LETTERHEAD.lines[1]}, ${LETTERHEAD.lines[2]}`, y + 21, 6.5);
+	center(LETTERHEAD.lines[3], y + 29, 6.5);
 }
 
 /** Anschrift links, Angaben rechts – gibt die Unterkante zurück */
@@ -514,14 +509,9 @@ export async function summaryPdf(
 	const W = R - L;
 	const BOTTOM = 192 * MM;
 
-	// Kopf: Titel links, Firma rechts mit dem gelben Balken
+	// Kopf: Titel links, Logo rechts
 	doc.font('Helvetica-Bold').fontSize(16).fillColor(INK).text(title, L, 12 * MM, { width: W - 60 * MM, lineBreak: false, ellipsis: true });
-	doc
-		.font('Helvetica-Bold')
-		.fontSize(13)
-		.fillColor('#3a3f45')
-		.text(LETTERHEAD.brand, R - 55 * MM, 12 * MM, { width: 55 * MM, align: 'right', characterSpacing: 2.5, lineBreak: false });
-	doc.rect(R - 42 * MM, 12 * MM + 17, 42 * MM, 1.6 * MM).fill(YELLOW);
+	drawLogo(doc, R - 50 * MM, 9 * MM, 50 * MM);
 
 	let y = 23 * MM;
 	const fact = (label: string, value: string) => {

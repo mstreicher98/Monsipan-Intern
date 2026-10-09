@@ -10,7 +10,7 @@
  * obenauf gezeichnet. Wo in einem Feld von Hand geschrieben steht, fällt der
  * getippte Wert weg – das Büro trägt Stunden nach, ohne dass sie doppelt erscheinen.
  */
-import { bufferResponse, drawInk, startPdf } from '$lib/server/pdf';
+import { bufferResponse, drawInk, drawLogo, startPdf } from '$lib/server/pdf';
 import { inkInRect } from '$lib/ink';
 import { fullName } from '$lib/format';
 import { SIGNATURE_HEIGHT, SIGNATURE_WIDTH } from '../signature';
@@ -103,8 +103,8 @@ export async function lohnzettelPdf(
 	};
 
 	/* ------------------------------------------------------------- Kopf */
-	doc.font('Helvetica-BoldOblique').fontSize(19).fillColor('#1d2127').text('MONSIPAN', left, 40, { lineBreak: false });
-	doc.font('Helvetica-Bold').fontSize(13).text('LOHNZETTEL', left + 180, 44, { characterSpacing: 2.5, lineBreak: false });
+	drawLogo(doc, left, 34, 150);
+	doc.font('Helvetica-Bold').fontSize(13).fillColor('#1d2127').text('LOHNZETTEL', left + 180, 44, { characterSpacing: 2.5, lineBreak: false });
 	filledLine('für', fullName(sheet), left + 290, 44, right);
 
 	// Geht die Woche über den Monatswechsel, steht hier der Monat dieses Teils

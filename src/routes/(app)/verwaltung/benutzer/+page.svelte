@@ -10,7 +10,7 @@
 	import Crown from '@lucide/svelte/icons/crown';
 	import Dialog from '$lib/components/Dialog.svelte';
 	import PasswordInput from '$lib/components/PasswordInput.svelte';
-	import { fullName, initials, relativeDateTime } from '$lib/format';
+	import { dateTime, fullName, initials, relativeDateTime } from '$lib/format';
 	import { can, mayHaveParty, needsParty, ROLE_DESCRIPTIONS, ROLE_LABELS, ROLES, type Role } from '$lib/permissions';
 	import { canBecomeOwner, denyReason, OWNER_HINT, OWNER_LABEL, type UserAction } from '$lib/user-rules';
 	import { toast } from '$lib/stores/toast.svelte';
@@ -84,6 +84,31 @@
 		viewer: ''
 	};
 
+	/** Zuletzt geöffnet – Konten von vor dieser Anzeige haben nur die letzte Anmeldung */
+	const lastSeen = (u: U) => u.lastSeenAt ?? u.lastLoginAt;
+	/** So lange gilt jemand als „gerade aktiv" – geschrieben wird höchstens alle 5 Minuten */
+	const ACTIVE_WINDOW = 10 * 60_000;
+	let now = $state(Date.now());
+	$effect(() => {
+		const timer = setInterval(() => (now = Date.now()), 60_000);
+		return () => clearInterval(timer);
+	});
+	function seen(u: U): { text: string; online: boolean; exact: string } {
+		const d = lastSeen(u);
+		if (!d) return { text: 'noch nie', online: false, exact: 'Noch nie geöffnet' };
+		const ago = now - new Date(d).getTime();
+		const exact = `Zuletzt geöffnet: ${dateTime(d)}`;
+		if (ago < ACTIVE_WINDOW) return { text: 'gerade aktiv', online: true, exact };
+		if (ago < 60 * 60_000) return { text: `vor ${Math.round(ago / 60_000)} Min.`, online: false, exact };
+		return { text: relativeDateTime(d), online: false, exact };
+	}
+	const startOfToday = $derived(new Date(new Date(now).setHours(0, 0, 0, 0)).getTime());
+	const seenToday = (list: U[]) => list.filter((u) => (lastSeen(u) ? new Date(lastSeen(u)!).getTime() >= startOfToday : false)).length;
+
+	/** Je Gruppe die aktiven Zugänge, in der Reihenfolge der Rollen; Deaktivierte extra */
+	const groups = $derived(ROLES.map((r) => ({ role: r, users: data.users.filter((u) => u.active && u.role === r) })).filter((g) => g.users.length));
+	const inactive = $derived(data.users.filter((u) => !u.active));
+
 	async function copy(text: string) {
 		try {
 			await navigator.clipboard.writeText(text);
@@ -96,75 +121,106 @@
 
 <svelte:head><title>{pageTitle('Benutzer')}</title></svelte:head>
 
+{#snippet row(u: U, showRole: boolean)}
+	{@const s = seen(u)}
+	<li class="flex flex-wrap items-center gap-x-3 gap-y-2 px-4 py-3 lg:px-6" class:opacity-55={!u.active}>
+		<span class="relative grid size-10 shrink-0 place-items-center rounded-full bg-surface-3 font-display font-semibold">
+			{initials(u)}
+			{#if s.online}<span class="absolute -right-0.5 -bottom-0.5 size-3 rounded-full bg-ok ring-2 ring-surface" title="Gerade aktiv"></span>{/if}
+		</span>
+		<div class="min-w-[11rem] flex-1">
+			<p class="font-medium">
+				{fullName(u)}
+				<span class="font-normal text-ink-3">@{u.username}</span>
+			</p>
+			<p class="truncate text-sm text-ink-3">{[u.partyName, u.email ?? 'Keine E-Mail'].filter(Boolean).join(' · ')}</p>
+			<!-- Am Handy steht „zuletzt geöffnet" unter dem Namen -->
+			<p class="text-sm sm:hidden" title={s.exact}>
+				<span class="text-ink-3">Zuletzt geöffnet:</span> <span class="whitespace-nowrap {s.online ? 'font-medium text-ok' : ''}">{s.text}</span>
+			</p>
+		</div>
+		<p class="hidden w-36 shrink-0 text-right text-sm leading-tight sm:block" title={s.exact}>
+			<span class="block text-[0.75rem] text-ink-3">Zuletzt geöffnet</span>
+			<span class={s.online ? 'font-medium text-ok' : u.active && !lastSeen(u) ? 'text-ink-3' : ''}>{s.text}</span>
+		</p>
+		<div class="flex flex-wrap items-center gap-2">
+			{#if !u.active}<span class="badge">Deaktiviert</span>{/if}
+			{#if u.active && needsParty(u.role) && !u.partyId}<span class="badge badge-danger">Partie fehlt</span>{/if}
+			{#if u.mustChangePassword && u.active}<span class="badge badge-warn">Passwort offen</span>{/if}
+			{#if u.owner}<span class="badge badge-brand"><Crown size={13} aria-hidden="true" />{OWNER_LABEL}</span>{/if}
+			{#if u.timesheetExempt}<span class="badge">Keine Stundenzettel</span>{/if}
+			{#if showRole}<span class="badge {roleTone[u.role]}">{ROLE_LABELS[u.role]}</span>{/if}
+			{#if canEdit}
+			<button
+				class="btn btn-ghost btn-sm btn-icon"
+				aria-label="Passwort von {fullName(u)} zurücksetzen"
+				title={why(u, 'password') || 'Passwort zurücksetzen'}
+				disabled={Boolean(why(u, 'password'))}
+				onclick={() => ((resetUser = u), (resetOpen = true))}
+			>
+				<KeyRound size={16} />
+			</button>
+			<button
+				class="btn btn-ghost btn-sm btn-icon"
+				aria-label="{fullName(u)} bearbeiten"
+				title={why(u, 'edit') || 'Bearbeiten'}
+				disabled={Boolean(why(u, 'edit'))}
+				onclick={() => openEdit(u)}
+			>
+				<Pencil size={16} />
+			</button>
+			{/if}
+			{#if canDelete && u.id !== data.user.id}
+				<button
+					class="btn btn-ghost btn-sm btn-icon hover:text-danger"
+					aria-label="{fullName(u)} löschen"
+					title={why(u, 'delete') || 'Löschen'}
+					disabled={Boolean(why(u, 'delete'))}
+					onclick={() => ((deleteUser = u), (deleteOpen = true))}
+				>
+					<Trash size={16} />
+				</button>
+			{:else}
+				<span class="size-9" aria-hidden="true"></span>
+			{/if}
+		</div>
+	</li>
+{/snippet}
+
 <div class="flex flex-wrap items-end justify-between gap-3 pt-2 pb-5">
 	<div>
 		<h1 class="text-[2rem] leading-tight">Benutzer</h1>
-		<p class="text-ink-2">{data.users.filter((u) => u.active).length} aktive Zugänge</p>
+		<p class="text-ink-2">
+			{data.users.filter((u) => u.active).length} aktive Zugänge · heute {seenToday(data.users.filter((u) => u.active))} geöffnet
+		</p>
 	</div>
 	{#if canCreate}<button class="btn btn-primary" onclick={openCreate}><UserPlus size={18} aria-hidden="true" />Benutzer anlegen</button>{/if}
 </div>
 
-<section class="card overflow-hidden">
-	<ul class="divide-y divide-line">
-		{#each data.users as u (u.id)}
-			<li class="flex flex-wrap items-center gap-3 px-4 py-3 lg:px-6" class:opacity-55={!u.active}>
-				<span class="grid size-10 shrink-0 place-items-center rounded-full bg-surface-3 font-display font-semibold">{initials(u)}</span>
-				<div class="min-w-0 flex-1">
-					<p class="font-medium">
-						{fullName(u)}
-						<span class="font-normal text-ink-3">@{u.username}</span>
-					</p>
-					<p class="truncate text-sm text-ink-3">
-						{[u.partyName, u.email ?? 'Keine E-Mail', u.lastLoginAt ? `zuletzt ${relativeDateTime(u.lastLoginAt)}` : 'noch nie angemeldet']
-							.filter(Boolean)
-							.join(', ')}
-					</p>
-				</div>
-				<div class="flex flex-wrap items-center gap-2">
-					{#if !u.active}<span class="badge">Deaktiviert</span>{/if}
-					{#if u.active && needsParty(u.role) && !u.partyId}<span class="badge badge-danger">Partie fehlt</span>{/if}
-					{#if u.mustChangePassword && u.active}<span class="badge badge-warn">Passwort offen</span>{/if}
-					{#if u.owner}<span class="badge badge-brand"><Crown size={13} aria-hidden="true" />{OWNER_LABEL}</span>{/if}
-					{#if u.timesheetExempt}<span class="badge">Keine Stundenzettel</span>{/if}
-					<span class="badge {roleTone[u.role]}">{ROLE_LABELS[u.role]}</span>
-					{#if canEdit}
-					<button
-						class="btn btn-ghost btn-sm btn-icon"
-						aria-label="Passwort von {fullName(u)} zurücksetzen"
-						title={why(u, 'password') || 'Passwort zurücksetzen'}
-						disabled={Boolean(why(u, 'password'))}
-						onclick={() => ((resetUser = u), (resetOpen = true))}
-					>
-						<KeyRound size={16} />
-					</button>
-					<button
-						class="btn btn-ghost btn-sm btn-icon"
-						aria-label="{fullName(u)} bearbeiten"
-						title={why(u, 'edit') || 'Bearbeiten'}
-						disabled={Boolean(why(u, 'edit'))}
-						onclick={() => openEdit(u)}
-					>
-						<Pencil size={16} />
-					</button>
-					{/if}
-					{#if canDelete && u.id !== data.user.id}
-						<button
-							class="btn btn-ghost btn-sm btn-icon hover:text-danger"
-							aria-label="{fullName(u)} löschen"
-							title={why(u, 'delete') || 'Löschen'}
-							disabled={Boolean(why(u, 'delete'))}
-							onclick={() => ((deleteUser = u), (deleteOpen = true))}
-						>
-							<Trash size={16} />
-						</button>
-					{:else}
-						<span class="size-9" aria-hidden="true"></span>
-					{/if}
-				</div>
-			</li>
-		{/each}
-	</ul>
-</section>
+<!-- Je Gruppe eine Karte, in der Reihenfolge der Rollen -->
+{#each groups as g (g.role)}
+	<section class="card mb-4 overflow-hidden" aria-labelledby="gruppe-{g.role}">
+		<header class="flex flex-wrap items-baseline gap-x-3 gap-y-0.5 border-b border-line bg-surface-2 px-4 py-2.5 lg:px-6">
+			<h2 id="gruppe-{g.role}" class="font-display text-lg font-semibold">{ROLE_LABELS[g.role]}</h2>
+			<span class="num text-sm text-ink-3">{g.users.length} {g.users.length === 1 ? 'Zugang' : 'Zugänge'} · heute {seenToday(g.users)} geöffnet</span>
+		</header>
+		<ul class="divide-y divide-line">
+			{#each g.users as u (u.id)}{@render row(u, false)}{/each}
+		</ul>
+	</section>
+{/each}
+
+{#if inactive.length}
+	<section class="card mb-4 overflow-hidden" aria-labelledby="gruppe-deaktiviert">
+		<header class="flex flex-wrap items-baseline gap-x-3 border-b border-line bg-surface-2 px-4 py-2.5 lg:px-6">
+			<h2 id="gruppe-deaktiviert" class="font-display text-lg font-semibold text-ink-2">Deaktiviert</h2>
+			<span class="num text-sm text-ink-3">{inactive.length}</span>
+		</header>
+		<ul class="divide-y divide-line">
+			{#each inactive as u (u.id)}{@render row(u, true)}{/each}
+		</ul>
+	</section>
+{/if}
 
 <section class="card mt-4 p-4 lg:p-6" aria-labelledby="h-owner">
 	<h2 id="h-owner" class="flex items-center gap-2 text-xl"><Crown size={20} aria-hidden="true" />{OWNER_LABEL}-Konto</h2>

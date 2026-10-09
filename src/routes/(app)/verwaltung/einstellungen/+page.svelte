@@ -157,7 +157,7 @@
 				{#if data.letterhead}
 					<img src="/verwaltung/einstellungen/briefkopf" alt="Briefkopf" class="max-h-28 w-full rounded-xl border border-line bg-white object-contain p-2" />
 				{:else}
-					<p class="rounded-xl bg-surface-2 p-3 text-sm text-ink-2">Noch kein Bild – das PDF setzt den Briefkopf aus Text (MONSIPAN, gelber Balken, Anschrift).</p>
+					<p class="rounded-xl bg-surface-2 p-3 text-sm text-ink-2">Noch kein Bild – das PDF setzt den Briefkopf aus dem Logo und der Anschrift.</p>
 				{/if}
 				<form method="POST" action="?/letterhead" enctype="multipart/form-data" class="mt-3 flex flex-wrap items-center gap-2" use:enhance={done('letterhead', () => 'Briefkopf gespeichert')}>
 					<input type="file" name="bild" accept="image/png,image/jpeg" required class="block w-full max-w-xs text-sm file:mr-3 file:rounded-lg file:border-0 file:bg-surface-3 file:px-3 file:py-2 file:font-medium" />

@@ -65,7 +65,7 @@ export const actions: Actions = {
 		}
 
 		clearFailures(key);
-		await db.update(users).set({ lastLoginAt: new Date() }).where(eq(users.id, user.id));
+		await db.update(users).set({ lastLoginAt: new Date(), lastSeenAt: new Date() }).where(eq(users.id, user.id));
 		const session = await createSession(user.id, remember, request.headers.get('user-agent'));
 		setSessionCookie(cookies, session.token, session.expiresAt, remember);
 

@@ -48,6 +48,8 @@ export const SESSION_COOKIE = 'lager_session';
 const DAY = 86_400_000;
 const PERSISTENT_TTL = 30 * DAY;
 const SHORT_TTL = 12 * 60 * 60 * 1000;
+/** „Zuletzt geöffnet" wird höchstens so oft geschrieben – sonst bei jeder Anfrage */
+const SEEN_EVERY = 5 * 60_000;
 
 export type SessionUser = Pick<
 	User,
@@ -98,7 +100,8 @@ export async function validateSession(token: string): Promise<{ user: SessionUse
 			partyId: users.partyId,
 			owner: users.owner,
 			active: users.active,
-			mustChangePassword: users.mustChangePassword
+			mustChangePassword: users.mustChangePassword,
+			lastSeenAt: users.lastSeenAt
 		})
 		.from(sessions)
 		.innerJoin(users, eq(users.id, sessions.userId))
@@ -118,7 +121,10 @@ export async function validateSession(token: string): Promise<{ user: SessionUse
 			.set({ expiresAt: new Date(now + ttl) })
 			.where(eq(sessions.id, id));
 	}
-	const { sessionId, expiresAt: _e, persistent: _p, active: _a, ...user } = row;
+	if (!row.lastSeenAt || now - row.lastSeenAt.getTime() > SEEN_EVERY) {
+		await db.update(users).set({ lastSeenAt: new Date(now) }).where(eq(users.id, row.id));
+	}
+	const { sessionId, expiresAt: _e, persistent: _p, active: _a, lastSeenAt: _s, ...user } = row;
 	return { user, sessionId };
 }
 

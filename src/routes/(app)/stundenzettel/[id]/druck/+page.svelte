@@ -1,5 +1,6 @@
 <script lang="ts">
 	/** Druckansicht im Aufbau des Lohnzettel-Formulars aus dem Block */
+	import FirmenLogo from '$lib/components/FirmenLogo.svelte';
 	import { pageTitle } from '$lib/app';
 	import PrintSheet from '$lib/components/PrintSheet.svelte';
 	import PdfPages from '$lib/components/PdfPages.svelte';
@@ -83,7 +84,7 @@
 	{:else}
 	<div class="form">
 		<header class="kopf">
-			<span class="marke">MONSIPAN</span>
+			<span class="marke"><FirmenLogo /></span>
 			<span class="titel">LOHNZETTEL</span>
 			<span class="feld"><span class="klein">für</span><span class="wert">{fullName(sheet)}</span></span>
 		</header>
@@ -275,12 +276,12 @@
 		align-items: baseline;
 		gap: 1.5rem;
 	}
+	/* Logo wie im PDF; es steht auf der Grundlinie der Überschrift */
 	.marke {
-		font-family: var(--font-display, inherit);
-		font-style: italic;
-		font-weight: 800;
-		font-size: 1.5rem;
-		letter-spacing: 0.02em;
+		display: block;
+		flex: none;
+		width: 150px;
+		align-self: center;
 	}
 	.titel {
 		font-weight: 700;

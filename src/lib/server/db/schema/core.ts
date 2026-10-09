@@ -33,6 +33,8 @@ export const users = sqliteTable('users', {
 	/** Führt keine Stundenzettel (etwa Admin- oder Büro-Konten) – fehlt in der Wochenliste */
 	timesheetExempt: integer('timesheet_exempt', { mode: 'boolean' }).notNull().default(false),
 	lastLoginAt: integer('last_login_at', { mode: 'timestamp_ms' }),
+	/** Zuletzt die App geöffnet – bei Anfragen höchstens alle paar Minuten fortgeschrieben */
+	lastSeenAt: integer('last_seen_at', { mode: 'timestamp_ms' }),
 	/** Gelöscht, aber wegen vorhandener Buchungen als Name in der Historie behalten */
 	deletedAt: integer('deleted_at', { mode: 'timestamp_ms' }),
 	createdAt: createdAt()

@@ -4,6 +4,7 @@
 	 * Druckansicht und die Seite des Kunden. Intern kommen Kostenstelle und
 	 * Notiz dazu. Am Bildschirm in den Farben der Umgebung, gedruckt schwarz auf weiß.
 	 */
+	import FirmenLogo from '$lib/components/FirmenLogo.svelte';
 	import { dateTime } from '$lib/format';
 	import { SIGNATURE_HEIGHT, SIGNATURE_WIDTH } from '$lib/modules/stunden/signature';
 	import { spacedNumber } from '$lib/modules/auftraege/offer';
@@ -85,7 +86,7 @@
 	<section class="blatt" aria-label={blatt.count > 1 ? `Blatt ${blatt.number} von ${blatt.count}` : undefined}>
 		<header class="kopf">
 			<div class="brief">
-				<span class="marke">{LETTERHEAD.brand}</span>
+				<span class="marke"><FirmenLogo /></span>
 				{#each LETTERHEAD.lines as line (line)}<span class="zeile">{line}</span>{/each}
 			</div>
 			<h2 class="titel">Tagesbericht</h2>
@@ -218,11 +219,12 @@
 		font-size: 8.5pt;
 		line-height: 1.12;
 	}
+	/* Logo so breit wie im PDF (92 pt), darunter Firma und Anschrift */
 	.marke {
-		font-size: 12.5pt;
-		line-height: 1;
-		letter-spacing: 0.62em;
-		margin-bottom: 0.8mm;
+		display: block;
+		width: 92pt;
+		max-width: 100%;
+		margin: -0.6mm 0 1mm;
 	}
 	.zeile {
 		white-space: nowrap;
