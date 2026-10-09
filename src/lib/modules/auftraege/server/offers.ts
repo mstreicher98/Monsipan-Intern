@@ -88,7 +88,7 @@ async function customerSnapshot(customerId: number | null) {
 
 export async function createOffer(
 	user: SessionUser,
-	data: { number: string; projectNumber: string; date: string; title: string; customerId: number | null }
+	data: { number: string; projectNumber: string; date: string; title: string; customerId: number | null; location?: string }
 ): Promise<number> {
 	const settings = await getSettings();
 	const snapshot = await customerSnapshot(data.customerId);
@@ -100,6 +100,7 @@ export async function createOffer(
 				projectNumber: data.projectNumber.slice(0, 30),
 				date: data.date,
 				title: data.title.slice(0, 300),
+				location: (data.location ?? '').slice(0, 300),
 				...(snapshot ?? {}),
 				intro: settings.offerIntro,
 				closing: settings.offerClosing,

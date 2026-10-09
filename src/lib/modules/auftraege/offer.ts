@@ -16,6 +16,14 @@ export const ORDER_STATUS_LABELS: Record<string, { label: string; tone: string }
 	abgeschlossen: { label: 'Abgeschlossen', tone: 'badge-ok' }
 };
 
+export const INVOICE_STATUS_LABELS: Record<string, { label: string; tone: string }> = {
+	offen: { label: 'Offen', tone: 'badge-warn' },
+	bezahlt: { label: 'Bezahlt', tone: 'badge-ok' }
+};
+
+/** Steht auf der Rechnung, wenn die Steuerschuld auf den Kunden übergeht */
+export const REVERSE_CHARGE_NOTE = 'Übergang der Steuerschuld auf den Leistungsempfänger gemäß § 19 Abs. 1a UStG (Bauleistungen).';
+
 /** Übliche Einheiten als Vorschlag – frei eintragbar bleibt es trotzdem */
 export const OFFER_UNITS = ['Pauschal', 'lfd. m', 'm²', 'Stk', 'h', 'kg', 'l'];
 
@@ -81,6 +89,11 @@ export function offerTotals(lines: OfferLine[], vatRate: number) {
 	const net = round2(lines.reduce((s, l) => s + (l.kind === 'position' ? (lineTotal(l) ?? 0) : 0), 0));
 	const vat = round2((net * vatRate) / 100);
 	return { net, vat, gross: round2(net + vat) };
+}
+
+/** Rechnung: wie beim Angebot – bei Übergang der Steuerschuld ohne Umsatzsteuer */
+export function invoiceTotals(lines: OfferLine[], vatRate: number, reverseCharge: boolean) {
+	return offerTotals(lines, reverseCharge ? 0 : vatRate);
 }
 
 /**

@@ -18,6 +18,7 @@
 	import CircleCheck from '@lucide/svelte/icons/circle-check';
 	import MessageSquare from '@lucide/svelte/icons/message-square-warning';
 	import UserPlus from '@lucide/svelte/icons/user-plus';
+	import Inbox from '@lucide/svelte/icons/inbox';
 	import CustomerLink from '$lib/components/CustomerLink.svelte';
 	import Dialog from '$lib/components/Dialog.svelte';
 	import PdfButton from '$lib/components/PdfButton.svelte';
@@ -35,7 +36,7 @@
 		parseAmount,
 		spacedNumber
 	} from '$lib/modules/auftraege/offer';
-	import { dateTime } from '$lib/format';
+	import { date as dateLabel, dateTime } from '$lib/format';
 	import { toast } from '$lib/stores/toast.svelte';
 
 	let { data, form } = $props();
@@ -178,6 +179,22 @@
 			<p class="mt-3 text-sm text-ink-2">Nach dem Überarbeiten wieder freigeben – der Kunde sieht es dann über denselben Link.</p>
 		{/if}
 	</section>
+{/if}
+
+{#if data.inquiry}
+	<!-- Die E-Mail der Anfrage daneben – beim Schreiben offen, danach zugeklappt -->
+	<details class="card mb-4 p-4 lg:p-5" open={offer.status === 'entwurf'}>
+		<summary class="flex cursor-pointer items-center gap-2 font-display text-lg font-semibold">
+			<Inbox size={18} aria-hidden="true" />Anfrage vom {dateLabel(data.inquiry.receivedOn)}
+		</summary>
+		<p class="mt-1 text-sm text-ink-2">
+			{[data.inquiry.subject, data.inquiry.senderName || data.inquiry.senderEmail].filter(Boolean).join(' · ')} ·
+			<a href="/anfragen/{data.inquiry.id}" class="font-medium underline-offset-2 hover:underline">Zur Anfrage</a>
+		</p>
+		{#if data.inquiry.body}
+			<p class="mt-3 max-h-80 overflow-y-auto rounded-xl bg-surface-2 px-4 py-3 font-mono text-[0.8125rem] leading-relaxed whitespace-pre-wrap">{data.inquiry.body}</p>
+		{/if}
+	</details>
 {/if}
 
 {#if offer.status === 'angenommen'}

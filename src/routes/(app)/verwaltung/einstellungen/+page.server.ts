@@ -77,6 +77,16 @@ export const actions: Actions = {
 		});
 		return { saved: 'offerTexts' };
 	},
+	/** Vorlagen für Rechnungen: Einleitung, Schlusstext, Zahlungsziel */
+	invoiceTexts: async ({ request, locals }) => {
+		requirePermission(locals, 'einstellungen.bearbeiten');
+		const f = await request.formData();
+		const text = (key: string, max: number) => String(f.get(key) ?? '').replace(/\r\n/g, '\n').trim().slice(0, max);
+		const days = Number(f.get('days'));
+		if (!Number.isInteger(days) || days < 0 || days > 365) return fail(400, { message: 'Das Zahlungsziel muss zwischen 0 und 365 Tagen liegen.' });
+		await updateSettings({ invoiceIntro: text('intro', 3000), invoiceClosing: text('closing', 5000), invoicePaymentDays: days });
+		return { saved: 'invoiceTexts' };
+	},
 	letterhead: async ({ request, locals }) => {
 		requirePermission(locals, 'einstellungen.bearbeiten');
 		const upload = (await request.formData()).get('bild');

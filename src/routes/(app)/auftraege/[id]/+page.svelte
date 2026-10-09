@@ -16,12 +16,14 @@
 	import Plus from '@lucide/svelte/icons/plus';
 	import ChevronRight from '@lucide/svelte/icons/chevron-right';
 	import X from '@lucide/svelte/icons/x';
+	import Sigma from '@lucide/svelte/icons/sigma';
+	import ReceiptText from '@lucide/svelte/icons/receipt-text';
 	import { fileSizeLabel, MAX_DOCUMENT_BYTES } from '$lib/documents';
 	import { reportDateLabel } from '$lib/modules/tagesberichte/sheet';
 	import Dialog from '$lib/components/Dialog.svelte';
 	import PdfButton from '$lib/components/PdfButton.svelte';
 	import { dateTime } from '$lib/format';
-	import { addressLines, lineNumbers, ORDER_STATUS_LABELS, quantityLabel, spacedNumber } from '$lib/modules/auftraege/offer';
+	import { addressLines, INVOICE_STATUS_LABELS, lineNumbers, ORDER_STATUS_LABELS, quantityLabel, spacedNumber } from '$lib/modules/auftraege/offer';
 	import { toast } from '$lib/stores/toast.svelte';
 
 	let { data, form } = $props();
@@ -227,9 +229,14 @@
 <section class="card mt-4 p-4 lg:p-5">
 	<div class="flex flex-wrap items-center justify-between gap-2">
 		<h2 class="flex items-center gap-2 text-lg"><NotebookPen size={18} aria-hidden="true" />Tagesberichte</h2>
-		{#if data.canCreateReport}
-			<a href="/tagesberichte?auftrag={order.id}" class="btn btn-secondary btn-sm"><Plus size={16} aria-hidden="true" />Neuer Tagesbericht</a>
-		{/if}
+		<div class="flex flex-wrap gap-2">
+			{#if data.reportCount >= 2}
+				<a href="/auftraege/{order.id}/summenblatt" class="btn btn-secondary btn-sm"><Sigma size={16} aria-hidden="true" />Summenblatt</a>
+			{/if}
+			{#if data.canCreateReport}
+				<a href="/tagesberichte?auftrag={order.id}" class="btn btn-secondary btn-sm"><Plus size={16} aria-hidden="true" />Neuer Tagesbericht</a>
+			{/if}
+		</div>
 	</div>
 	{#if data.reports.length}
 		<ul class="mt-3 divide-y divide-line rounded-xl border border-line">
@@ -252,6 +259,20 @@
 		<p class="mt-2 text-sm text-ink-3">Noch kein Tagesbericht zu diesem Auftrag.</p>
 	{/if}
 </section>
+
+{#if data.invoice || data.canCreateInvoice}
+	{@const inv = data.invoice ? INVOICE_STATUS_LABELS[data.invoice.status] : null}
+	<section class="card mt-4 flex flex-wrap items-center gap-3 p-4 lg:p-5">
+		<h2 class="flex flex-1 items-center gap-2 text-lg"><ReceiptText size={18} aria-hidden="true" />Rechnung</h2>
+		{#if data.invoice && inv}
+			<span class="badge {inv.tone}">{inv.label}</span>
+			<a href="/rechnungen/{data.invoice.id}" class="btn btn-secondary btn-sm">Rechnung {spacedNumber(data.invoice.number)}</a>
+		{:else}
+			<p class="w-full text-sm text-ink-2 sm:order-none sm:w-auto">Abgeschlossen – Preise aus dem Angebot, Mengen aus den Tagesberichten.</p>
+			<a href="/rechnungen/neu?auftrag={order.id}" class="btn btn-primary btn-sm"><ReceiptText size={16} aria-hidden="true" />Rechnung erstellen</a>
+		{/if}
+	</section>
+{/if}
 
 {#if data.canManage}
 	<section class="card mt-4 p-4 lg:p-5">

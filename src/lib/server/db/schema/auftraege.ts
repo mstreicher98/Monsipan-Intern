@@ -138,6 +138,11 @@ export const orders = sqliteTable(
 		customerPhone: text('customer_phone').notNull().default(''),
 		/** Hinweis an die Partie */
 		note: text('note').notNull().default(''),
+		/**
+		 * Für die Rechnung gemerkt: welche Mengenspalte der Tagesberichte (Schlüssel
+		 * „LB-Pos|Einheit") zu welcher Angebotsposition gehört – null heißt „nicht abrechnen"
+		 */
+		invoiceMapping: text('invoice_mapping', { mode: 'json' }).$type<Record<string, number | null>>(),
 		statusBy: integer('status_by').references(() => users.id, { onDelete: 'set null' }),
 		statusAt: integer('status_at', { mode: 'timestamp_ms' }),
 		createdBy: integer('created_by').references(() => users.id, { onDelete: 'set null' }),
@@ -183,6 +188,114 @@ export const orderDocuments = sqliteTable(
 		createdAt: createdAt()
 	},
 	(t) => [index('order_documents_order_idx').on(t.orderId)]
+);
+
+/**
+ * Anfragen: eine E-Mail, hineinkopiert, mit Absender und Betreff. Daraus wird
+ * ein Angebot; sobald es angenommen ist, ist die Anfrage erledigt und
+ * verschwindet aus der Liste der offenen.
+ */
+export const inquiries = sqliteTable(
+	'inquiries',
+	{
+		id: integer('id').primaryKey({ autoIncrement: true }),
+		/** Eingang „JJJJ-MM-TT" */
+		receivedOn: text('received_on').notNull(),
+		subject: text('subject').notNull().default(''),
+		/** Der eingefügte Text der E-Mail */
+		body: text('body').notNull().default(''),
+		senderName: text('sender_name').notNull().default(''),
+		senderEmail: text('sender_email').notNull().default(''),
+		senderPhone: text('sender_phone').notNull().default(''),
+		customerId: integer('customer_id').references(() => customers.id, { onDelete: 'set null' }),
+		/** Wo gearbeitet werden soll – geht ins Angebot */
+		location: text('location').notNull().default(''),
+		note: text('note').notNull().default(''),
+		/** Das Angebot zur Anfrage */
+		offerId: integer('offer_id').references(() => offers.id, { onDelete: 'set null' }),
+		/** Ohne Angebot erledigt (z. B. abgesagt) – dann ebenfalls nicht mehr bei den offenen */
+		closedAt: integer('closed_at', { mode: 'timestamp_ms' }),
+		createdBy: integer('created_by').references(() => users.id, { onDelete: 'set null' }),
+		createdAt: createdAt(),
+		updatedAt: integer('updated_at', { mode: 'timestamp_ms' })
+	},
+	(t) => [uniqueIndex('inquiries_offer_idx').on(t.offerId), index('inquiries_received_idx').on(t.receivedOn)]
+);
+
+/** Rechnung: offen, bis das Geld da ist – dann bezahlt */
+export const INVOICE_STATUS = ['offen', 'bezahlt'] as const;
+export type InvoiceStatus = (typeof INVOICE_STATUS)[number];
+
+/**
+ * Rechnung zum abgeschlossenen Auftrag – mit derselben Nummer. Preise aus dem
+ * Angebot, Mengen aus den Tagesberichten. Anschrift und Positionen stehen in
+ * der Rechnung selbst, damit sie bleibt, wie sie geschrieben wurde.
+ */
+export const invoices = sqliteTable(
+	'invoices',
+	{
+		id: integer('id').primaryKey({ autoIncrement: true }),
+		/** Dieselbe Nummer wie Auftrag und Angebot */
+		number: text('number').notNull(),
+		orderId: integer('order_id').references(() => orders.id, { onDelete: 'set null' }),
+		offerId: integer('offer_id').references(() => offers.id, { onDelete: 'set null' }),
+		/** Rechnungsdatum „JJJJ-MM-TT" */
+		date: text('date').notNull(),
+		/** Leistungszeitraum – aus den Tagesberichten vorgeschlagen */
+		serviceFrom: text('service_from'),
+		serviceTo: text('service_to'),
+		/** Zahlbar bis */
+		dueDate: text('due_date').notNull(),
+		projectNumber: text('project_number').notNull().default(''),
+		title: text('title').notNull().default(''),
+		location: text('location').notNull().default(''),
+		customerId: integer('customer_id').references(() => customers.id, { onDelete: 'set null' }),
+		customerName: text('customer_name').notNull().default(''),
+		customerAddition: text('customer_addition').notNull().default(''),
+		customerStreet: text('customer_street').notNull().default(''),
+		customerZip: text('customer_zip').notNull().default(''),
+		customerCity: text('customer_city').notNull().default(''),
+		customerUid: text('customer_uid').notNull().default(''),
+		intro: text('intro').notNull().default(''),
+		closing: text('closing').notNull().default(''),
+		/** Umsatzsteuer in Prozent */
+		vatRate: real('vat_rate').notNull().default(20),
+		/** Bauleistung an ein Bauunternehmen: Übergang der Steuerschuld, ohne Umsatzsteuer */
+		reverseCharge: integer('reverse_charge', { mode: 'boolean' }).notNull().default(false),
+		status: text('status', { enum: INVOICE_STATUS }).notNull().default('offen'),
+		/** Bezahlt am „JJJJ-MM-TT" */
+		paidOn: text('paid_on'),
+		paidBy: integer('paid_by').references(() => users.id, { onDelete: 'set null' }),
+		createdBy: integer('created_by').references(() => users.id, { onDelete: 'set null' }),
+		createdAt: createdAt(),
+		updatedAt: integer('updated_at', { mode: 'timestamp_ms' })
+	},
+	(t) => [
+		uniqueIndex('invoices_number_idx').on(t.number),
+		uniqueIndex('invoices_order_idx').on(t.orderId),
+		index('invoices_status_idx').on(t.status),
+		index('invoices_date_idx').on(t.date)
+	]
+);
+
+export const invoicePositions = sqliteTable(
+	'invoice_positions',
+	{
+		id: integer('id').primaryKey({ autoIncrement: true }),
+		invoiceId: integer('invoice_id')
+			.notNull()
+			.references(() => invoices.id, { onDelete: 'cascade' }),
+		sortOrder: integer('sort_order').notNull().default(0),
+		/** Positionsnummer wie im Angebot (1.3 bleibt 1.3, auch wenn 1.2 nicht abgerechnet wird) */
+		number: text('number').notNull().default(''),
+		kind: text('kind', { enum: OFFER_LINE_KINDS }).notNull().default('position'),
+		text: text('text').notNull().default(''),
+		quantity: real('quantity'),
+		unit: text('unit').notNull().default(''),
+		/** Einheitspreis netto in Euro */
+		unitPrice: real('unit_price')
+	},
+	(t) => [index('invoice_positions_invoice_idx').on(t.invoiceId, t.sortOrder)]
 );
 
 export type Customer = typeof customers.$inferSelect;

@@ -15,6 +15,11 @@ export interface AppSettings {
 	offerFooterContact: string;
 	/** Briefkopf als Bild (Dateiname unter /data/briefkopf) – ohne Bild wird er aus Text gesetzt */
 	letterheadFile: string | null;
+	/** Vorlagen für neue Rechnungen – in der einzelnen Rechnung änderbar */
+	invoiceIntro: string;
+	invoiceClosing: string;
+	/** Zahlungsziel in Tagen ab Rechnungsdatum */
+	invoicePaymentDays: number;
 }
 
 const DEFAULTS: AppSettings = {
@@ -26,7 +31,10 @@ const DEFAULTS: AppSettings = {
 	offerFooterAddress: 'Monsipan Bautenschutz GesmbH\nHimberger Straße 76\n2320 Schwechat\nUID-Nummer: ATU14230606',
 	offerFooterBank: 'AT47 1200 0006 1620 5407\nBKAUATWW',
 	offerFooterContact: 'office@monsipan.com\nTel. 01/706 2006',
-	letterheadFile: null
+	letterheadFile: null,
+	invoiceIntro: 'Sehr geehrte Damen und Herren,\nfür die ausgeführten Arbeiten erlauben wir uns, wie folgt in Rechnung zu stellen:',
+	invoiceClosing: 'Wir danken für Ihren Auftrag und freuen uns auf die weitere Zusammenarbeit.',
+	invoicePaymentDays: 30
 };
 
 let cache: AppSettings | null = null;

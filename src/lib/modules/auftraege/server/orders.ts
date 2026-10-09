@@ -29,10 +29,9 @@ export interface OrderFilter {
 	partyId?: number | null;
 }
 
-export async function listOrders(user: SessionUser, filter: OrderFilter = {}, limit = 200) {
+/** Sichtbarkeit, Partie und Suche – ohne den Stand */
+function baseWhere(user: SessionUser, filter: OrderFilter): (SQL | undefined)[] {
 	const where: (SQL | undefined)[] = [scope(user)];
-	if (filter.status === 'offen') where.push(or(eq(orders.status, 'erstellt'), eq(orders.status, 'in_arbeit')));
-	else if (filter.status) where.push(eq(orders.status, filter.status as OrderStatus));
 	if (filter.partyId) where.push(eq(orders.partyId, filter.partyId));
 	if (filter.q?.trim()) {
 		const q = `%${filter.q.trim().replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
@@ -40,6 +39,26 @@ export async function listOrders(user: SessionUser, filter: OrderFilter = {}, li
 			or(like(orders.number, q), like(orders.title, q), like(orders.location, q), like(orders.customerName, q), like(orders.projectNumber, q))
 		);
 	}
+	return where;
+}
+
+/** Wie viele Aufträge je Stand – für die Zahlen an den Reitern */
+export async function countOrders(user: SessionUser, filter: OrderFilter = {}): Promise<Record<OrderStatus, number>> {
+	const rows = await db
+		.select({ status: orders.status, n: sql<number>`count(*)`.mapWith(Number) })
+		.from(orders)
+		.where(and(...baseWhere(user, filter)))
+		.groupBy(orders.status)
+		.all();
+	const out: Record<OrderStatus, number> = { erstellt: 0, in_arbeit: 0, abgeschlossen: 0 };
+	for (const r of rows) out[r.status] = r.n;
+	return out;
+}
+
+export async function listOrders(user: SessionUser, filter: OrderFilter = {}, limit = 200) {
+	const where = baseWhere(user, filter);
+	if (filter.status === 'offen') where.push(or(eq(orders.status, 'erstellt'), eq(orders.status, 'in_arbeit')));
+	else if (filter.status) where.push(eq(orders.status, filter.status as OrderStatus));
 	return db
 		.select({
 			id: orders.id,

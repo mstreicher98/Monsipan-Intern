@@ -29,7 +29,7 @@ export const ROLE_DESCRIPTIONS: Record<Role, string> = {
 	admin: 'Alles, inklusive Benutzer, Berechtigungen und Einstellungen',
 	geschaeftsfuehrer: 'Sieht und prüft alles – Lager, Stunden, Tagesberichte, Angebote, Aufträge; Benutzer und Einstellungen bleiben beim Admin',
 	bauleiter: 'Buchen, Inventur, Korrekturen, Artikel und Stammdaten pflegen, Stunden, Tagesberichte, Angebote und Aufträge',
-	buchhaltung: 'Stundenzettel und Tagesberichte prüfen, Angebote und Aufträge schreiben, Stammdaten pflegen – ohne Lagerbuchungen',
+	buchhaltung: 'Stundenzettel und Tagesberichte prüfen, Anfragen, Angebote, Aufträge und Rechnungen schreiben, Stammdaten pflegen – ohne Lagerbuchungen',
 	partiefuehrer: 'Bestand und Bewegungen ansehen, buchen, Stundenzettel, Tagesberichte und Aufträge der eigenen Partie',
 	arbeiter: 'Bestand ansehen, ein- und ausbuchen, umlagern – ohne Einblick in Bewegungen',
 	viewer: 'Alles ansehen außer Stammdaten, Benutzer und Einstellungen – ohne Änderungen'
@@ -102,6 +102,12 @@ export const DEFAULT_PERMISSIONS = {
 	'tagesberichte.kundenlink': BUERO,
 	'tagesberichte.loeschen': ['admin', 'geschaeftsfuehrer', 'bauleiter', 'partiefuehrer'],
 
+	// Anfragen – eingefügte E-Mails, aus denen Angebote werden
+	'anfragen.sehen': [...BUERO, 'viewer'],
+	'anfragen.erstellen': BUERO,
+	'anfragen.bearbeiten': BUERO,
+	'anfragen.loeschen': BUERO,
+
 	// Angebote – Preise sieht nur, wer Angebote sehen darf
 	'angebote.sehen': ['admin', 'geschaeftsfuehrer', 'bauleiter', 'buchhaltung', 'viewer'],
 	'angebote.erstellen': BUERO,
@@ -120,6 +126,13 @@ export const DEFAULT_PERMISSIONS = {
 	'auftraege.status.zuruecksetzen': BUERO,
 	'auftraege.loeschen.neu': BUERO,
 	'auftraege.loeschen': ['admin', 'geschaeftsfuehrer'],
+
+	// Rechnungen – zum abgeschlossenen Auftrag, Preise aus dem Angebot
+	'rechnungen.sehen': [...BUERO, 'viewer'],
+	'rechnungen.erstellen': BUERO,
+	'rechnungen.bearbeiten': BUERO,
+	'rechnungen.bezahlt': ['admin', 'geschaeftsfuehrer', 'buchhaltung'],
+	'rechnungen.loeschen': ['admin', 'geschaeftsfuehrer'],
 
 	// Kunden
 	'kunden.sehen': BUERO,
@@ -252,9 +265,19 @@ export const PERMISSION_AREAS: PermissionArea[] = [
 		remove: { all: 'tagesberichte.loeschen', hint: 'Berichte in Arbeit' }
 	},
 	{
+		key: 'anfragen',
+		title: 'Anfragen',
+		section: 'Auftragsmanagement',
+		hint: 'E-Mails, aus denen Angebote werden',
+		view: { all: 'anfragen.sehen' },
+		create: { key: 'anfragen.erstellen', hint: 'E-Mail einfügen' },
+		edit: { all: 'anfragen.bearbeiten', hint: 'Auch als erledigt ablegen' },
+		remove: { all: 'anfragen.loeschen' }
+	},
+	{
 		key: 'angebote',
 		title: 'Angebote',
-		section: 'Aufträge/Angebote',
+		section: 'Auftragsmanagement',
 		view: { all: 'angebote.sehen', hint: 'Mit Preisen' },
 		create: { key: 'angebote.erstellen' },
 		edit: { all: 'angebote.bearbeiten', hint: 'In Arbeit, auch überarbeiten' },
@@ -267,7 +290,7 @@ export const PERMISSION_AREAS: PermissionArea[] = [
 	{
 		key: 'auftraege',
 		title: 'Aufträge',
-		section: 'Aufträge/Angebote',
+		section: 'Auftragsmanagement',
 		view: { own: 'auftraege.sehen', all: 'auftraege.alle.sehen', ownLabel: PARTY },
 		create: { key: 'auftraege.erstellen', hint: 'Aus angenommenen Angeboten' },
 		edit: { all: 'auftraege.bearbeiten', hint: 'Partie, Ausführungsort, Hinweis, Unterlagen' },
@@ -278,9 +301,19 @@ export const PERMISSION_AREAS: PermissionArea[] = [
 		remove: { own: 'auftraege.loeschen.neu', all: 'auftraege.loeschen', ownLabel: 'Nur neue', hint: 'Neu: noch nicht begonnen' }
 	},
 	{
+		key: 'rechnungen',
+		title: 'Rechnungen',
+		section: 'Auftragsmanagement',
+		view: { all: 'rechnungen.sehen', hint: 'Mit Preisen' },
+		create: { key: 'rechnungen.erstellen', hint: 'Zum abgeschlossenen Auftrag' },
+		edit: { all: 'rechnungen.bearbeiten', hint: 'Solange sie offen ist' },
+		status: [{ key: 'rechnungen.bezahlt', label: 'Bezahlt / wieder offen' }],
+		remove: { all: 'rechnungen.loeschen', hint: 'Nur offene' }
+	},
+	{
 		key: 'kunden',
 		title: 'Kunden',
-		section: 'Aufträge/Angebote',
+		section: 'Auftragsmanagement',
 		view: { all: 'kunden.sehen' },
 		create: { key: 'kunden.erstellen', hint: 'Auch direkt aus dem Angebot' },
 		edit: { all: 'kunden.bearbeiten', hint: 'Auch ausblenden' },

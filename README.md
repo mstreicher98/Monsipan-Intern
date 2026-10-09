@@ -6,7 +6,7 @@ Oberfläche, auf dem Handy wie am PC. Die übrigen Bereiche kommen nach und nach
 | Bereich | Stand |
 |---|---|
 | Übersicht | fertig – Einstieg in alle Bereiche, Kennzahlen aus dem Lager |
-| Aufträge/Angebote | fertig – Kunden, Angebote mit Preisen und Kundenlink, Aufträge je Partie |
+| Auftragsmanagement | fertig – Anfragen, Angebote mit Kundenlink, Aufträge je Partie, Summenblatt, Rechnungen, Kunden |
 | Dokumentation: Stundenzettel | fertig – Lohnwoche je Mitarbeiter, Freigabe und Prüfung |
 | Dokumentation: Tagesberichte | fertig – Leistung je Tag und Baustelle, Freigabe, Prüfung, Unterschrift des Kunden |
 | Lagermanagement | fertig – Bestand, Buchen, Inventur, Bewegungen, Bestellliste, Berichte, Artikel |
@@ -48,7 +48,7 @@ Inventur-Buchung festgehalten, auch wenn sie stimmt.
 1. [Rollen](#rollen)
 2. [Stundenzettel](#stundenzettel)
 3. [Tagesberichte](#tagesberichte)
-4. [Angebote und Aufträge](#angebote-und-aufträge)
+4. [Auftragsmanagement](#auftragsmanagement)
 5. [Lokale Entwicklung](#lokale-entwicklung)
 3. [Betrieb auf dem Server](#betrieb-auf-dem-server)
 4. [Datensicherung](#datensicherung)
@@ -72,7 +72,8 @@ Administration unter `/verwaltung/…`:
 | Stundenzettel | `/stundenzettel` |
 | Tagesberichte | `/tagesberichte` |
 | Tagesbericht für den Kunden (ohne Anmeldung) | `/bericht/<link>` |
-| Angebote, Aufträge, Kunden | `/angebote`, `/auftraege`, `/kunden` |
+| Anfragen, Angebote, Aufträge, Rechnungen, Kunden | `/anfragen`, `/angebote`, `/auftraege`, `/rechnungen`, `/kunden` |
+| Summenblatt eines Auftrags | `/auftraege/<id>/summenblatt` |
 | Angebot für den Kunden (ohne Anmeldung) | `/angebot/<link>` |
 | Handschrift auf dem Formular | `/tagesberichte/<id>/handschrift`, `/stundenzettel/<id>/handschrift` |
 | Bestand, Buchen, Bewegungen, Bestellliste, Berichte | `/lager/bestand` usw. |
@@ -92,7 +93,7 @@ weiter. Die Weiterleitung steht in [`src/hooks.server.ts`](src/hooks.server.ts).
 | Admin | alles, zusätzlich Benutzer, Berechtigungen und Einstellungen |
 | Geschäftsführer | sieht und prüft alles – von Haus aus alles, was Bauleitung oder Buchhaltung dürfen; Benutzer, Berechtigungen und Einstellungen bleiben beim Admin |
 | Bauleiter | buchen, Inventur, Korrekturen, Artikel und Stammdaten pflegen, Berichte, Stunden und Tagesberichte |
-| Buchhaltung/Sekretariat | Stundenzettel und Tagesberichte prüfen, Berichte einsehen, Stammdaten pflegen – ohne Lagerbuchungen |
+| Buchhaltung/Sekretariat | Stundenzettel und Tagesberichte prüfen, Anfragen, Angebote, Aufträge und Rechnungen schreiben, Rechnungen als bezahlt markieren, Stammdaten pflegen – ohne Lagerbuchungen |
 | Partieführer | Bestand und Bewegungen ansehen, buchen, Stundenzettel und Tagesberichte der eigenen Partie |
 | Arbeiter | wie Partieführer, sieht aber keine Bewegungen (weder Liste noch Verlauf am Artikel) |
 | Nur ansehen | alles ansehen außer Stammdaten, Benutzer und Einstellungen – keine Änderungen |
@@ -136,7 +137,7 @@ Status und Löschen (dunkel = ganz, gelb = teilweise); ein Klick springt zur Kar
 | **Löschen** | Wo es Löschen gibt. Bei Angeboten und Aufträgen in Stufen: nur in Arbeit bzw. nur neue – oder alle |
 
 Bereiche: Bestand, Bewegungen, Artikel, Berichte und Bestellliste, Warnungen,
-Stundenzettel, Tagesberichte, Angebote, Aufträge, Kunden, Stammdaten, Benutzer,
+Stundenzettel, Tagesberichte, Anfragen, Angebote, Aufträge, Rechnungen, Kunden, Stammdaten, Benutzer,
 Berechtigungen, Einstellungen. Wer in einem Bereich etwas darf, darf ihn auch sehen – das
 wird beim Anhaken gleich mit gesetzt. Ohne *Bearbeiten* oder *Löschen* zeigen Stammdaten,
 Benutzer, Kunden und Einstellungen alles nur zum Ansehen.
@@ -240,7 +241,7 @@ von Hand eintragen.
 Die Nummer schlägt die App als nächste freie vor, bleibt aber frei änderbar – so passt sie
 zum Papierblock.
 
-**Auftrag:** Ein Bericht kann zu einem Auftrag gehören (siehe [Angebote und Aufträge](#angebote-und-aufträge)).
+**Auftrag:** Ein Bericht kann zu einem Auftrag gehören (siehe [Auftragsmanagement](#auftragsmanagement)).
 Zur Auswahl stehen die offenen Aufträge, die man sieht – der Partie also die eigenen.
 
 **Mehrere Tage:** Neben dem Datum gibt es ein freiwilliges **bis**. Ist es ausgefüllt, steht im
@@ -306,7 +307,20 @@ Angaben untereinander.
 Wer kein Recht auf „alle sehen" hat, sieht die Berichte der eigenen Partie und die selbst
 angelegten.
 
-## Angebote und Aufträge
+## Auftragsmanagement
+
+Der Weg einer Arbeit durch den Betrieb: **Anfrage → Angebot → Auftrag → Tagesberichte →
+Summenblatt → Rechnung**. In der Seitenleiste steht alles unter „Auftragsmanagement“.
+
+**Anfragen** (`/anfragen`): Die E-Mail des Kunden mit **Neue Anfrage** hineinkopieren – am
+besten ganz, mit „Von“, „Betreff“ und Signatur. Betreff, Absender, E-Mail-Adresse und Telefon
+werden erkannt und vorgeschlagen (die eigene Adresse bei weitergeleiteten Mails zählt nicht);
+der passende Kunde wird über die E-Mail-Adresse gesucht. In der Anfrage lässt sich der Kunde
+zuordnen oder direkt aus der Anfrage neu anlegen, dazu der Ausführungsort und eine Notiz.
+**Angebot erstellen** übernimmt Kunde, Betreff (als BV) und Ausführungsort; im Angebot steht
+die E-Mail daneben. Ist das Angebot angenommen, ist die Anfrage **erledigt** und verschwindet
+aus der Liste der offenen. Kommt kein Angebot zustande, legt man sie mit **Als erledigt
+ablegen** ab. Erkannt wird nur im Browser – die E-Mail geht an keinen fremden Dienst.
 
 **Kunden** (`/kunden`): Anschrift, UID-Nummer, E-Mail, Ansprechpartner und Telefon – einmal
 anlegen, im Angebot auswählen. Ein neuer Kunde lässt sich auch direkt beim Schreiben eines
@@ -324,8 +338,8 @@ Bankverbindung und Kontakt.
 - Positionen werden 1.1, 1.2 … nummeriert; eine **Überschrift** beginnt eine neue Gruppe (2,
   2.1, 2.2 …). Positionen lassen sich verschieben und entfernen.
 - Angebots- und Projektnummer schlägt die App vor (nächste freie), beide bleiben frei änderbar.
-- Einleitung und Schlusstext kommen aus der Vorlage unter **Einstellungen → Angebote und
-  Aufträge** und lassen sich im einzelnen Angebot ändern. Dort stehen auch die drei Spalten
+- Einleitung und Schlusstext kommen aus der Vorlage unter **Einstellungen → Angebote,
+  Aufträge und Rechnungen** und lassen sich im einzelnen Angebot ändern. Dort stehen auch die drei Spalten
   der Fußzeile und der **Briefkopf**: als hochgeladenes Bild (PNG/JPG, oben mittig
   eingepasst) oder – ohne Bild – aus Text gesetzt.
 
@@ -361,12 +375,49 @@ Hinweis.
   eingetragen ist). Im Auftrag stehen alle seine Tagesberichte, **Neuer Tagesbericht** legt
   gleich einen mit diesem Auftrag an. Im Tagesbericht-PDF steht „Auftrag Nr. …“ unter der
   Baustelle.
- Die Partie sieht nur ihre eigenen
+
+Die Liste der Aufträge hat drei Reiter mit der Anzahl je Stand: **Erstellt**, **In Arbeit**
+und **Abgeschlossen** – Suche und Partie gelten für alle drei. Bei den abgeschlossenen steht,
+ob es schon eine Rechnung gibt und ob sie bezahlt ist. Die Partie sieht nur ihre eigenen
 Aufträge und setzt sie auf **In Arbeit** und **Abgeschlossen** (und bei Bedarf zurück auf in
 Arbeit). Das Büro sieht alle, wechselt die Partie, ändert den Hinweis, setzt zurück auf
 „Auftrag erstellt“ oder löscht einen noch nicht begonnenen Auftrag – das Angebot bleibt dann
 angenommen und der Auftrag lässt sich neu erstellen. Auftrag und Angebot gibt es als PDF
 und zum Drucken.
+
+**Summenblatt** (`/auftraege/<id>/summenblatt`, ab zwei Tagesberichten am Auftrag): alle
+Tagesberichte des Auftrags in einer Tabelle – je Bericht eine Zeile, je LB-Position und
+Einheit eine Spalte, unten die Summe; dazu Zeitraum und das verwendete Material. Es zählen
+nur **geprüfte** und vom Kunden unterschriebene Berichte; Berichte in Arbeit oder nur
+freigegeben stehen darunter als „Nicht in der Summe“. Als PDF im Querformat und zum Drucken.
+
+**Rechnungen** (`/rechnungen`) gibt es zum **abgeschlossenen** Auftrag, mit **derselben
+Nummer** wie Angebot und Auftrag – also eine Rechnung je Auftrag. Oben in der Liste stehen
+die abgeschlossenen Aufträge ohne Rechnung („Bereit zur Rechnung“), darunter die Reiter
+**Offen**, **Bezahlt** und **Alle**; überfällige sind rot markiert.
+
+- **Rechnung erstellen** (im Auftrag oder in der Liste): Oben stehen die Mengen aus dem
+  Summenblatt – je Spalte (LB-Position und Einheit) wählt man die **Angebotsposition**, deren
+  Einheitspreis gilt, oder „Nicht abrechnen“. Vorgeschlagen wird die Position, in deren Text
+  die LB-Position steht, sonst die einzige mit passender Einheit (m, lfm, lfd. m gelten als
+  gleich). Die Zuordnung merkt sich der Auftrag.
+- Darunter die Positionen des Angebots mit den übernommenen Mengen; **Pauschalen** kommen mit
+  der Menge aus dem Angebot. Mengen, Preise und Texte lassen sich ändern, eigene Positionen
+  dazunehmen. Positionen ohne Menge kommen nicht auf die Rechnung; die **Nummern bleiben wie
+  im Angebot** (1.3 bleibt 1.3).
+- Kopf: Rechnungsdatum, **zahlbar bis** (Rechnungsdatum plus Zahlungsziel), **Leistungszeitraum**
+  (aus den Tagesberichten), BV, Ausführungsort, Anschrift und UID des Kunden aus dem Angebot.
+- **Übergang der Steuerschuld (Reverse Charge)** für Bauleistungen an Bauunternehmen: ohne
+  Umsatzsteuer, mit Hinweis auf § 19 Abs. 1a UStG und der UID des Kunden (dann Pflicht).
+- Das PDF sieht aus wie das Angebot: Briefkopf, Rechnungsdatum, UID, Projekt- und
+  Rechnungsnummer, zahlbar bis, Positionen mit EP und GP, Summen, „Zahlbar bis … ohne
+  Abzug“, Schlusstext und Fußzeile mit Bankverbindung.
+- **Offen → Bezahlt** mit dem Datum der Zahlung (von Haus aus Admin, Geschäftsführung,
+  Buchhaltung), zurück auf offen ebenso. Offene Rechnungen lassen sich noch **bearbeiten**
+  und löschen (löschen: Admin, Geschäftsführung); bezahlte nicht mehr. Ein Auftrag mit
+  Rechnung lässt sich nicht löschen.
+- Einleitung, Schlusstext und **Zahlungsziel** (von Haus aus 30 Tage) stehen unter
+  **Einstellungen → Angebote, Aufträge und Rechnungen**.
 
 **Löschen** hat bei Angeboten und Aufträgen zwei Stufen: *In Arbeit* bzw. *Nur neue* (noch
 nicht begonnen) – von Haus aus das Büro – oder *Alle*, also auch freigegebene, angenommene,
@@ -375,8 +426,9 @@ der Auftrag mitgeht; sonst bleibt er ohne Angebot bestehen. Ein gelöschter Auft
 Positionen und Unterlagen mit, seine Tagesberichte bleiben (ohne Auftrag), das Angebot bleibt
 angenommen. Der Link des Kunden zu einem gelöschten Angebot funktioniert nicht mehr.
 
-Wer was darf, steht unter Verwaltung → Berechtigungen im Block „Angebote und Aufträge“.
-Preise sieht nur, wer Angebote sehen darf – Partieführer und Arbeiter sehen sie nicht.
+Wer was darf, steht unter Verwaltung → Berechtigungen im Abschnitt „Auftragsmanagement“
+(Anfragen, Angebote, Aufträge, Rechnungen, Kunden). Preise sieht nur, wer Angebote oder
+Rechnungen sehen darf – Partieführer und Arbeiter sehen sie nicht.
 
 ## Handschrift am Tablet
 
@@ -774,8 +826,9 @@ src/
     server/        Geteilt: Datenbank, Anmeldung, Mail, Sicherungen, Dokumente, Ereignisse
     server/db/schema/   core.ts (Benutzer, Partien, Einstellungen) + je Bereich eine Datei
     modules/
-      auftraege/   Angebote und Aufträge: offer.ts (Beträge, Summen, Nummern), server/
-                   (Kunden, Angebote, Aufträge, PDF), components/
+      auftraege/   Auftragsmanagement: offer.ts (Beträge, Summen, Nummern), inquiry.ts
+                   (E-Mail auslesen), summary.ts (Summenblatt, Zuordnung zur Rechnung),
+                   server/ (Kunden, Anfragen, Angebote, Aufträge, Rechnungen, PDF), components/
       lager/       Alles zum Lager: server/ (Bestand, Buchungen, Warnungen),
                    components/, scan/ (Parser, Tastaturlayouts, Handscanner, Kamera)
       stunden/     Lohnwoche: Wochenrechnung und server/ (Zettel, Freigabe, Prüfung)
@@ -794,7 +847,7 @@ seinen Rechte-Block in `permissions.ts`, seine Tabellen in `server/db/schema/<be
 seinen Code unter `lib/modules/<bereich>/` und seine Seiten unter `routes/(app)/<bereich>/`.
 Sobald er läuft, wird aus `'geplant'` ein `'aktiv'` – dann erscheint er in der Navigation
 und auf der Übersicht. `'leer'` zeigt eine Kategorie schon als Überschrift in der
-Seitenleiste, bevor sie Einträge hat (so steht Aufträge/Angebote im Menü). Mehrere Seiten
+Seitenleiste, bevor sie Einträge hat. Mehrere Seiten
 unter einer Überschrift sind ein Bereich mit `items` (wie Dokumentation); mit
 `cardsPerItem` bekommt auf der Übersicht jede Seite ihre eigene Karte.
 

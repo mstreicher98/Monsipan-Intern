@@ -19,6 +19,7 @@ import {
 	withdrawOffer,
 	type SaveOffer
 } from '$lib/modules/auftraege/server/offers';
+import { inquiryForOffer } from '$lib/modules/auftraege/server/inquiries';
 import { activeParties, createOrderFromOffer, insertOrderDocument, mayDeleteOrder } from '$lib/modules/auftraege/server/orders';
 import { DocumentError, storeDocument } from '$lib/server/documents';
 import { isValidIsoDate } from '$lib/modules/stunden/week';
@@ -52,6 +53,8 @@ export const load: PageServerLoad = async ({ params, locals, url }) => {
 		canCreateOrder,
 		parties: canCreateOrder ? await activeParties() : [],
 		mailConfigured: isMailConfigured(),
+		// Die E-Mail der Anfrage, aus der das Angebot entstand
+		inquiry: can(user.role, 'anfragen.sehen') ? ((await inquiryForOffer(offer.id)) ?? null) : null,
 		customerUrl: canLink && offer.customerToken ? `${url.origin}/angebot/${offer.customerToken}` : null
 	};
 };

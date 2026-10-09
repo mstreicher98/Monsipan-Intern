@@ -10,6 +10,8 @@
 import LayoutDashboard from '@lucide/svelte/icons/layout-dashboard';
 import HardHat from '@lucide/svelte/icons/hard-hat';
 import FilePen from '@lucide/svelte/icons/file-pen-line';
+import Inbox from '@lucide/svelte/icons/inbox';
+import ReceiptText from '@lucide/svelte/icons/receipt-text';
 import Building from '@lucide/svelte/icons/building';
 import CalendarDays from '@lucide/svelte/icons/calendar-days';
 import Users from '@lucide/svelte/icons/users';
@@ -66,16 +68,18 @@ export const MODULES: AppModule[] = [
 	{ key: 'dashboard', label: 'Übersicht', icon: LayoutDashboard, href: '/', group: 'betrieb', status: 'aktiv', items: [] },
 	{
 		key: 'auftraege',
-		label: 'Aufträge/Angebote',
+		label: 'Auftragsmanagement',
 		icon: HardHat,
 		href: '/auftraege',
 		group: 'betrieb',
 		status: 'aktiv',
-		hint: 'Angebote, Aufträge und Kunden',
+		hint: 'Anfragen, Angebote, Aufträge, Rechnungen und Kunden',
 		cardsPerItem: true,
 		items: [
+			{ href: '/anfragen', label: 'Anfragen', icon: Inbox, permission: 'anfragen.sehen', hint: 'E-Mails, aus denen Angebote werden' },
 			{ href: '/angebote', label: 'Angebote', icon: FilePen, permission: 'angebote.sehen', hint: 'Mit Preisen, Link zum Annehmen' },
 			{ href: '/auftraege', label: 'Aufträge', icon: HardHat, permission: 'auftraege.sehen', hint: 'Arbeiten je Partie' },
+			{ href: '/rechnungen', label: 'Rechnungen', icon: ReceiptText, permission: 'rechnungen.sehen', hint: 'Offen und bezahlt' },
 			{ href: '/kunden', label: 'Kunden', icon: Building, permission: 'kunden.sehen', hint: 'Anschriften für Angebote' }
 		]
 	},

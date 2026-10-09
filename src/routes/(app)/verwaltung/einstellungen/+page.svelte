@@ -148,7 +148,7 @@
 	</section>
 
 	<section class="card p-4 lg:col-span-2 lg:p-6" aria-labelledby="h-offers">
-		<h2 id="h-offers" class="flex items-center gap-2 text-xl"><FilePen size={20} aria-hidden="true" />Angebote und Aufträge</h2>
+		<h2 id="h-offers" class="flex items-center gap-2 text-xl"><FilePen size={20} aria-hidden="true" />Angebote, Aufträge und Rechnungen</h2>
 		<p class="mt-1 text-sm text-ink-2">Briefkopf und Vorlagetexte. Einleitung und Schlusstext kommen in jedes neue Angebot und lassen sich dort ändern.</p>
 
 		<div class="mt-4 grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)]">
@@ -197,6 +197,26 @@
 				<button class="btn btn-secondary" disabled={busy === 'offerTexts'}>Speichern</button>
 			</form>
 		</div>
+
+		<form method="POST" action="?/invoiceTexts" class="mt-6 space-y-3 border-t border-line pt-5" use:enhance={done('invoiceTexts', () => 'Vorlagen für Rechnungen gespeichert')}>
+			<h3 class="font-display text-lg font-semibold">Rechnungen</h3>
+			<p class="text-sm text-ink-2">Briefkopf und Fußzeile wie bei den Angeboten. Einleitung, Schlusstext und Zahlungsziel kommen in jede neue Rechnung und lassen sich dort ändern.</p>
+			<div class="grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_10rem]">
+				<label class="block">
+					<span class="field-label">Einleitung</span>
+					<textarea class="textarea" name="intro" rows="3" maxlength="3000">{data.settings.invoiceIntro}</textarea>
+				</label>
+				<label class="block">
+					<span class="field-label">Schlusstext</span>
+					<textarea class="textarea" name="closing" rows="3" maxlength="5000">{data.settings.invoiceClosing}</textarea>
+				</label>
+				<label class="block">
+					<span class="field-label">Zahlungsziel</span>
+					<span class="flex items-center gap-2"><input class="input num" type="number" name="days" min="0" max="365" required value={data.settings.invoicePaymentDays} />Tage</span>
+				</label>
+			</div>
+			<button class="btn btn-secondary" disabled={busy === 'invoiceTexts'}>Speichern</button>
+		</form>
 	</section>
 
 	<section class="card p-4 lg:p-6" aria-labelledby="h-backup">

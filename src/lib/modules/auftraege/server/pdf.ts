@@ -12,8 +12,21 @@ import { bufferResponse, startPdf } from '$lib/server/pdf';
 import { getSettings } from '$lib/server/settings';
 import { letterheadPath } from '$lib/server/letterhead';
 import { SIGNATURE_HEIGHT, SIGNATURE_WIDTH } from '$lib/modules/stunden/signature';
-import { LETTERHEAD } from '$lib/modules/tagesberichte/sheet';
-import { addressLines, lineNumbers, lineTotal, money, offerTotals, priceLabel, quantityLabel, spacedNumber } from '../offer';
+import { LETTERHEAD, reportDateLabel } from '$lib/modules/tagesberichte/sheet';
+import {
+	addressLines,
+	invoiceTotals,
+	lineNumbers,
+	lineTotal,
+	money,
+	offerTotals,
+	priceLabel,
+	quantityLabel,
+	REVERSE_CHARGE_NOTE,
+	spacedNumber
+} from '../offer';
+import type { OrderSummary } from '../summary';
+import type { InvoiceDetail } from './invoices';
 import type { OfferDetail } from './offers';
 import type { OrderDetail } from './orders';
 
@@ -169,6 +182,29 @@ function paragraph(doc: Doc, text: string, y: number, size = 9.5): number {
 	return y;
 }
 
+/** Summen rechtsbündig unter der Tabelle: Beschriftung, Betrag, die letzte fett */
+function sumsBlock(doc: Doc, y: number, sums: [string, string, boolean][]): number {
+	if (y + 30 * MM > FOOTER_TOP - 4 * MM) {
+		doc.addPage();
+		y = 20 * MM;
+	}
+	y += 4 * MM;
+	const sumX = 118 * MM;
+	for (const [label, value, strong] of sums) {
+		doc.font(strong ? 'Helvetica-Bold' : 'Helvetica').fontSize(strong ? 11.5 : 9.5).fillColor(INK);
+		doc.text(label, sumX, y, { width: 40 * MM, lineBreak: false });
+		doc.text(value, sumX + 40 * MM, y, { width: RIGHT - sumX - 40 * MM, align: 'right', lineBreak: false });
+		y += strong ? 17 : 15;
+		doc
+			.moveTo(sumX, y - 4)
+			.lineTo(RIGHT, y - 4)
+			.lineWidth(strong ? 1 : 0.4)
+			.strokeColor(strong ? INK : LINE)
+			.stroke();
+	}
+	return y;
+}
+
 /** „Ausführungsort: …" – Beschriftung fett, der Text bricht bei Bedarf um */
 function labeled(doc: Doc, label: string, value: string, y: number): number {
 	if (!value.trim()) return y;
@@ -262,32 +298,12 @@ export async function offerPdf(offer: OfferDetail, { forCustomer = false } = {})
 		`${title} – Fortsetzung`
 	);
 
-	// Summen rechts
 	const totals = offerTotals(offer.lines, offer.vatRate);
-	if (y + 30 * MM > FOOTER_TOP - 4 * MM) {
-		doc.addPage();
-		y = 20 * MM;
-	}
-	y += 4 * MM;
-	const sumX = 118 * MM;
-	const vat = String(offer.vatRate).replace('.', ',');
-	const sums: [string, string, boolean][] = [
+	y = sumsBlock(doc, y, [
 		['Gesamt Netto', money(totals.net), false],
-		[`${vat} % Umsatzsteuer`, money(totals.vat), false],
+		[`${String(offer.vatRate).replace('.', ',')} % Umsatzsteuer`, money(totals.vat), false],
 		['Gesamtbetrag', money(totals.gross), true]
-	];
-	for (const [label, value, strong] of sums) {
-		doc.font(strong ? 'Helvetica-Bold' : 'Helvetica').fontSize(strong ? 11.5 : 9.5).fillColor(INK);
-		doc.text(label, sumX, y, { width: 40 * MM, lineBreak: false });
-		doc.text(value, sumX + 40 * MM, y, { width: RIGHT - sumX - 40 * MM, align: 'right', lineBreak: false });
-		y += strong ? 17 : 15;
-		doc
-			.moveTo(sumX, y - 4)
-			.lineTo(RIGHT, y - 4)
-			.lineWidth(strong ? 1 : 0.4)
-			.strokeColor(strong ? INK : LINE)
-			.stroke();
-	}
+	]);
 
 	y = paragraph(doc, offer.closing, y + 6 * MM);
 
@@ -378,4 +394,263 @@ export async function orderPdf(order: OrderDetail): Promise<Response> {
 	finishPages(doc, null);
 	const buffer = await finish();
 	return bufferResponse(`auftrag-${order.number}.pdf`.replace(/[^\w.-]/g, '_'), buffer);
+}
+
+/* ------------------------------------------------------------ Rechnung */
+
+/** Positionstabelle wie im Angebot: Nr., Bezeichnung, Menge, Einheit, EP, GP */
+const PRICED_COLUMNS: Column[] = [
+	{ label: 'Nr.', x: LEFT, w: 12 * MM },
+	{ label: 'Bezeichnung', x: LEFT + 12 * MM, w: 74 * MM },
+	{ label: 'Menge', x: 111 * MM, w: 16 * MM, align: 'right' },
+	{ label: 'Einheit', x: 130 * MM, w: 18 * MM },
+	{ label: 'EP', x: 148 * MM, w: 19 * MM, align: 'right' },
+	{ label: 'GP', x: 168 * MM, w: RIGHT - 168 * MM, align: 'right' }
+];
+
+export async function invoicePdf(invoice: InvoiceDetail): Promise<Response> {
+	const settings = await getSettings();
+	const title = `Rechnung Nr. ${spacedNumber(invoice.number)}`;
+	const { doc, finish } = startPdf({ title, margin: 8, bufferPages: true });
+
+	letterhead(doc, letterheadPath(settings.letterheadFile));
+	let y = addressAndFacts(
+		doc,
+		addressLines({ name: invoice.customerName, addition: invoice.customerAddition, street: invoice.customerStreet, zip: invoice.customerZip, city: invoice.customerCity }),
+		[
+			['Rechnungsdatum:', isoDate(invoice.date)],
+			['Kunden UID-Nummer:', invoice.customerUid],
+			['Projektnummer:', invoice.projectNumber],
+			['Rechnungsnummer:', invoice.number],
+			['Zahlbar bis:', isoDate(invoice.dueDate)]
+		]
+	);
+
+	y += 12 * MM;
+	doc.font('Helvetica-Bold').fontSize(14).fillColor(INK);
+	const heading = `${title}${invoice.title ? ` / BV: ${invoice.title}` : ''}`;
+	doc.text(heading, LEFT, y, { width: WIDTH, lineGap: 2 });
+	y += doc.heightOfString(heading, { width: WIDTH, lineGap: 2 }) + 5 * MM;
+	y = labeled(doc, 'Ausführungsort', invoice.location, y);
+	if (invoice.serviceFrom) y = labeled(doc, 'Leistungszeitraum', reportDateLabel(invoice.serviceFrom, invoice.serviceTo), y);
+	y += 1 * MM;
+
+	y = paragraph(doc, invoice.intro, y, 10) + 5 * MM;
+
+	// Nummern wie im Angebot – ältere Zeilen ohne Nummer werden durchgezählt
+	const numbers = lineNumbers(invoice.lines);
+	y = table(
+		doc,
+		y,
+		PRICED_COLUMNS,
+		invoice.lines.map((l, i) => ({
+			kind: l.kind,
+			nr: l.number || numbers[i],
+			text: l.text,
+			cells: [quantityLabel(l.quantity), l.unit, priceLabel(l.unitPrice), money(lineTotal(l))]
+		})),
+		`${title} – Fortsetzung`
+	);
+
+	const totals = invoiceTotals(invoice.lines, invoice.vatRate, invoice.reverseCharge);
+	y = sumsBlock(
+		doc,
+		y,
+		invoice.reverseCharge
+			? [
+					['Gesamt Netto', money(totals.net), false],
+					['Gesamtbetrag', money(totals.gross), true]
+				]
+			: [
+					['Gesamt Netto', money(totals.net), false],
+					[`${String(invoice.vatRate).replace('.', ',')} % Umsatzsteuer`, money(totals.vat), false],
+					['Gesamtbetrag', money(totals.gross), true]
+				]
+	);
+
+	y += 6 * MM;
+	if (invoice.reverseCharge) {
+		y = paragraph(doc, `${REVERSE_CHARGE_NOTE}\nUID-Nummer des Leistungsempfängers: ${invoice.customerUid}`, y) + 3 * MM;
+	}
+	if (y + 14 > FOOTER_TOP - 4 * MM) {
+		doc.addPage();
+		y = 20 * MM;
+	}
+	doc.font('Helvetica-Bold').fontSize(10).fillColor(INK).text(`Zahlbar bis ${isoDate(invoice.dueDate)} ohne Abzug.`, LEFT, y, { width: WIDTH, lineBreak: false });
+	y += 16;
+	paragraph(doc, invoice.closing, y + 3 * MM);
+
+	finishPages(doc, [
+		['Anschrift', settings.offerFooterAddress],
+		['Bankverbindung', settings.offerFooterBank],
+		['Kontakt', settings.offerFooterContact]
+	]);
+	const buffer = await finish();
+	return bufferResponse(`rechnung-${invoice.number}.pdf`.replace(/[^\w.-]/g, '_'), buffer);
+}
+
+/* ---------------------------------------------------------- Summenblatt */
+
+const REPORT_STATUS_LABEL: Record<string, string> = {
+	entwurf: 'in Arbeit',
+	freigegeben: 'freigegeben, noch nicht geprüft',
+	geprueft: 'geprüft',
+	abgeschlossen: 'vom Kunden unterschrieben'
+};
+
+/**
+ * Summenblatt im Querformat: je zählendem Tagesbericht eine Zeile, je
+ * Mengenspalte (LB-Position und Einheit) eine Spalte, unten die Summe. Bei
+ * vielen Spalten geht es in einem weiteren Block mit den übrigen weiter.
+ */
+export async function summaryPdf(
+	order: { number: string; title: string; location: string; customerName: string; customerCity: string; partyName: string | null },
+	summary: OrderSummary
+): Promise<Response> {
+	const title = `Summenblatt Auftrag Nr. ${spacedNumber(order.number)}`;
+	const { doc, finish } = startPdf({ title, landscape: true, margin: 8, bufferPages: true });
+	const L = 12 * MM;
+	const R = 285 * MM;
+	const W = R - L;
+	const BOTTOM = 192 * MM;
+
+	// Kopf: Titel links, Firma rechts mit dem gelben Balken
+	doc.font('Helvetica-Bold').fontSize(16).fillColor(INK).text(title, L, 12 * MM, { width: W - 60 * MM, lineBreak: false, ellipsis: true });
+	doc
+		.font('Helvetica-Bold')
+		.fontSize(13)
+		.fillColor('#3a3f45')
+		.text(LETTERHEAD.brand, R - 55 * MM, 12 * MM, { width: 55 * MM, align: 'right', characterSpacing: 2.5, lineBreak: false });
+	doc.rect(R - 42 * MM, 12 * MM + 17, 42 * MM, 1.6 * MM).fill(YELLOW);
+
+	let y = 23 * MM;
+	const fact = (label: string, value: string) => {
+		if (!value.trim()) return;
+		doc.font('Helvetica-Bold').fontSize(9.5).fillColor(INK).text(`${label}: `, L, y, { width: W, continued: true });
+		doc.font('Helvetica').text(value, { width: W });
+		y = doc.y + 1.5;
+	};
+	fact('BV', order.title);
+	fact('Ausführungsort', order.location);
+	fact('Kunde', [order.customerName, order.customerCity].filter(Boolean).join(', '));
+	fact('Partie', order.partyName ?? '');
+	fact('Zeitraum', summary.from ? reportDateLabel(summary.from, summary.to) : '');
+	y += 3 * MM;
+
+	const counted = summary.reports.filter((r) => r.counted);
+	const fixed: Column[] = [
+		{ label: 'Bericht', x: L, w: 16 * MM },
+		{ label: 'Datum', x: L + 16 * MM, w: 32 * MM },
+		{ label: 'Baustelle', x: L + 48 * MM, w: 48 * MM }
+	];
+	const qtyStart = L + 96 * MM;
+	const perBlock = Math.max(1, Math.floor((R - qtyStart) / (20 * MM)));
+	const blocks: (typeof summary.columns)[] = [];
+	for (let i = 0; i < summary.columns.length; i += perBlock) blocks.push(summary.columns.slice(i, i + perBlock));
+	if (!blocks.length) blocks.push([]);
+
+	const rowH = 15;
+	for (const [b, cols] of blocks.entries()) {
+		const colW = cols.length ? Math.min(32 * MM, (R - qtyStart) / cols.length) : 0;
+		const head = () => {
+			if (blocks.length > 1) {
+				doc
+					.font('Helvetica')
+					.fontSize(8)
+					.fillColor(MUTED)
+					.text(`Spalten ${b * perBlock + 1}–${b * perBlock + cols.length} von ${summary.columns.length}`, L, y, { width: W, lineBreak: false });
+				y += 11;
+			}
+			doc.font('Helvetica').fontSize(8).fillColor(MUTED);
+			for (const c of fixed) doc.text(c.label, c.x, y + 9, { width: c.w, lineBreak: false });
+			cols.forEach((c, i) => {
+				const x = qtyStart + i * colW;
+				doc
+					.font('Helvetica-Bold')
+					.fontSize(8.5)
+					.fillColor(INK)
+					.text(c.lbPos || 'ohne LB-Pos.', x, y, { width: colW - 2, align: 'right', lineBreak: false, ellipsis: true });
+				doc
+					.font('Helvetica')
+					.fontSize(8)
+					.fillColor(MUTED)
+					.text(c.unit || '–', x, y + 10, { width: colW - 2, align: 'right', lineBreak: false, ellipsis: true });
+			});
+			y += 22;
+			doc.moveTo(L, y).lineTo(R, y).lineWidth(0.8).strokeColor(INK).stroke();
+			y += 4;
+		};
+		if (y + 60 > BOTTOM) {
+			doc.addPage();
+			y = 14 * MM;
+		}
+		head();
+		for (const r of counted) {
+			if (y + rowH > BOTTOM - 20) {
+				doc.addPage();
+				y = 14 * MM;
+				doc.font('Helvetica').fontSize(8.5).fillColor(MUTED).text(`${title} – Fortsetzung`, L, y, { width: W, lineBreak: false });
+				y += 14;
+				head();
+			}
+			doc.font('Helvetica').fontSize(9).fillColor(INK);
+			doc.text(r.number || '–', fixed[0].x, y + 2, { width: fixed[0].w, lineBreak: false });
+			doc.text(reportDateLabel(r.date, r.dateTo), fixed[1].x, y + 2, { width: fixed[1].w, lineBreak: false, ellipsis: true });
+			doc.text([r.site, r.partyName].filter(Boolean).join(' · '), fixed[2].x, y + 2, { width: fixed[2].w - 3, lineBreak: false, ellipsis: true });
+			cols.forEach((c, i) => {
+				const v = r.values[c.key];
+				doc.text(v ? quantityLabel(v) : '', qtyStart + i * colW, y + 2, { width: colW - 2, align: 'right', lineBreak: false });
+			});
+			y += rowH;
+			doc.moveTo(L, y).lineTo(R, y).lineWidth(0.4).strokeColor(LINE).stroke();
+		}
+		// Summe
+		y += 3;
+		doc
+			.font('Helvetica-Bold')
+			.fontSize(9.5)
+			.fillColor(INK)
+			.text(`Summe aus ${counted.length} ${counted.length === 1 ? 'Bericht' : 'Berichten'}`, L, y + 2, { width: 96 * MM, lineBreak: false });
+		cols.forEach((c, i) => {
+			doc.text(quantityLabel(c.total), qtyStart + i * colW, y + 2, { width: colW - 2, align: 'right', lineBreak: false });
+		});
+		y += rowH + 2;
+		doc.moveTo(L, y).lineTo(R, y).lineWidth(1).strokeColor(INK).stroke();
+		y += 8 * MM;
+	}
+
+	const note = (label: string, value: string) => {
+		if (!value) return;
+		doc.font('Helvetica-Bold').fontSize(9);
+		const h = doc.heightOfString(`${label}: ${value}`, { width: W });
+		if (y + h > BOTTOM) {
+			doc.addPage();
+			y = 14 * MM;
+		}
+		doc.fillColor(INK).text(`${label}: `, L, y, { width: W, continued: true });
+		doc.font('Helvetica').text(value, { width: W });
+		y = doc.y + 2 * MM;
+	};
+	note('Material', summary.materials.map((m) => [m.material, m.code, m.filmThickness && `Filmdicke ${m.filmThickness}`].filter(Boolean).join(' · ')).join('; '));
+	note(
+		'Nicht enthalten',
+		summary.reports
+			.filter((r) => !r.counted)
+			.map((r) => `Nr. ${r.number || '–'} vom ${reportDateLabel(r.date, r.dateTo)} (${REPORT_STATUS_LABEL[r.status] ?? r.status})`)
+			.join('; ')
+	);
+
+	const range = doc.bufferedPageRange();
+	const stamp = new Intl.DateTimeFormat('de-AT', { day: '2-digit', month: '2-digit', year: 'numeric' }).format(new Date());
+	for (let i = range.start; i < range.start + range.count; i++) {
+		doc.switchToPage(i);
+		doc
+			.font('Helvetica')
+			.fontSize(7.5)
+			.fillColor(MUTED)
+			.text(`Erstellt am ${stamp} · es zählen geprüfte und vom Kunden unterschriebene Tagesberichte`, L, 198 * MM, { width: W / 2 + 40 * MM, lineBreak: false });
+		if (range.count > 1) doc.text(`Seite ${i - range.start + 1} von ${range.count}`, L + W / 2, 198 * MM, { width: W / 2, align: 'right', lineBreak: false });
+	}
+	const buffer = await finish();
+	return bufferResponse(`summenblatt-${order.number}.pdf`.replace(/[^\w.-]/g, '_'), buffer);
 }
