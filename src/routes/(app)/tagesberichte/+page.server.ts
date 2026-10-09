@@ -11,7 +11,8 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	const filter = {
 		q: url.searchParams.get('q') ?? '',
 		from: url.searchParams.get('von') ?? '',
-		to: url.searchParams.get('bis') ?? ''
+		to: url.searchParams.get('bis') ?? '',
+		status: url.searchParams.get('stand') ?? ''
 	};
 	const canCreate = can(user.role, 'tagesberichte.erstellen');
 	const [reports, places, number, orders] = await Promise.all([

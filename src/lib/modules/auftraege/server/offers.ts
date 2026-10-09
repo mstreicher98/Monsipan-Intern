@@ -59,6 +59,25 @@ export async function listOffers(filter: OfferFilter = {}, limit = 200) {
 		.all();
 }
 
+/** Für die Übersicht: Angebote je Stand und angenommene, zu denen es noch keinen Auftrag gibt */
+export async function offerCounts() {
+	const rows = await db
+		.select({
+			status: offers.status,
+			n: sql<number>`count(*)`.mapWith(Number),
+			withoutOrder: sql<number>`sum(case when ${orderOf} is null then 1 else 0 end)`.mapWith(Number)
+		})
+		.from(offers)
+		.groupBy(offers.status)
+		.all();
+	const out = { entwurf: 0, freigegeben: 0, aenderung: 0, angenommen: 0, acceptedWithoutOrder: 0 };
+	for (const r of rows) {
+		out[r.status] = r.n;
+		if (r.status === 'angenommen') out.acceptedWithoutOrder = r.withoutOrder;
+	}
+	return out;
+}
+
 /** Vorschlag für das nächste Angebot: Nummer und Projektnummer */
 export async function suggestNumbers(year = new Date().getFullYear()) {
 	const rows = await db.select({ n: offers.number, p: offers.projectNumber }).from(offers).all();

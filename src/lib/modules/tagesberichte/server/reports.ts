@@ -21,7 +21,9 @@ import {
 	orders,
 	parties,
 	products,
-	users
+	REPORT_STATUS,
+	users,
+	type ReportStatus
 } from '$lib/server/db/schema';
 import type { SessionUser } from '$lib/server/auth';
 import type { InkPages } from '$lib/ink';
@@ -49,6 +51,8 @@ export interface ReportFilter {
 	to?: string;
 	/** Nur die Berichte zu diesem Auftrag */
 	orderId?: number;
+	/** Nur Berichte in diesem Stand */
+	status?: string;
 }
 
 export async function listReports(user: SessionUser, filter: ReportFilter = {}, limit = 100) {
@@ -57,6 +61,7 @@ export async function listReports(user: SessionUser, filter: ReportFilter = {}, 
 	if (filter.from) where.push(sql`coalesce(${dailyReports.dateTo}, ${dailyReports.date}) >= ${filter.from}`);
 	if (filter.to) where.push(sql`${dailyReports.date} <= ${filter.to}`);
 	if (filter.orderId) where.push(eq(dailyReports.orderId, filter.orderId));
+	if (filter.status && (REPORT_STATUS as readonly string[]).includes(filter.status)) where.push(eq(dailyReports.status, filter.status as ReportStatus));
 	if (filter.q?.trim()) {
 		const q = `%${filter.q.trim().replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
 		where.push(
@@ -91,6 +96,23 @@ export async function listReports(user: SessionUser, filter: ReportFilter = {}, 
 		.orderBy(desc(dailyReports.date), desc(dailyReports.id))
 		.limit(limit)
 		.all();
+}
+
+/** Für die Übersicht: Berichte je Stand und die der laufenden Woche – so weit sichtbar */
+export async function reportCounts(user: SessionUser, weekStart: string) {
+	const weekEnd = addDays(weekStart, 6);
+	const count = (cond: SQL) => sql<number>`coalesce(sum(case when ${cond} then 1 else 0 end), 0)`.mapWith(Number);
+	const row = await db
+		.select({
+			entwurf: count(eq(dailyReports.status, 'entwurf')),
+			freigegeben: count(eq(dailyReports.status, 'freigegeben')),
+			geprueft: count(eq(dailyReports.status, 'geprueft')),
+			week: count(sql`${dailyReports.date} <= ${weekEnd} and coalesce(${dailyReports.dateTo}, ${dailyReports.date}) >= ${weekStart}`)
+		})
+		.from(dailyReports)
+		.where(scope(user))
+		.get();
+	return { entwurf: row?.entwurf ?? 0, freigegeben: row?.freigegeben ?? 0, geprueft: row?.geprueft ?? 0, week: row?.week ?? 0 };
 }
 
 /** Nächste freie Nummer vorschlagen: höchste rein numerische Nummer plus eins */

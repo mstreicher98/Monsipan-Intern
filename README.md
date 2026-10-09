@@ -5,7 +5,7 @@ Oberfläche, auf dem Handy wie am PC. Die übrigen Bereiche kommen nach und nach
 
 | Bereich | Stand |
 |---|---|
-| Übersicht | fertig – Einstieg in alle Bereiche, Kennzahlen aus dem Lager |
+| Übersicht | fertig – „Zu erledigen“ und Kennzahlen aus allen Bereichen, je nach Berechtigung |
 | Auftragsmanagement | fertig – Anfragen, Angebote mit Kundenlink, Aufträge je Partie, Summenblatt, Rechnungen, Kunden |
 | Dokumentation: Stundenzettel | fertig – Lohnwoche je Mitarbeiter, Freigabe und Prüfung |
 | Dokumentation: Tagesberichte | fertig – Leistung je Tag und Baustelle, Freigabe, Prüfung, Unterschrift des Kunden |
@@ -14,6 +14,16 @@ Oberfläche, auf dem Handy wie am PC. Die übrigen Bereiche kommen nach und nach
 | Administration | fertig – Stammdaten, Einstellungen, Sicherungen |
 | Planung, Partien | geplant |
 | Bestellungen, Dokumente, Auswertungen | geplant |
+
+**Übersicht** (`/`): Oben **Zu erledigen** – was gerade ansteht, das Dringendste zuerst:
+überfällige Rechnungen, abgeschlossene Aufträge ohne Rechnung, Änderungswünsche und
+angenommene Angebote ohne Auftrag, Anfragen ohne Angebot, Tagesberichte zum Prüfen oder
+Freigeben, Stundenzettel zum Prüfen bzw. aus der Vorwoche noch offen, neue Aufträge der
+Partie, Artikel zum Nachbestellen. Darunter je Bereich die Kennzahlen – Auftragsmanagement
+(Anfragen, Angebote beim Kunden, Aufträge in Arbeit, offene Rechnungen, laufende Aufträge),
+Dokumentation (Tagesberichte der Woche, Stundenzettel der Woche bzw. der eigene) und Lager.
+Jeder sieht nur, was er auch öffnen darf – ein Partieführer etwa die Aufträge und Berichte
+seiner Partie, keine Preise. Jeder Punkt führt in die passende, schon gefilterte Liste.
 
 Welche Bereiche es gibt und welche davon freigeschaltet sind, steht an einer Stelle:
 [`src/lib/modules.ts`](src/lib/modules.ts). Ein neuer Bereich bekommt dort einen Eintrag,

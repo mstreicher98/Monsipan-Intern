@@ -81,8 +81,15 @@
 		<span class="field-label">bis</span>
 		<input class="input num" type="date" name="bis" value={data.filter.to} />
 	</label>
+	<label>
+		<span class="field-label">Stand</span>
+		<select class="select" name="stand" value={data.filter.status}>
+			<option value="">Alle</option>
+			{#each Object.entries(STATUS) as [key, s] (key)}<option value={key}>{s.label}</option>{/each}
+		</select>
+	</label>
 	<button class="btn btn-secondary"><Search size={18} aria-hidden="true" />Filtern</button>
-	{#if data.filter.q || data.filter.from || data.filter.to}
+	{#if data.filter.q || data.filter.from || data.filter.to || data.filter.status}
 		<a href="/tagesberichte" class="btn btn-ghost">Zurücksetzen</a>
 	{/if}
 </form>

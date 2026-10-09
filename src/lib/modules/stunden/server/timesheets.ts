@@ -12,7 +12,7 @@
  * übernimmt deren Partieführer die Woche und schreibt den ganzen Zettel
  * (writingPartyId). Die eigene Partie sieht ihn dann nur noch.
  */
-import { and, asc, eq, inArray, isNull, ne, sql } from 'drizzle-orm';
+import { and, asc, eq, inArray, isNull, ne, or, sql } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/sqlite-core';
 import { can, PARTY_ROLES, type Role } from '$lib/permissions';
 import { db, type Tx } from '$lib/server/db';
@@ -376,6 +376,25 @@ export function mayView(user: SessionUser, sheet: SheetParties & { userId: numbe
 
 /** Darf die Stundenzettel überhaupt öffnen – mindestens den eigenen */
 export const maySeeTimesheets = seesOwn;
+
+/** Freigegebene Zettel, die noch auf die Prüfung warten – so weit diese Person sie sieht */
+export async function countReleased(user: SessionUser): Promise<number> {
+	const where = [eq(timesheets.status, 'freigegeben')];
+	if (!seesAll(user)) {
+		if (!seesParty(user)) return 0;
+		where.push(or(eq(users.partyId, user.partyId!), eq(timesheets.writingPartyId, user.partyId!))!);
+	}
+	const row = await db
+		.select({ n: sql<number>`count(*)`.mapWith(Number) })
+		.from(timesheets)
+		.innerJoin(users, eq(users.id, timesheets.userId))
+		.where(and(...where))
+		.get();
+	return row?.n ?? 0;
+}
+
+/** Ob diese Person die Zettel ihrer Partie oder alle sieht – sonst nur den eigenen */
+export const seesOthers = (user: SessionUser) => seesAll(user) || seesParty(user);
 
 /**
  * Darf diese Person Stunden für diesen Mitarbeiter eintragen? „Bearbeiten" gilt

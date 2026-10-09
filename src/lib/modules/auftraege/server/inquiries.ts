@@ -67,12 +67,13 @@ export async function countInquiries() {
 	const row = await db
 		.select({
 			open: sql<number>`sum(case when ${open} then 1 else 0 end)`.mapWith(Number),
-			done: sql<number>`sum(case when ${done} then 1 else 0 end)`.mapWith(Number)
+			done: sql<number>`sum(case when ${done} then 1 else 0 end)`.mapWith(Number),
+			fresh: sql<number>`sum(case when ${inquiries.closedAt} is null and ${inquiries.offerId} is null then 1 else 0 end)`.mapWith(Number)
 		})
 		.from(inquiries)
 		.leftJoin(offers, eq(offers.id, inquiries.offerId))
 		.get();
-	return { open: row?.open ?? 0, done: row?.done ?? 0 };
+	return { open: row?.open ?? 0, done: row?.done ?? 0, fresh: row?.fresh ?? 0 };
 }
 
 export interface InquiryInput {
