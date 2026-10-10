@@ -43,9 +43,10 @@ export async function orderSummary(orderId: number | null, { invoiceId }: { invo
 			.orderBy(asc(dailyReportPositions.reportId), asc(dailyReportPositions.idx))
 			.all(),
 		db
-			.select({ reportId: dailyReportRows.reportId, quantities: dailyReportRows.quantities })
+			.select({ reportId: dailyReportRows.reportId, label: dailyReportRows.label, quantities: dailyReportRows.quantities })
 			.from(dailyReportRows)
 			.where(inArray(dailyReportRows.reportId, ids))
+			.orderBy(asc(dailyReportRows.reportId), asc(dailyReportRows.sortOrder), asc(dailyReportRows.id))
 			.all(),
 		db
 			.select({

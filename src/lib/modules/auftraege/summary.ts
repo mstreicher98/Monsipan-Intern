@@ -1,10 +1,11 @@
 /**
  * Summenblatt und Rechnung – was Browser und Server teilen.
  *
- * Summenblatt: Die Mengen aller Tagesberichte eines Auftrags, je Mengenspalte
- * (LB-Position und Einheit) zusammengezählt. Spalten ohne LB-Position bleiben
- * nach ihrer Stelle im Bericht getrennt (Spalte 1, 2, 3 …) – sonst fielen etwa
- * drei Spalten „lfm" zu einer zusammen. Es zählen nur geprüfte und vom
+ * Summenblatt: Die Mengen aller Tagesberichte eines Auftrags zusammengezählt –
+ * in Spalten mit LB-Position je LB-Position und Einheit, in Spalten ohne nach
+ * der Bezeichnung der Zeile (Ortsbezeichnung/Markierungsart, z. B. „RRL 0,15
+ * MSK C ref") und Einheit. Zeilen ohne Bezeichnung bleiben nach der Stelle der
+ * Spalte getrennt (Spalte 1, 2, 3 …). Es zählen nur geprüfte und vom
  * Kunden unterschriebene Berichte; die anderen stehen als Hinweis dabei.
  *
  * Rechnung: Jede Mengenspalte wird einer Angebotsposition zugeordnet – deren
@@ -27,7 +28,8 @@ export interface SummaryReportInput {
 	status: string;
 	/** Spalten in der Reihenfolge des Berichts */
 	positions: { lbPos: string; unit: string }[];
-	rows: { quantities: (number | null)[] }[];
+	/** Zeilen: Bezeichnung (Ort bzw. Markierungsart) und die Mengen je Spalte */
+	rows: { label?: string; quantities: (number | null)[] }[];
 	materials?: { material: string; code: string; filmThickness: string }[];
 	/** Schon abgerechnet mit dieser Rechnung */
 	invoiceId?: number | null;
@@ -38,7 +40,9 @@ export interface SummaryColumn {
 	key: string;
 	lbPos: string;
 	unit: string;
-	/** Ohne LB-Position: die wievielte Spalte im Bericht */
+	/** Ohne LB-Position: die Bezeichnung der Zeilen, die hier zusammengezählt sind */
+	label: string;
+	/** Ohne LB-Position und ohne Bezeichnung: die wievielte Spalte im Bericht */
 	slot: number | null;
 	/** Summe der zählenden Berichte */
 	total: number;
@@ -72,15 +76,20 @@ export interface OrderSummary {
 const tidy = (s: string) => s.replace(/\s+/g, ' ').trim();
 const round3 = (v: number) => Math.round((v + Number.EPSILON) * 1000) / 1000;
 
-/** Schlüssel einer Mengenspalte: LB-Position und Einheit, Groß/Klein egal – ohne LB-Position zählt die Stelle */
-export function columnKey(lbPos: string, unit: string, slot?: number | null): string {
-	const key = `${tidy(lbPos).toLowerCase()}|${tidy(unit).toLowerCase()}`;
-	return !tidy(lbPos) && slot ? `${key}#${slot}` : key;
+/**
+ * Schlüssel einer Menge, Groß/Klein egal: LB-Position und Einheit; ohne
+ * LB-Position die Bezeichnung der Zeile und die Einheit, ohne beides die Stelle der Spalte.
+ */
+export function columnKey(lbPos: string, unit: string, by: { label?: string; slot?: number | null } = {}): string {
+	const u = tidy(unit).toLowerCase();
+	if (tidy(lbPos)) return `${tidy(lbPos).toLowerCase()}|${u}`;
+	if (by.label && tidy(by.label)) return `~${tidy(by.label).toLowerCase()}|${u}`;
+	return by.slot ? `|${u}#${by.slot}` : `|${u}`;
 }
 
-/** So heißt die Spalte in Listen und Mengenherkunft: LB-Position, sonst „Spalte 2" */
-export function columnLabel(c: { lbPos: string; slot?: number | null }): string {
-	return c.lbPos || (c.slot ? `Spalte ${c.slot}` : 'ohne LB-Pos.');
+/** So heißt die Menge in Listen und Herkunft: LB-Position, sonst die Bezeichnung, sonst „Spalte 2" */
+export function columnLabel(c: { lbPos: string; label?: string; slot?: number | null }): string {
+	return c.lbPos || c.label || (c.slot ? `Spalte ${c.slot}` : 'ohne LB-Pos.');
 }
 
 const filled = (v: number | null | undefined): v is number => typeof v === 'number' && Number.isFinite(v);
@@ -96,14 +105,27 @@ export function summarize(input: SummaryReportInput[]): OrderSummary {
 	for (const r of sorted) {
 		const counted = COUNTED_STATUS.includes(r.status);
 		const values: Record<string, number> = {};
+		const add = (key: string, col: Omit<SummaryColumn, 'key' | 'total'>, v: number) => {
+			values[key] = round3((values[key] ?? 0) + v);
+			if (!columns.has(key)) columns.set(key, { key, ...col, total: 0 });
+		};
 		r.positions.forEach((p, i) => {
-			const sum = r.rows.reduce((s, row) => s + (filled(row.quantities[i]) ? row.quantities[i]! : 0), 0);
-			// Spalten ganz ohne Angabe und ohne Menge zählen nicht
-			if (!tidy(p.lbPos) && !tidy(p.unit) && !sum) return;
-			const slot = tidy(p.lbPos) ? null : i + 1;
-			const key = columnKey(p.lbPos, p.unit, slot);
-			values[key] = round3((values[key] ?? 0) + sum);
-			if (!columns.has(key)) columns.set(key, { key, lbPos: tidy(p.lbPos), unit: tidy(p.unit), slot, total: 0 });
+			const lbPos = tidy(p.lbPos);
+			const unit = tidy(p.unit);
+			if (lbPos) {
+				// Mit LB-Position: die ganze Spalte – sie steht auch ohne Menge im Blatt
+				const sum = r.rows.reduce((s, row) => s + (filled(row.quantities[i]) ? row.quantities[i]! : 0), 0);
+				add(columnKey(lbPos, unit), { lbPos, unit, label: '', slot: null }, sum);
+				return;
+			}
+			// Ohne LB-Position: je Bezeichnung der Zeile, Zeilen ohne Bezeichnung je Spalte
+			for (const row of r.rows) {
+				const q = row.quantities[i];
+				if (!filled(q) || q === 0) continue;
+				const label = tidy(row.label ?? '');
+				if (label) add(columnKey('', unit, { label }), { lbPos: '', unit, label, slot: null }, q);
+				else add(columnKey('', unit, { slot: i + 1 }), { lbPos: '', unit, label: '', slot: i + 1 }, q);
+			}
 		});
 		if (counted) {
 			for (const [key, v] of Object.entries(values)) {
@@ -134,13 +156,11 @@ export function summarize(input: SummaryReportInput[]): OrderSummary {
 		});
 	}
 
-	// Erst die mit LB-Position (nach Nummer), dann die übrigen in der Reihenfolge des Berichts
-	const cols = [...columns.values()].sort(
-		(a, b) =>
-			Number(!a.lbPos) - Number(!b.lbPos) ||
-			a.lbPos.localeCompare(b.lbPos, 'de', { numeric: true }) ||
-			(a.slot ?? 0) - (b.slot ?? 0) ||
-			a.unit.localeCompare(b.unit, 'de')
+	// Erst die mit LB-Position (nach Nummer), dann die übrigen, wie sie in den Berichten vorkommen
+	const cols = [...columns.values()].sort((a, b) =>
+		a.lbPos && b.lbPos
+			? a.lbPos.localeCompare(b.lbPos, 'de', { numeric: true }) || a.unit.localeCompare(b.unit, 'de')
+			: Number(!a.lbPos) - Number(!b.lbPos)
 	);
 	return { columns: cols, reports, from, to, materials: [...materials.values()], counted: reports.filter((r) => r.counted).length };
 }
@@ -205,11 +225,23 @@ export interface PricedLine {
 /** Zuordnung je Spalte: Positions-ID, null = nicht abrechnen, undefined = noch offen */
 export type Mapping = Record<string, number | null | undefined>;
 
+/** Wörter eines Textes – klein, ohne Satzzeichen am Rand */
+const words = (s: string) =>
+	new Set(
+		tidy(s)
+			.toLowerCase()
+			.split(' ')
+			.map((w) => w.replace(/^[.,;:()"„“]+|[.,;:()"„“]+$/g, ''))
+			.filter(Boolean)
+	);
+
 /**
- * Vorschlag: was der Auftrag sich gemerkt hat; sonst die Position mit genau
- * dieser Nummer (steht in der LB-Pos. die Angebotsposition, z. B. „1.2"); sonst
- * die Position, in deren Text die LB-Position steht; sonst die einzige
- * Position mit passender Einheit.
+ * Vorschlag: was der Auftrag sich gemerkt hat; bei einer Bezeichnung die
+ * einzige Position, in deren Text alle Wörter der Bezeichnung stehen („RRL
+ * 0,15" → „RRL 0,15 MSK C ref"); sonst die Position mit genau dieser Nummer
+ * (steht in der LB-Pos. die Angebotsposition, z. B. „1.2"); sonst die
+ * Position, in deren Text die LB-Position steht; sonst die einzige Position
+ * mit passender Einheit.
  */
 export function suggestMapping(columns: SummaryColumn[], lines: PricedLine[], saved: Record<string, number | null> | null | undefined): Mapping {
 	const numbers = lineNumbers(lines);
@@ -221,6 +253,17 @@ export function suggestMapping(columns: SummaryColumn[], lines: PricedLine[], sa
 		if (remembered === null || (remembered != null && positions.some((p) => p.id === remembered))) {
 			out[c.key] = remembered;
 			continue;
+		}
+		if (c.label) {
+			const want = [...words(c.label)];
+			const hits = positions.filter((p) => {
+				const have = words(p.text);
+				return want.every((w) => have.has(w));
+			});
+			if (hits.length === 1) {
+				out[c.key] = hits[0].id;
+				continue;
+			}
 		}
 		const numbered = c.lbPos ? byNumber.get(c.lbPos.replace(/\.$/, '')) : undefined;
 		if (numbered) {

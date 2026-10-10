@@ -418,7 +418,8 @@ Berichte in Arbeit oder nur freigegeben stehen darunter als „Nicht in der Summ
 PDF und Druck sehen aus wie der Vordruck **Tagesbericht-Summenblatt** (A4 quer): Briefkopf,
 Titel mit Jahr, **zu Rechnung Nr.**, rechts **Bundesland** und **Abschnitt**; im Raster
 T.B.Nr., vom und elf Mengenspalten mit **LV.** (Nummer der zugeordneten Angebotsposition),
-**LB.**, MSK (frei zum Ausfüllen) und **Einheit**, je Bericht eine Zeile, in der letzten die
+**LB.**, MSK (frei zum Ausfüllen) und **Einheit** – bei Mengen nach Bezeichnung steht statt
+LB. und MSK die Bezeichnung (z. B. „RRL 0,15 MSK C ref“) – je Bericht eine Zeile, in der letzten die
 **Summe**. Mehr als 21 Berichte gehen auf der nächsten Seite mit **Übertrag** weiter, mehr als
 elf Spalten in einem weiteren Blatt. Das Summenblatt gibt es zum ganzen Auftrag und **zu jeder
 Rechnung** (nur deren Berichte, Rechnungsnummer, Bundesland und Abschnitt ausgefüllt).
@@ -442,10 +443,12 @@ darunter die Reiter **Offen**, **Bezahlt** und **Alle**; überfällige sind rot 
   Nummer aus der LB-Pos. (wer im Tagesbericht z. B. „1.2“ einträgt, landet auf 1.2), sonst die
   Position, in deren Text die LB-Position steht, sonst die einzige mit passender Einheit (m,
   lfm, lfd. m gelten als gleich). Die Zuordnung merkt sich der Auftrag.
-- **Spalten ohne LB-Pos.** werden nicht zusammengeworfen: Sie bleiben nach ihrer Stelle im
-  Bericht getrennt („Spalte 1“, „Spalte 2“ …) – drei Spalten „lfm“ für RRL, LRL und LL sind
-  also drei Zeilen zum Zuordnen. Das setzt voraus, dass die Berichte eines Auftrags die
-  Spalten in derselben Reihenfolge führen; sicherer ist eine LB-Pos. in jeder Spalte.
+- **Spalten ohne LB-Pos.** zählen nach der **Bezeichnung der Zeile** (Ortsbezeichnung/
+  Markierungsart) und Einheit zusammen: alle Zeilen „RRL 0,15 MSK C ref“ aus allen gewählten
+  Berichten ergeben eine Menge, „LL 0,15 MSK C ref“ eine andere. Groß/Klein und doppelte
+  Leerzeichen spielen keine Rolle. Vorgeschlagen wird die Angebotsposition, in deren Text alle
+  Wörter der Bezeichnung stehen („RRL 0,15“ → „RRL 0,15 MSK C ref“). Zeilen ohne Bezeichnung
+  bleiben nach der Spalte getrennt („Spalte 1“ …).
 - Darunter die Positionen des Angebots mit den übernommenen Mengen; **Pauschalen** kommen mit
   der Menge aus dem Angebot – aber nur auf die erste Rechnung, auf der sie stehen. Mengen, Preise und Texte lassen sich ändern, eigene Positionen
   dazunehmen. Positionen ohne Menge kommen nicht auf die Rechnung; die **Nummern bleiben wie

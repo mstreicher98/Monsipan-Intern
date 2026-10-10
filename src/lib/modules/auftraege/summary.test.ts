@@ -42,8 +42,8 @@ describe('summarize', () => {
 	it('zählt je LB-Position und Einheit zusammen', () => {
 		// Geschrieben wird die Spalte wie im ersten Bericht – „M" statt „m"
 		expect(sum.columns).toEqual([
-			{ key: '01.02.01|m', lbPos: '01.02.01', unit: 'M', slot: null, total: 170.5 },
-			{ key: '01.05|m²', lbPos: '01.05', unit: 'm²', slot: null, total: 4 }
+			{ key: '01.02.01|m', lbPos: '01.02.01', unit: 'M', label: '', slot: null, total: 170.5 },
+			{ key: '01.05|m²', lbPos: '01.05', unit: 'm²', label: '', slot: null, total: 4 }
 		]);
 	});
 
@@ -81,6 +81,20 @@ describe('summarize', () => {
 		expect(s.columns.map(columnLabel)).toEqual(['Spalte 1', 'Spalte 2', 'Spalte 3']);
 	});
 
+	it('zählt ohne LB-Position nach der Bezeichnung der Zeile zusammen', () => {
+		const lfm = [{ lbPos: '', unit: 'lfm' }];
+		const s = summarize([
+			report({ id: 1, positions: lfm, rows: [{ label: 'RRL 0,15 MSK C ref', quantities: [1000] }, { label: 'LL 0,15 MSK C ref', quantities: [3000] }] }),
+			report({ id: 2, positions: lfm, rows: [{ label: 'rrl 0,15  MSK C ref', quantities: [150] }, { label: 'LRL 0,12 MSK C ref', quantities: [2000] }, { label: '', quantities: [7] }] })
+		]);
+		expect(s.columns.map((c) => [columnLabel(c), c.unit, c.total])).toEqual([
+			['RRL 0,15 MSK C ref', 'lfm', 1150],
+			['LL 0,15 MSK C ref', 'lfm', 3000],
+			['LRL 0,12 MSK C ref', 'lfm', 2000],
+			['Spalte 1', 'lfm', 7]
+		]);
+	});
+
 	it('ohne Berichte bleibt alles leer', () => {
 		expect(summarize([])).toEqual({ columns: [], reports: [], from: null, to: null, materials: [], counted: 0 });
 	});
@@ -97,8 +111,8 @@ describe('Zuordnung und Rechnungszeilen', () => {
 		{ id: 16, kind: 'position', text: 'Regie', quantity: 4, unit: 'h', unitPrice: 55 }
 	];
 	const columns = [
-		{ key: columnKey('01.02.01', 'm'), lbPos: '01.02.01', unit: 'm', slot: null, total: 170.5 },
-		{ key: columnKey('01.05', 'm²'), lbPos: '01.05', unit: 'm²', slot: null, total: 4 }
+		{ key: columnKey('01.02.01', 'm'), lbPos: '01.02.01', unit: 'm', label: '', slot: null, total: 170.5 },
+		{ key: columnKey('01.05', 'm²'), lbPos: '01.05', unit: 'm²', label: '', slot: null, total: 4 }
 	];
 
 	it('schlägt über LB-Position im Text und eindeutige Einheit vor', () => {
@@ -126,12 +140,23 @@ describe('Zuordnung und Rechnungszeilen', () => {
 
 	it('ordnet nach der Angebotsnummer in der LB-Pos. zu', () => {
 		const cols = [
-			{ key: columnKey('1.3', 'm²'), lbPos: '1.3', unit: 'm²', slot: null, total: 2 },
-			{ key: columnKey('', 'lfm', 2), lbPos: '', unit: 'lfm', slot: 2, total: 5 }
+			{ key: columnKey('1.3', 'm²'), lbPos: '1.3', unit: 'm²', label: '', slot: null, total: 2 },
+			{ key: columnKey('', 'lfm', { slot: 2 }), lbPos: '', unit: 'lfm', label: '', slot: 2, total: 5 }
 		];
 		// 1.3 = Pfeile; die Spalte ohne LB-Pos. passt per Einheit eindeutig auf die Leitlinie
 		expect(suggestMapping(cols, lines, null)).toEqual({ '1.3|m²': 13, '|lfm#2': 11 });
 		expect(invoiceLines(lines, cols, { '|lfm#2': 11 })[1].source).toBe('Spalte 2 (lfm)');
+	});
+
+	it('ordnet Bezeichnungen der Position mit allen ihren Wörtern zu', () => {
+		const marking: PricedLine[] = [
+			{ id: 1, kind: 'position', text: 'RRL 0,15 MSK C ref', quantity: 5680, unit: 'lfd. m', unitPrice: 3.5 },
+			{ id: 2, kind: 'position', text: 'LRL 0,12 MSK C ref', quantity: 5680, unit: 'lfd. m', unitPrice: 3.5 },
+			{ id: 3, kind: 'position', text: 'LL 0,15 MSK C ref', quantity: 5680, unit: 'lfd. m', unitPrice: 3.5 }
+		];
+		const col = (label: string) => ({ key: columnKey('', 'lfm', { label }), lbPos: '', unit: 'lfm', label, slot: null, total: 1 });
+		const cols = [col('RRL 0,15 MSK C ref'), col('LRL 0,12'), col('ll 0,15'), col('MSK C ref')];
+		expect(Object.values(suggestMapping(cols, marking, null))).toEqual([1, 2, 3, undefined]);
 	});
 
 	it('kennt gleichbedeutende Einheiten', () => {

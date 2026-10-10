@@ -614,8 +614,13 @@ export async function summaryPdf(sheet: SummarySheet): Promise<Response> {
 						.text(value, lx, y, { width: x + w - lx, lineBreak: false, ellipsis: true });
 				};
 				label('LV.', col ? (sheet.lv[col.key] ?? '') : '', 127.6);
-				label('LB.', col?.lbPos ?? '', 137.8);
-				label('MSK………..', '', 148);
+				if (col?.label) {
+					// Zusammengezählt nach Bezeichnung (z. B. „RRL 0,15 MSK C ref"): sie steht statt LB. und MSK da
+					doc.font('Helvetica-Bold').fontSize(7.5).fillColor(INK).text(col.label, x, 137.8, { width: w, height: 28, lineGap: -0.5, ellipsis: true });
+				} else {
+					label('LB.', col?.lbPos ?? '', 137.8);
+					label('MSK………..', '', 148);
+				}
 				label('Einheit', col?.unit ?? '', 168.4);
 			}
 

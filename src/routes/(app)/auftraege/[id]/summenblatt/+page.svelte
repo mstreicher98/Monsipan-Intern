@@ -64,7 +64,7 @@
 						<th scope="col" class="px-3 py-2.5 text-left font-semibold">Baustelle</th>
 						{#if data.seesInvoices}<th scope="col" class="px-3 py-2.5 text-left font-semibold">Rechnung</th>{/if}
 						{#each summary.columns as c (c.key)}
-							<th scope="col" class="px-3 py-2.5 text-right whitespace-nowrap">
+							<th scope="col" class="max-w-[11rem] min-w-[5rem] px-3 py-2.5 text-right">
 								<span class="num block font-semibold">{columnLabel(c)}</span>
 								<span class="block text-[0.75rem] font-normal text-ink-3">{c.unit || '–'}</span>
 							</th>
