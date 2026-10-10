@@ -8,6 +8,7 @@
 	import { dateTime, fullName } from '$lib/format';
 	import { SIGNATURE_HEIGHT, SIGNATURE_WIDTH } from '$lib/modules/stunden/signature';
 	import {
+		costCenterLines,
 		hoursLabel,
 		isoWeek,
 		monthLabel,
@@ -132,9 +133,12 @@
 			<tbody>
 				{#each alleTage as datum (datum)}
 					{@const day = byDate.get(datum)}
+					{@const kst = costCenterLines(day?.costCenter)}
 					<tr class="tag">
 						<th scope="row" class="c-tag">{WEEKDAY_LABELS[weekdayIndex(datum)]}</th>
-						<td class="num">{day?.costCenter ?? ''}</td>
+						<td class="num kst" class:zweizeilig={kst.length > 1}>
+							{#each kst as zeile, i (i)}<span>{zeile}</span>{/each}
+						</td>
 						<td>{day?.site ?? ''}</td>
 						{#each HOURS as h (h.key)}
 							<td rowspan="2" class="num zahl">{day ? hoursLabel(day[h.key]) : ''}</td>
@@ -384,6 +388,16 @@
 		height: 2.1rem;
 		font-size: 0.8125rem;
 		vertical-align: middle;
+	}
+	/* Kostenstelle: der Teil nach dem „/" in eigener Zeile */
+	.tag td.kst {
+		line-height: 1.1;
+	}
+	.tag td.kst.zweizeilig {
+		font-size: 0.6875rem;
+	}
+	.kst span {
+		display: block;
 	}
 	.zeit td,
 	.zeit th {

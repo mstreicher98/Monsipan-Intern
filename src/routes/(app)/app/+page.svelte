@@ -32,7 +32,7 @@
 <div class="pt-2 pb-5">
 	<h1 class="flex items-center gap-2 text-[2rem] leading-tight"><Smartphone size={26} aria-hidden="true" />App fürs Handy</h1>
 	<p class="max-w-2xl text-ink-2">
-		Monsipan Intern als App am Startbildschirm: eigenes Symbol, Vollbild ohne Browserleiste, Scannen mit der Kamera wie gewohnt. Die Daten kommen
+		Monsipan Portal als App am Startbildschirm: eigenes Symbol, Vollbild ohne Browserleiste, Scannen mit der Kamera wie gewohnt. Die Daten kommen
 		weiterhin vom Server, angemeldet bleibst du wie im Browser.
 	</p>
 </div>
@@ -46,7 +46,7 @@
 	{:else if install.platform === 'android'}
 		<section class="card p-4 lg:p-6">
 			<h2 class="text-xl">Android-App herunterladen</h2>
-			<p class="mt-1 text-ink-2">Die Datei installiert Monsipan Intern als richtige App.</p>
+			<p class="mt-1 text-ink-2">Die Datei installiert Monsipan Portal als richtige App.</p>
 			<a href={data.apkUrl} class="btn btn-primary mt-4 w-full" download rel="noopener">
 				<Download size={18} aria-hidden="true" />App herunterladen
 			</a>

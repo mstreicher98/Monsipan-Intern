@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
 	addDays,
+	costCenterLines,
 	hoursLabel,
 	isoWeek,
 	mondayOf,
@@ -75,5 +76,18 @@ describe('Lohnwoche', () => {
 		expect(parseTime('16.00')).toBe('16:00');
 		expect(parseTime('25:00')).toBe('');
 		expect(parseTime('')).toBe('');
+	});
+});
+
+describe('Kostenstelle', () => {
+	it('bricht nach dem ersten Schrägstrich in eine zweite Zeile um', () => {
+		expect(costCenterLines('24117/Halle 3')).toEqual(['24117/', 'Halle 3']);
+		expect(costCenterLines('A / B / C')).toEqual(['A /', 'B / C']);
+	});
+	it('lässt alles ohne Schrägstrich in einer Zeile', () => {
+		expect(costCenterLines('24117')).toEqual(['24117']);
+		expect(costCenterLines('24117/')).toEqual(['24117/']);
+		expect(costCenterLines('  ')).toEqual([]);
+		expect(costCenterLines(null)).toEqual([]);
 	});
 });

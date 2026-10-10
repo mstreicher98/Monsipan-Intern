@@ -49,7 +49,7 @@ public class NativePlugin extends Plugin {
     /** Die aktuelle Seite über den Android-Druckdienst drucken – dort geht auch „Als PDF speichern" */
     @PluginMethod
     public void print(PluginCall call) {
-        String title = call.getString("title", "Monsipan Intern");
+        String title = call.getString("title", "Monsipan Portal");
         getActivity().runOnUiThread(() -> {
             PrintManager printManager = (PrintManager) getContext().getSystemService(Context.PRINT_SERVICE);
             if (printManager == null) {

@@ -1,5 +1,5 @@
 /**
- * Die Bereiche von Monsipan Intern an einer Stelle: Reihenfolge, Beschriftung,
+ * Die Bereiche von Monsipan Portal an einer Stelle: Reihenfolge, Beschriftung,
  * Symbol, Einstiegsseite und nötiges Recht. Navigation und Übersicht bauen sich
  * daraus auf – ein neuer Bereich braucht nur einen Eintrag hier.
  *

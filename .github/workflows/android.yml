@@ -82,21 +82,21 @@ jobs:
           ./gradlew --no-daemon assembleRelease
 
       - name: APK benennen
-        run: cp android/app/build/outputs/apk/release/app-release*.apk monsipan-intern.apk
+        run: cp android/app/build/outputs/apk/release/app-release*.apk monsipan-portal.apk
 
       - uses: actions/upload-artifact@v4
         with:
-          name: monsipan-intern-apk
-          path: monsipan-intern.apk
+          name: monsipan-portal-apk
+          path: monsipan-portal.apk
 
       # Fester Download-Link für den Knopf in der App:
-      # https://github.com/<repo>/releases/download/app/monsipan-intern.apk
+      # https://github.com/<repo>/releases/download/app/monsipan-portal.apk
       - name: Veröffentlichen
         if: github.event_name != 'pull_request'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: app
-          name: Monsipan Intern – Android-App
+          name: Monsipan Portal – Android-App
           make_latest: false
           body: |
             Android-App zum Seitenladen (Version 1.0.${{ github.run_number }}).
@@ -106,4 +106,12 @@ jobs:
 
             Installation am Handy: Datei öffnen und die Installation aus dieser
             Quelle erlauben.
-          files: monsipan-intern.apk
+          files: monsipan-portal.apk
+
+      # Vor der Umbenennung hieß die Datei monsipan-intern.apk – die alte nicht mehr anbieten
+      - name: Alte Datei entfernen
+        if: github.event_name != 'pull_request'
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release delete-asset app monsipan-intern.apk --yes --repo "${{ github.repository }}"

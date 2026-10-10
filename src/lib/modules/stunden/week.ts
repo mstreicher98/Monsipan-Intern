@@ -183,6 +183,18 @@ export function timeRangeLabel(ranges: readonly TimeRange[] | null | undefined):
 		.join(', ');
 }
 
+/**
+ * Kostenstelle für Ausdruck und PDF: Was nach dem ersten „/" kommt, steht in
+ * einer zweiten Zeile – "24117/Halle 3" wird zu "24117/" und "Halle 3".
+ */
+export function costCenterLines(value: string | null | undefined): string[] {
+	const text = String(value ?? '').trim();
+	const cut = text.indexOf('/');
+	if (cut < 0) return text ? [text] : [];
+	const rest = text.slice(cut + 1).trim();
+	return rest ? [text.slice(0, cut + 1).trim(), rest] : [text];
+}
+
 /** Uhrzeit "7:30" oder "0730" auf "07:30" bringen; ungültiges wird leer */
 export function parseTime(input: string | null | undefined): string {
 	const s = String(input ?? '').trim();

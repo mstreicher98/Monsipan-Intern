@@ -16,6 +16,8 @@ services:
     environment:
       # Pflicht: die öffentliche Adresse hinter dem Cloudflare Tunnel.
       # Ohne passende ORIGIN lehnt SvelteKit alle Formulare ab („Cross-site POST“).
+      # Künftig https://portal.monsipan.at – die alte Adresse leitet dann von selbst
+      # weiter (README „Umzug auf portal.monsipan.at“).
       ORIGIN: ${ORIGIN:-https://intern.monsipan.at}
       # Echte Besucher-IP hinter dem Tunnel (für die Sperre bei falschen Passwörtern)
       ADDRESS_HEADER: Cf-Connecting-Ip
@@ -36,7 +38,7 @@ services:
       SMTP_SECURE: ${SMTP_SECURE:-false}
       SMTP_USER: ${SMTP_USER:-}
       SMTP_PASS: ${SMTP_PASS:-}
-      MAIL_FROM: '${MAIL_FROM:-Monsipan Intern <lager@monsipan.at>}'
+      MAIL_FROM: '${MAIL_FROM:-Monsipan Portal <lager@monsipan.at>}'
 
       # Push in der Android-App: am einfachsten den Dienstkonto-Schlüssel aus Firebase
       # in der App unter Verwaltung → Benachrichtigungen hochladen. Alternativ hier

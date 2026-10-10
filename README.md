@@ -1,4 +1,4 @@
-# Monsipan Intern
+# Monsipan Portal
 
 Die interne Anwendung von Monsipan Bautenschutz: alle Bereiche des Betriebs in einer
 Oberfläche, auf dem Handy wie am PC. Die übrigen Bereiche kommen nach und nach dazu.
@@ -188,7 +188,8 @@ Mitternacht. Die Summe trägt die Seite als Norm-Stunden ein. Überstunden und d
 Stundenarten trägt man selbst ein; wer die Norm-Stunden von Hand ändert, behält seinen
 Wert. Uhrzeiten dürfen auch als `0630` oder `6.30` getippt werden, Stunden als `8,5` oder
 `8:30`. Ausdruck und PDF schreiben alle Zeiten in die Zeile „Zeit von/bis“; bei vielen
-wird die Schrift kleiner.
+wird die Schrift kleiner. Eine Kostenstelle mit „/“ steht dort in zwei Zeilen: alles nach
+dem ersten „/“ darunter (`24117/Halle 3` → `24117/` und `Halle 3`).
 
 **Monatlich getrennt:** Der Lohn wird monatsweise abgerechnet, deshalb endet ein
 Stundenzettel immer am Monatsende. Geht eine Woche über den Monatswechsel, gibt es zwei
@@ -595,7 +596,7 @@ Compose path `portainer-stack.yml`. Die Datei ist kommentiert; nötig ist nur:
 
 | Variable | Wert |
 |---|---|
-| `ORIGIN` | `https://intern.monsipan.at` – muss exakt der öffentlichen Adresse entsprechen, sonst lehnt die App alle Formulare ab |
+| `ORIGIN` | `https://intern.monsipan.at`, künftig `https://portal.monsipan.at` – muss exakt der öffentlichen Adresse entsprechen, sonst lehnt die App alle Formulare ab |
 | `INITIAL_ADMIN_PASSWORD` | Passwort des ersten Admins (leer lassen: die App erzeugt eines und zeigt es im Log) |
 | `SMTP_*`, `MAIL_FROM` | nur falls E-Mail gewünscht |
 
@@ -614,18 +615,30 @@ Die Datenbank liegt im Volume `lager-data` und bleibt dabei erhalten; Migratione
 beim Start automatisch. Volume und Dateiname heißen weiterhin „lager“ – beim Umbenennen
 der Anwendung wurden sie bewusst nicht angefasst, damit keine Daten verloren gehen.
 
-**Umzug von `lager.monsipan.at` auf `intern.monsipan.at`:** Im Cloudflare-Tunnel die neue
-Hostname-Route auf denselben Container legen und `ORIGIN` auf die neue Adresse setzen.
-Für die alte Adresse in Cloudflare unter **Rules → Redirect Rules** eine Weiterleitung
-auf `intern.monsipan.at` anlegen (Pfad und Query übernehmen). Das muss in Cloudflare
-passieren, nicht in der App: Mit gesetztem `ORIGIN` sieht die Anwendung den alten
-Hostnamen gar nicht mehr. Innerhalb der Anwendung leiten die alten Pfade von selbst
-weiter (siehe [Bereiche und Adressen](#bereiche-und-adressen)).
+**Umzug auf `portal.monsipan.at`:** Die Anwendung heißt jetzt Monsipan Portal; die Adresse
+zieht später von `intern.monsipan.at` nach `portal.monsipan.at`. Dafür:
+
+1. Im Cloudflare-Tunnel unter **Public Hostnames** `portal.monsipan.at` auf denselben
+   Dienst legen wie `intern.monsipan.at` – die alte Route bleibt stehen.
+2. In Portainer `ORIGIN` auf `https://portal.monsipan.at` setzen, **Pull and redeploy**.
+   Ab dann leitet die App Aufrufe von `intern.monsipan.at` (und dem noch älteren
+   `lager.monsipan.at`) selbst auf die neue Adresse weiter, mit Pfad und Query – Lesezeichen,
+   Links in Mails und Kundenlinks bleiben gültig. Alle melden sich einmal neu an, weil die
+   Anmeldung an der Adresse hängt; Push im Browser einmal neu einschalten.
+3. Die Android-App mit der neuen Adresse bauen: unter Actions „Android-App (APK)“ → **Run
+   workflow** mit der Adresse `https://portal.monsipan.at` (oder dauerhaft als
+   Repository-Variable `APP_URL`). Die App aktualisiert sich über die bestehende
+   Installation – Kennung, Signatur und Firebase bleiben gleich.
+
+Leitet die alte Adresse nicht weiter (etwa weil im Tunnel ein eigener Host-Kopf
+eingestellt ist), geht dasselbe in Cloudflare unter **Rules → Redirect Rules**. Innerhalb
+der Anwendung leiten auch die alten Pfade von selbst weiter (siehe
+[Bereiche und Adressen](#bereiche-und-adressen)).
 
 ### Selbst bauen mit Docker Compose und Caddy
 
 Benötigt: ein Linux-Server mit Docker, Ports 80 und 443 offen, und ein DNS-Eintrag
-(A-Record) von `intern.monsipan.at` auf die Server-IP.
+(A-Record) von `portal.monsipan.at` auf die Server-IP.
 
 ```bash
 git clone <repo> monsipan-intern && cd monsipan-intern
@@ -789,7 +802,7 @@ Download-Knopf erscheint ausschließlich am Handy und nur angemeldet.
 fragt Android, ob Apps aus dieser Quelle installiert werden dürfen, weil die Datei nicht
 aus dem Play Store kommt.
 
-> **Einmalig beim Umstieg auf Monsipan Intern:** Die App hat eine neue Kennung
+> **Einmalig beim Umstieg von der Lager-App:** Die App hat eine neue Kennung
 > (`at.monsipan.intern` statt `at.monsipan.lager`). Android hält sie deshalb für eine
 > andere App – die neue muss installiert und die alte „Lagermanagement" danach
 > deinstalliert werden. Ein Update über die alte Installation ist nicht möglich.
@@ -797,8 +810,13 @@ aus dem Play Store kommt.
 Fester Download-Link:
 
 ```
-https://github.com/mstreicher98/Monsipan-Intern/releases/download/app/monsipan-intern.apk
+https://github.com/mstreicher98/Monsipan-Intern/releases/download/app/monsipan-portal.apk
 ```
+
+Die App heißt am Handy „Monsipan Portal“. Ihre interne Kennung bleibt `at.monsipan.intern`
+– so aktualisiert sich jede Installation ohne Neuinstallation, und die Anmeldung bei
+Firebase passt weiter. Repository, Image (`monsipan-intern`) und Volume behalten ihre
+Namen ebenfalls; die sieht niemand außer der Verwaltung.
 
 **iPhone und iPad:** Apple erlaubt kein Installieren per Datei. Safari legt das Lager
 stattdessen über **Teilen → Zum Home-Bildschirm** als App an – mit eigenem Symbol,

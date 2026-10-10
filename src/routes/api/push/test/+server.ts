@@ -8,7 +8,7 @@ export const POST: RequestHandler = async ({ locals }) => {
 	const user = requireUser(locals);
 	const devices = await deviceCount(user.id);
 	if (devices) {
-		await pushTo([{ userId: user.id, payload: { title: 'Test von Monsipan Intern', body: 'Push kommt auf diesem Gerät an.', url: '/benachrichtigungen', tag: 'test' } }]);
+		await pushTo([{ userId: user.id, payload: { title: 'Test von Monsipan Portal', body: 'Push kommt auf diesem Gerät an.', url: '/benachrichtigungen', tag: 'test' } }]);
 	}
 	return json({ devices });
 };

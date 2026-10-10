@@ -9,7 +9,7 @@ import type { CapacitorConfig } from '@capacitor/cli';
  */
 const config: CapacitorConfig = {
 	appId: 'at.monsipan.intern',
-	appName: 'Monsipan Intern',
+	appName: 'Monsipan Portal',
 	// Nur die Offline-Ersatzseite; die eigentliche App kommt vom Server
 	webDir: 'capacitor/www',
 	server: {

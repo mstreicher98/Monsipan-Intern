@@ -14,7 +14,7 @@ import { bufferResponse, drawInk, drawLogo, startPdf } from '$lib/server/pdf';
 import { inkInRect } from '$lib/ink';
 import { fullName } from '$lib/format';
 import { SIGNATURE_HEIGHT, SIGNATURE_WIDTH } from '../signature';
-import { hoursLabel, isoWeek, monthLabel, monthsOfWeek, timeRangeLabel, WEEKDAY_LABELS, weekdayIndex, weekDays } from '../week';
+import { costCenterLines, hoursLabel, isoWeek, monthLabel, monthsOfWeek, timeRangeLabel, WEEKDAY_LABELS, weekdayIndex, weekDays } from '../week';
 import type { SheetDetail } from './timesheets';
 import { totals } from './timesheets';
 
@@ -160,7 +160,16 @@ export async function lohnzettelPdf(
 		doc.font('Helvetica').fontSize(11).text(WEEKDAY_LABELS[i], colX(0), y + DAY_H / 2 - 6, { width: colW(0), align: 'center' });
 		if (d) {
 			if (!inked(colX(1), y, colW(1), DAY_H)) {
-				doc.fontSize(9).text(d.costCenter, colX(1) + 3, y + DAY_H / 2 - 5, { width: colW(1) - 6, lineBreak: false, ellipsis: true });
+				// Was nach dem „/" kommt, steht darunter; zu Langes wird etwas kleiner
+				const lines = costCenterLines(d.costCenter);
+				const room = colW(1) - 6;
+				doc.fontSize(9);
+				const size = Math.max(6, Math.min(9, ...lines.map((l) => (9 * room) / Math.max(1, doc.widthOfString(l)))));
+				doc.fontSize(size);
+				const lineH = size + 2;
+				const top = y + DAY_H / 2 - (lines.length * lineH) / 2 + 1;
+				// Die Höhe hält jede Zeile einzeilig; was nicht passt, endet mit „…"
+				lines.forEach((l, i) => doc.text(l, colX(1) + 3, top + i * lineH, { width: room, height: lineH, ellipsis: true }));
 			}
 			if (!inked(colX(2), y, colW(2), DAY_H)) {
 				doc.fontSize(9.5).text(d.site, colX(2) + 5, y + DAY_H / 2 - 6, { width: colW(2) - 10, lineBreak: false, ellipsis: true });
