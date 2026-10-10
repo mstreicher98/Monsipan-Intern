@@ -3,6 +3,7 @@ import { can } from '$lib/permissions';
 import { requirePermission } from '$lib/server/guard';
 import { deleteInvoice, invoiceDetail, setInvoiceOpen, setInvoicePaid } from '$lib/modules/auftraege/server/invoices';
 import { isValidIsoDate, today } from '$lib/modules/stunden/week';
+import { notifyInvoice } from '$lib/modules/auftraege/server/notify';
 import type { Actions, PageServerLoad } from './$types';
 
 async function open(id: number, locals: App.Locals) {
@@ -33,6 +34,7 @@ export const actions: Actions = {
 		if (!isValidIsoDate(on)) return fail(400, { message: 'Bitte das Datum der Zahlung eintragen.' });
 		if (on > today()) return fail(400, { message: 'Das Zahlungsdatum liegt in der Zukunft.' });
 		await setInvoicePaid(invoice.id, on, user.id);
+		if (invoice.status !== 'bezahlt') notifyInvoice('rechnung.bezahlt', invoice.id, user.id);
 		return { paid: true };
 	},
 

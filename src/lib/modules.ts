@@ -30,6 +30,7 @@ import FolderOpen from '@lucide/svelte/icons/folder-open';
 import UserCog from '@lucide/svelte/icons/user-cog';
 import ShieldCheck from '@lucide/svelte/icons/shield-check';
 import Settings from '@lucide/svelte/icons/settings';
+import BellRing from '@lucide/svelte/icons/bell-ring';
 import Database from '@lucide/svelte/icons/database';
 import type { Component } from 'svelte';
 import { can, type Permission, type Role } from './permissions';
@@ -142,7 +143,8 @@ export const MODULES: AppModule[] = [
 		hint: 'Stammdaten, Einstellungen, Sicherungen',
 		items: [
 			{ href: '/verwaltung/stammdaten', label: 'Stammdaten', icon: Database, permission: 'stammdaten.sehen' },
-			{ href: '/verwaltung/einstellungen', label: 'Einstellungen', icon: Settings, permission: 'einstellungen.sehen' }
+			{ href: '/verwaltung/einstellungen', label: 'Einstellungen', icon: Settings, permission: 'einstellungen.sehen' },
+			{ href: '/verwaltung/benachrichtigungen', label: 'Benachrichtigungen', icon: BellRing, permission: 'benachrichtigungen.sehen' }
 		]
 	}
 ];

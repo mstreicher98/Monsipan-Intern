@@ -266,6 +266,8 @@ export const invoices = sqliteTable(
 		/** Bezahlt am „JJJJ-MM-TT" */
 		paidOn: text('paid_on'),
 		paidBy: integer('paid_by').references(() => users.id, { onDelete: 'set null' }),
+		/** Benachrichtigung „überfällig" ist verschickt – einmal je Rechnung */
+		overdueNotifiedAt: integer('overdue_notified_at', { mode: 'timestamp_ms' }),
 		createdBy: integer('created_by').references(() => users.id, { onDelete: 'set null' }),
 		createdAt: createdAt(),
 		updatedAt: integer('updated_at', { mode: 'timestamp_ms' })

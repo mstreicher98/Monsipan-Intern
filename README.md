@@ -59,6 +59,7 @@ Inventur-Buchung festgehalten, auch wenn sie stimmt.
 2. [Stundenzettel](#stundenzettel)
 3. [Tagesberichte](#tagesberichte)
 4. [Auftragsmanagement](#auftragsmanagement)
+5. [Benachrichtigungen](#benachrichtigungen)
 5. [Lokale Entwicklung](#lokale-entwicklung)
 3. [Betrieb auf dem Server](#betrieb-auf-dem-server)
 4. [Datensicherung](#datensicherung)
@@ -90,7 +91,8 @@ Administration unter `/verwaltung/…`:
 | Inventur | `/lager/inventur` |
 | Artikel | `/lager/artikel/<id>` |
 | Scanner testen | `/lager/scanner-test` |
-| Stammdaten, Benutzer, Einstellungen | `/verwaltung/…` |
+| Stammdaten, Benutzer, Einstellungen, Benachrichtigungen | `/verwaltung/…` |
+| Eigene Benachrichtigungen (Glocke) | `/benachrichtigungen` |
 
 Die alten Adressen (`/bestand`, `/buchen`, `/artikel/5`, `/benutzer` …) leiten dauerhaft
 auf die neuen weiter – gespeicherte Lesezeichen und Verknüpfungen am Handy funktionieren
@@ -449,6 +451,62 @@ angenommen. Der Link des Kunden zu einem gelöschten Angebot funktioniert nicht 
 Wer was darf, steht unter Verwaltung → Berechtigungen im Abschnitt „Auftragsmanagement“
 (Anfragen, Angebote, Aufträge, Rechnungen, Kunden). Preise sieht nur, wer Angebote oder
 Rechnungen sehen darf – Partieführer und Arbeiter sehen sie nicht.
+
+## Benachrichtigungen
+
+Bei wichtigen Schritten bekommen die richtigen Leute Bescheid – unter der **Glocke** oben
+rechts (mit Zahl der ungelesenen, live) und als **Push** aufs Handy bzw. den PC, auch wenn
+die App zu ist. Ein Tipp führt direkt zur Stelle und markiert die Benachrichtigung als
+gelesen. Ältere als 90 Tage räumt die nächtliche Wartung weg.
+
+**Ereignisse:** neue Anfrage · Angebot freigegeben · Angebot vom Kunden angenommen ·
+Änderungswunsch des Kunden · Auftrag einer Partie zugeordnet (neu oder Partie gewechselt) ·
+neue Pläne/Unterlagen am Auftrag · Auftrag in Arbeit · Auftrag abgeschlossen · Rechnung
+erstellt · Rechnung bezahlt · Rechnung überfällig (am Tag nach „zahlbar bis“, ab 7 Uhr,
+einmal je Rechnung) · Tagesbericht freigegeben · Tagesbericht vom Kunden unterschrieben ·
+Tagesbericht wieder geöffnet · Stundenzettel freigegeben · Stundenzettel wieder geöffnet ·
+Arbeiter hilft bei einer anderen Partie aus · Artikel am Mindestbestand.
+
+**Wer was bekommt** stellt der Admin unter **Verwaltung → Benachrichtigungen** ein: je
+Ereignis die Gruppen anhaken und bei Bedarf einzelne Personen dazunehmen. Dabei gilt immer:
+
+- Ankommen kann nur, was die Person auch öffnen darf (Berechtigungen) – Gruppen ohne Recht
+  sind ausgegraut.
+- Bei Ereignissen einer Partie (Aufträge, Tagesberichte, Stundenzettel) bekommen es
+  Partieführer und Arbeiter nur für ihre eigene Partie; wer „alle sehen“ darf, für alle.
+- Wer einen Schritt selbst macht, bekommt dazu nichts.
+- Jede Person kann einzelne Benachrichtigungen unter **Mein Konto → Benachrichtigungen** für
+  sich abschalten.
+
+Von Haus aus z. B.: neuer Auftrag → Partieführer der Partie; Angebot angenommen →
+Geschäftsführung, Bauleitung, Büro; Tagesbericht freigegeben → Bauleitung und Büro;
+Stundenzettel freigegeben → Büro; Rechnung überfällig → Geschäftsführung und Büro.
+Der Katalog mit den Vorgaben steht in [`src/lib/notifications.ts`](src/lib/notifications.ts).
+
+**Push einschalten:** je Gerät einmal – unter der Glocke oder unter Mein Konto auf
+**Einschalten** tippen und die Nachfrage des Browsers bzw. von Android erlauben. **Test**
+schickt eine Probe an die eigenen Geräte.
+
+- **Browser und Web-App** (PC, Android im Chrome, iPhone als Web-App am Home-Bildschirm):
+  läuft ohne Einrichtung. Die Schlüssel (VAPID) erzeugt der Server beim ersten Mal selbst und
+  legt sie in der Datenbank ab; wer eigene will, setzt `VAPID_PUBLIC_KEY` und
+  `VAPID_PRIVATE_KEY`.
+- **Android-App:** braucht ein kostenloses Firebase-Projekt und eine neue APK. Einmalig:
+  1. [console.firebase.google.com](https://console.firebase.google.com) → Projekt anlegen
+     (Analytics nicht nötig).
+  2. **Android-App hinzufügen** mit dem Paketnamen `at.monsipan.intern` und die Datei
+     **google-services.json** herunterladen.
+  3. Auf GitHub unter Settings → Secrets and variables → Actions ein Secret
+     **GOOGLE_SERVICES_JSON** anlegen und den ganzen Inhalt der Datei einfügen. Danach den
+     Workflow „Android-App (APK)“ einmal laufen lassen und die neue App installieren.
+  4. In Firebase unter Projekteinstellungen → **Dienstkonten** → „Neuen privaten Schlüssel
+     generieren“. Die heruntergeladene JSON-Datei als Base64 in Portainer als Variable
+     **FIREBASE_SERVICE_ACCOUNT** eintragen (Base64: `base64 -w0 datei.json` bzw. in
+     PowerShell `[Convert]::ToBase64String([IO.File]::ReadAllBytes("datei.json"))`), dann
+     **Pull and redeploy**.
+
+  Ohne diese Schritte läuft alles andere weiter; in der App kommt dann nur die Glocke, und
+  die Seite Benachrichtigungen zeigt „noch nicht eingerichtet“.
 
 ## Handschrift am Tablet
 
@@ -843,7 +901,9 @@ src/
     nav.ts         Navigation, gefiltert nach Rolle
     components/    Geteilte Bausteine (Dialog, Tabelle, Diagramm, PDF-Ansicht, Navigation,
                    Handschrift auf dem Formular)
-    server/        Geteilt: Datenbank, Anmeldung, Mail, Sicherungen, Dokumente, Ereignisse
+    server/        Geteilt: Datenbank, Anmeldung, Mail, Sicherungen, Dokumente, Ereignisse,
+                   Benachrichtigungen (notifications.ts) und Push (push.ts)
+    notifications.ts  Katalog der Benachrichtigungen und wer sie bekommen darf
     server/db/schema/   core.ts (Benutzer, Partien, Einstellungen) + je Bereich eine Datei
     modules/
       auftraege/   Auftragsmanagement: offer.ts (Beträge, Summen, Nummern), inquiry.ts

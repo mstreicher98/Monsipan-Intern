@@ -7,6 +7,9 @@
 	import NewPasswordFields from '$lib/components/NewPasswordFields.svelte';
 	import { needsParty, ROLE_DESCRIPTIONS, ROLE_LABELS } from '$lib/permissions';
 	import { toast } from '$lib/stores/toast.svelte';
+	import Bell from '@lucide/svelte/icons/bell';
+	import PushToggle from '$lib/components/PushToggle.svelte';
+	import { NOTIFICATION_EVENTS } from '$lib/notifications';
 
 	let { data, form } = $props();
 
@@ -75,6 +78,37 @@
 		<form method="POST" action="?/sessions" class="mt-4" use:enhance={after('Andere Geräte abgemeldet')}>
 			<button class="btn btn-secondary" disabled={data.sessionCount <= 1}>Auf allen anderen Geräten abmelden</button>
 		</form>
+	</section>
+
+	<section id="benachrichtigungen" class="card scroll-mt-24 p-4 lg:col-span-2 lg:p-6" aria-labelledby="h-notify">
+		<h2 id="h-notify" class="flex items-center gap-2 text-xl"><Bell size={20} aria-hidden="true" />Benachrichtigungen</h2>
+		<p class="mt-1 text-sm text-ink-2">
+			Was du bekommst, legt der Admin fest. Einzelne kannst du hier für dich abschalten – sie fehlen dann unter der Glocke und als Push.
+		</p>
+		<div class="mt-4"><PushToggle /></div>
+		{#if data.myEvents.length}
+			<ul class="mt-4 grid gap-x-6 gap-y-1 sm:grid-cols-2">
+				{#each data.myEvents as e (e.event)}
+					<li>
+						<form method="POST" action="?/mute" use:enhance={after(e.muted ? 'Wieder eingeschaltet' : 'Abgeschaltet')}>
+							<input type="hidden" name="event" value={e.event} />
+							<input type="hidden" name="aus" value={e.muted ? '0' : '1'} />
+							<button class="flex w-full items-center gap-3 rounded-xl px-2 py-2 text-left hover:bg-surface-2" role="switch" aria-checked={!e.muted}>
+								<span class="relative h-6 w-10 shrink-0 rounded-full transition-colors {e.muted ? 'bg-surface-3' : 'bg-ok'}">
+									<span class="absolute top-0.5 size-5 rounded-full bg-white shadow transition-[left] {e.muted ? 'left-0.5' : 'left-[1.125rem]'}"></span>
+								</span>
+								<span class="min-w-0 flex-1 text-sm {e.muted ? 'text-ink-3' : ''}">
+									<span class="block font-medium">{NOTIFICATION_EVENTS[e.event].label}</span>
+									<span class="block text-[0.75rem] text-ink-3">{NOTIFICATION_EVENTS[e.event].section}{e.viaGroup ? '' : ' · persönlich eingetragen'}</span>
+								</span>
+							</button>
+						</form>
+					</li>
+				{/each}
+			</ul>
+		{:else}
+			<p class="mt-4 text-sm text-ink-3">Für dich ist derzeit keine Benachrichtigung eingestellt.</p>
+		{/if}
 	</section>
 
 	<section class="card p-4 lg:p-6" aria-labelledby="h-scan">

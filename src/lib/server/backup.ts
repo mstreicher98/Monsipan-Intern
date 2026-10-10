@@ -3,6 +3,8 @@ import path from 'node:path';
 import { client, DATA_DIR } from './db';
 import { purgeExpired } from './auth';
 import { tidyDocuments } from './documents';
+import { purgeOldNotifications } from './notifications';
+import { notifyOverdueInvoices } from '$lib/modules/auftraege/server/invoices';
 import { tidyPhotos } from '$lib/modules/tagesberichte/server/photos';
 
 export const BACKUP_DIR = path.join(DATA_DIR, 'backups');
@@ -138,7 +140,10 @@ export function scheduleMaintenance() {
 				if (removed) console.info(`[dokumente] ${removed} unbenutzte PDF-Dateien gelöscht`);
 				const photos = await tidyPhotos(now);
 				if (photos.removed) console.info(`[fotos] ${photos.removed} unbenutzte Bilddateien gelöscht`);
+				await purgeOldNotifications(now);
 			}
+			// Überfällige Rechnungen melden – ab 7 Uhr, damit es nicht nachts summt
+			if (now.getHours() >= 7) await notifyOverdueInvoices();
 		} catch (err) {
 			console.error('[backup]', err);
 		}

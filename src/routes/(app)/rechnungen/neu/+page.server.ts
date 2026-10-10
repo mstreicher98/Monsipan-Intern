@@ -2,6 +2,7 @@ import { error, fail, redirect } from '@sveltejs/kit';
 import { requirePermission } from '$lib/server/guard';
 import { mayViewOrder } from '$lib/modules/auftraege/server/orders';
 import { createInvoice, draftLines, invoiceDraft, invoiceForOrder, readInvoice, readMapping } from '$lib/modules/auftraege/server/invoices';
+import { notifyInvoice } from '$lib/modules/auftraege/server/notify';
 import type { Actions, PageServerLoad } from './$types';
 
 /** Auftrag laden und prüfen: sichtbar, abgeschlossen, noch ohne Rechnung */
@@ -42,6 +43,7 @@ export const actions: Actions = {
 		);
 		const result = await createInvoice(user, draft.order.id, data, mapping);
 		if (typeof result !== 'number') return fail(400, { message: result.message });
+		notifyInvoice('rechnung.erstellt', result, user.id);
 		redirect(303, `/rechnungen/${result}`);
 	}
 };

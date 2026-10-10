@@ -3,6 +3,7 @@ import { can } from '$lib/permissions';
 import { requireUser } from '$lib/server/guard';
 import { borrowCandidates, borrowWeek, mayRecordFor, maySeeTimesheets, openSheet, weekOverview } from '$lib/modules/stunden/server/timesheets';
 import { isValidIsoDate, mondayOf, today } from '$lib/modules/stunden/week';
+import { notifySheet } from '$lib/modules/stunden/server/notify';
 import type { Actions, PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async ({ locals, url }) => {
@@ -56,6 +57,7 @@ export const actions: Actions = {
 		if (!Number.isInteger(personId) || !isValidIsoDate(weekStart)) return fail(400, { message: 'Bitte eine Person wählen.' });
 		const result = await borrowWeek(user, personId, weekStart);
 		if ('error' in result) return fail(400, { message: result.error });
+		notifySheet('stunden.aushilfe', result.id, user.id);
 		redirect(303, `/stundenzettel/${result.id}`);
 	}
 };

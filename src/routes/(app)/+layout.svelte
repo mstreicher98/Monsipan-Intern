@@ -16,6 +16,7 @@
 	import { feedbackError, feedbackSuccess } from '$lib/modules/lager/scan/feedback';
 	import { scanner } from '$lib/modules/lager/scan/scanner.svelte';
 	import { toast } from '$lib/stores/toast.svelte';
+	import { resyncPush } from '$lib/push';
 	import type { LookupResult } from '$lib/modules/lager/types';
 
 	let { data, children } = $props();
@@ -25,6 +26,17 @@
 	let result = $state<LookupResult | null>(null);
 
 	const showAlerts = $derived(can(data.user.role, 'lager.warnungen.sehen'));
+
+	/**
+	 * Neue Benachrichtigung, während die App offen ist: kurz einblenden. Die
+	 * zuletzt gezeigte merken wir uns, damit ein Neuladen nichts doppelt meldet.
+	 */
+	let lastShown: number | null = null;
+	$effect(() => {
+		const latest = data.notifications.latest;
+		if (lastShown !== null && latest && latest.id > lastShown) toast.info(latest.title, latest.body || undefined);
+		lastShown = Math.max(lastShown ?? 0, latest?.id ?? 0);
+	});
 
 	onMount(() => {
 		const uninstall = installWedgeListener();
@@ -55,8 +67,19 @@
 				clearTimeout(timer);
 				timer = setTimeout(() => invalidate('app:stock'), 250);
 			});
+			// Benachrichtigungen: nur die Nummern der Empfänger kommen mit – betrifft es mich, Glocke neu laden
+			es.addEventListener('notifications', (e) => {
+				try {
+					const { userIds } = JSON.parse((e as MessageEvent).data) as { userIds: number[] };
+					if (userIds.includes(data.user.id)) invalidate('app:notifications');
+				} catch {
+					/* unlesbar – ignorieren */
+				}
+			});
 		};
 		connect();
+		// Ist Push hier an, meldet sich das Gerät für die angemeldete Person (neu) an
+		resyncPush();
 
 		return () => {
 			uninstall();
@@ -75,7 +98,7 @@
 <div class="print:hidden"><Sidebar user={data.user} lowStockCount={data.lowStockCount} theme={data.theme} /></div>
 
 <div class="min-h-dvh lg:pl-64 print:pl-0">
-	<div class="print:hidden"><TopBar {showAlerts} lowStockCount={data.lowStockCount} onscan={() => scanner.openCamera()} /></div>
+	<div class="print:hidden"><TopBar unread={data.notifications.unread} onscan={() => scanner.openCamera()} /></div>
 	<main
 		id="main"
 		tabindex="-1"

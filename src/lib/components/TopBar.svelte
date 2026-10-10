@@ -9,11 +9,11 @@
 	import type { ProductSummary } from '$lib/modules/lager/types';
 
 	interface Props {
-		showAlerts: boolean;
-		lowStockCount: number;
+		/** Ungelesene Benachrichtigungen */
+		unread: number;
 		onscan: () => void;
 	}
-	let { showAlerts, lowStockCount, onscan }: Props = $props();
+	let { unread, onscan }: Props = $props();
 	let searchOpen = $state(false);
 
 	function openProduct(p: ProductSummary) {
@@ -38,24 +38,22 @@
 			<button class="btn btn-secondary hidden lg:inline-flex" onclick={onscan}>
 				<ScanBarcode size={18} aria-hidden="true" /> Mit Kamera scannen
 			</button>
-			{#if showAlerts}
-				<a
-					href="/lager/bestellliste"
-					class="btn btn-ghost btn-icon relative"
-					aria-label={lowStockCount > 0 ? `${lowStockCount} Artikel unter Mindestbestand` : 'Keine Warnungen'}
-				>
-					<Bell size={21} aria-hidden="true" />
-					{#if lowStockCount > 0}
-						{#key lowStockCount}
-							<span
-								class="num absolute top-1.5 right-1.5 grid h-[1.125rem] min-w-[1.125rem] animate-pop place-items-center rounded-full bg-warn px-1 text-[0.6875rem] font-semibold text-white ring-2 ring-bg"
-							>
-								{lowStockCount > 99 ? '99+' : lowStockCount}
-							</span>
-						{/key}
-					{/if}
-				</a>
-			{/if}
+			<a
+				href="/benachrichtigungen"
+				class="btn btn-ghost btn-icon relative"
+				aria-label={unread > 0 ? `${unread} ungelesene Benachrichtigungen` : 'Benachrichtigungen'}
+			>
+				<Bell size={21} aria-hidden="true" />
+				{#if unread > 0}
+					{#key unread}
+						<span
+							class="num absolute top-1.5 right-1.5 grid h-[1.125rem] min-w-[1.125rem] animate-pop place-items-center rounded-full bg-warn px-1 text-[0.6875rem] font-semibold text-white ring-2 ring-bg"
+						>
+							{unread > 99 ? '99+' : unread}
+						</span>
+					{/key}
+				{/if}
+			</a>
 		</div>
 	</div>
 </header>

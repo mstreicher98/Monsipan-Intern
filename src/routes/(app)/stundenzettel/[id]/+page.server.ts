@@ -16,6 +16,7 @@ import {
 	type DayInput
 } from '$lib/modules/stunden/server/timesheets';
 import { isValidSignature } from '$lib/modules/stunden/signature';
+import { notifySheet } from '$lib/modules/stunden/server/notify';
 import type { Actions, PageServerLoad } from './$types';
 
 async function load_(id: number, locals: App.Locals) {
@@ -125,6 +126,7 @@ export const actions: Actions = {
 			)
 		);
 		await setStatus(sheet.id, 'freigegeben', user.id, raw || null);
+		notifySheet('stunden.freigegeben', sheet.id, user.id);
 		return { released: true };
 	},
 
@@ -158,6 +160,7 @@ export const actions: Actions = {
 		if (sheet.status === 'entwurf') return { reopened: true };
 		if (!mayReopen(user.role, sheet.status)) return fail(403, { message: 'Dafür fehlt dir die Berechtigung.' });
 		await setStatus(sheet.id, 'entwurf', user.id);
+		notifySheet('stunden.geoeffnet', sheet.id, user.id);
 		return { reopened: true };
 	},
 

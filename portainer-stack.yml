@@ -38,6 +38,11 @@ services:
       SMTP_PASS: ${SMTP_PASS:-}
       MAIL_FROM: '${MAIL_FROM:-Monsipan Intern <lager@monsipan.at>}'
 
+      # Push in der Android-App: der Dienstkonto-Schlüssel aus Firebase
+      # (Projekteinstellungen → Dienstkonten → Neuen privaten Schlüssel generieren),
+      # als Base64 – siehe README „Benachrichtigungen“. Leer = Push nur im Browser.
+      FIREBASE_SERVICE_ACCOUNT: ${FIREBASE_SERVICE_ACCOUNT:-}
+
       # Beispieldaten beim allerersten Start (im Echtbetrieb false lassen)
       DEMO_DATA: ${DEMO_DATA:-false}
 

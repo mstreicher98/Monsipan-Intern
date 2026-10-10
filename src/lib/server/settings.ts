@@ -44,6 +44,8 @@ export async function getSettings(): Promise<AppSettings> {
 	const rows = await db.select().from(settings).all();
 	const out: AppSettings = { ...DEFAULTS };
 	for (const r of rows) {
+		// Nur bekannte Einstellungen – in derselben Tabelle liegen auch Schlüssel (Push), die nicht ins Formular gehören
+		if (!(r.key in DEFAULTS)) continue;
 		try {
 			(out as unknown as Record<string, unknown>)[r.key] = JSON.parse(r.value);
 		} catch {

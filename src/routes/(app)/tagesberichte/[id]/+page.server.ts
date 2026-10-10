@@ -25,6 +25,7 @@ import {
 } from '$lib/modules/tagesberichte/server/reports';
 import { isValidSignature } from '$lib/modules/stunden/signature';
 import { linkableOrders } from '$lib/modules/auftraege/server/orders';
+import { notifyReport } from '$lib/modules/tagesberichte/server/notify';
 import type { SessionUser } from '$lib/server/auth';
 import { listPhotos } from '$lib/modules/tagesberichte/server/photos';
 import type { Actions, PageServerLoad } from './$types';
@@ -188,6 +189,7 @@ export const actions: Actions = {
 		const invalid = await saveIfEditable(form, report, mayEdit(user, report), user);
 		if (invalid) return invalid;
 		await releaseReport(report.id, user.id, signature);
+		notifyReport('tagesbericht.freigegeben', report.id, user.id);
 		return { released: true };
 	},
 
@@ -221,6 +223,7 @@ export const actions: Actions = {
 		if (!(await customerSignOnSite(report.id, name, signature))) {
 			return fail(409, { message: 'Der Bericht wurde inzwischen geändert – bitte die Seite neu laden.' });
 		}
+		notifyReport('tagesbericht.unterschrieben', report.id, user.id);
 		return { customerSigned: true };
 	},
 
@@ -246,6 +249,7 @@ export const actions: Actions = {
 		if (report.status === 'entwurf') return { reopened: true };
 		if (!mayReopen(user.role, report.status)) return fail(403, { message: 'Dafür fehlt dir die Berechtigung.' });
 		await reopenReport(report.id);
+		notifyReport('tagesbericht.geoeffnet', report.id, user.id);
 		return { reopened: true };
 	},
 

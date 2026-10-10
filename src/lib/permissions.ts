@@ -152,7 +152,9 @@ export const DEFAULT_PERMISSIONS = {
 	'berechtigungen.sehen': ['admin'],
 	'berechtigungen.bearbeiten': ['admin'],
 	'einstellungen.sehen': ['admin'],
-	'einstellungen.bearbeiten': ['admin']
+	'einstellungen.bearbeiten': ['admin'],
+	'benachrichtigungen.sehen': ['admin'],
+	'benachrichtigungen.bearbeiten': ['admin']
 } as const satisfies Record<string, readonly Role[]>;
 
 export type Permission = keyof typeof DEFAULT_PERMISSIONS;
@@ -352,6 +354,14 @@ export const PERMISSION_AREAS: PermissionArea[] = [
 		hint: 'E-Mail, Sicherungen, Vorlagen für Angebote',
 		view: { all: 'einstellungen.sehen' },
 		edit: { all: 'einstellungen.bearbeiten', hint: 'Auch Sicherungen laden und einspielen' }
+	},
+	{
+		key: 'benachrichtigungen',
+		title: 'Benachrichtigungen',
+		section: 'Verwaltung',
+		hint: 'Wer welche Benachrichtigung bekommt',
+		view: { all: 'benachrichtigungen.sehen' },
+		edit: { all: 'benachrichtigungen.bearbeiten' }
 	}
 ];
 

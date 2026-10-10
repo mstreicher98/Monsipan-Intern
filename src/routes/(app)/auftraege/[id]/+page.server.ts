@@ -18,6 +18,8 @@ import {
 import { listReports } from '$lib/modules/tagesberichte/server/reports';
 import { invoiceForOrder } from '$lib/modules/auftraege/server/invoices';
 import { reportCount } from '$lib/modules/auftraege/server/summary';
+import { notifyOrderAssigned, notifyOrderDocuments, notifyOrderStatus } from '$lib/modules/auftraege/server/notify';
+import { titleFromFileName } from '$lib/documents';
 import type { Actions, PageServerLoad } from './$types';
 
 async function open(id: number, locals: App.Locals) {
@@ -62,6 +64,7 @@ export const actions: Actions = {
 		if (status !== 'erstellt' && !maySetOrderStatus(user, order)) return fail(403, { message: 'Den Stand setzt die Partie, der der Auftrag gehört.' });
 		if (status === 'erstellt' && !can(user.role, 'auftraege.status.zuruecksetzen')) return fail(403, { message: 'Zurücksetzen darfst du nicht.' });
 		await setOrderStatus(order.id, status, user.id);
+		if (status !== order.status) notifyOrderStatus(order.id, status, user.id);
 		return { status };
 	},
 
@@ -76,6 +79,8 @@ export const actions: Actions = {
 			location: String(form.get('ort') ?? '').trim(),
 			note: String(form.get('hinweis') ?? '').trim()
 		});
+		// Neue Partie: deren Partieführer erfährt es
+		if (partyId !== order.partyId) notifyOrderAssigned(order.id, user.id);
 		return { updated: true };
 	},
 
@@ -86,15 +91,21 @@ export const actions: Actions = {
 		const files = (await request.formData()).getAll('dateien').filter((f): f is File => f instanceof File && f.size > 0);
 		if (!files.length) return fail(400, { docError: 'Bitte eine oder mehrere PDF-Dateien auswählen.' });
 		let added = 0;
+		const titles: string[] = [];
 		for (const file of files) {
 			try {
 				await addOrderDocument(order.id, file, user.id);
 				added++;
+				titles.push(titleFromFileName(file.name) || file.name);
 			} catch (err) {
-				if (err instanceof DocumentError) return fail(400, { docError: `${file.name}: ${err.message}`, added });
+				if (err instanceof DocumentError) {
+					notifyOrderDocuments(order.id, titles, user.id);
+					return fail(400, { docError: `${file.name}: ${err.message}`, added });
+				}
 				throw err;
 			}
 		}
+		notifyOrderDocuments(order.id, titles, user.id);
 		return { added };
 	},
 

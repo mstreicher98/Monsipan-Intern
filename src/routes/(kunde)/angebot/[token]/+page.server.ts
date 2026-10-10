@@ -8,6 +8,7 @@ import { isRateLimited, registerFailure } from '$lib/server/auth';
 import { isMailConfigured, offerAnswerMail, sendMail } from '$lib/server/mail';
 import { isValidSignature } from '$lib/modules/stunden/signature';
 import { customerAccept, customerRequestChange, offerByToken, type OfferDetail } from '$lib/modules/auftraege/server/offers';
+import { notifyOffer } from '$lib/modules/auftraege/server/notify';
 import type { Actions, PageServerLoad } from './$types';
 
 /** Nur, was auch im PDF steht */
@@ -86,6 +87,7 @@ export const actions: Actions = {
 			return fail(409, { message: 'Das Angebot wurde inzwischen geändert – bitte die Seite neu laden.', name });
 		}
 		await tellOffice(offer, url.origin, { kind: 'angenommen', name });
+		notifyOffer('angebot.angenommen', offer.id, { name });
 		return { accepted: true };
 	},
 
@@ -112,6 +114,7 @@ export const actions: Actions = {
 			return fail(409, { changeMessage: 'Das Angebot wurde inzwischen geändert – bitte die Seite neu laden.', name, text: message });
 		}
 		await tellOffice(offer, url.origin, { kind: 'aenderung', name, message });
+		notifyOffer('angebot.aenderung', offer.id, { name, message });
 		return { changed: true };
 	}
 };

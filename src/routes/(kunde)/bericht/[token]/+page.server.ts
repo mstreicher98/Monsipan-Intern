@@ -8,6 +8,7 @@ import { isRateLimited, registerFailure } from '$lib/server/auth';
 import { customerSign, reportByToken, type ReportDetail } from '$lib/modules/tagesberichte/server/reports';
 import { hasInk } from '$lib/ink';
 import { isValidSignature } from '$lib/modules/stunden/signature';
+import { notifyReport } from '$lib/modules/tagesberichte/server/notify';
 import type { Actions, PageServerLoad } from './$types';
 
 /** Nur, was auch im PDF für den Kunden steht */
@@ -76,6 +77,7 @@ export const actions: Actions = {
 		if (!(await customerSign(report.id, name, signature))) {
 			return fail(409, { message: 'Der Bericht wurde inzwischen geändert – bitte die Seite neu laden.', name });
 		}
+		notifyReport('tagesbericht.unterschrieben', report.id);
 		return { signed: true };
 	}
 };

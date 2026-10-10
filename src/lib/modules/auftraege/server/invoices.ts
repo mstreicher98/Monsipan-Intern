@@ -5,7 +5,7 @@
  * offen, bis sie als bezahlt markiert wird; solange sie offen ist, lässt sie
  * sich noch ändern oder löschen.
  */
-import { and, asc, desc, eq, inArray, isNull, like, or, sql, type SQL } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, isNull, like, lt, or, sql, type SQL } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/sqlite-core';
 import { db, type Tx } from '$lib/server/db';
 import { invoicePositions, invoices, offerPositions, offers, orderPositions, orders, users, type InvoiceStatus } from '$lib/server/db/schema';
@@ -13,7 +13,9 @@ import { col } from '$lib/server/db/sql';
 import { getSettings } from '$lib/server/settings';
 import type { SessionUser } from '$lib/server/auth';
 import { addDays, isValidIsoDate, today } from '$lib/modules/stunden/week';
-import { MAX_OFFER_LINES, parseAmount } from '../offer';
+import { notify } from '$lib/server/notifications';
+import { date as dateLabel } from '$lib/format';
+import { MAX_OFFER_LINES, money, parseAmount, round2, spacedNumber } from '../offer';
 import { billedLines, invoiceLines, suggestMapping, type Mapping, type PricedLine } from '../summary';
 import { orderSummary } from './summary';
 
@@ -355,7 +357,8 @@ export async function saveInvoice(id: number, data: SaveInvoice): Promise<boolea
 	return db.transaction(async (tx) => {
 		const done = await tx
 			.update(invoices)
-			.set({ ...data.head, updatedAt: new Date() })
+			// Neues Zahlungsziel: „überfällig" gilt dann wieder neu
+			.set({ ...data.head, overdueNotifiedAt: null, updatedAt: new Date() })
 			.where(and(eq(invoices.id, id), eq(invoices.status, 'offen')))
 			.returning({ id: invoices.id });
 		if (!done.length) return false;
@@ -434,8 +437,37 @@ export async function setInvoicePaid(id: number, paidOn: string, userId: number)
 export async function setInvoiceOpen(id: number) {
 	await db
 		.update(invoices)
-		.set({ status: 'offen', paidOn: null, paidBy: null, updatedAt: new Date() })
+		.set({ status: 'offen', paidOn: null, paidBy: null, overdueNotifiedAt: null, updatedAt: new Date() })
 		.where(eq(invoices.id, id));
+}
+
+/** Brutto einer Rechnung aus dem Netto der Abfrage */
+export const grossOf = (i: { net: number; vatRate: number; reverseCharge: boolean }) => round2(i.net * (1 + (i.reverseCharge ? 0 : i.vatRate) / 100));
+
+/** Am Tag nach „zahlbar bis" melden – einmal je Rechnung, solange sie offen ist */
+export async function notifyOverdueInvoices(day = today()) {
+	const due = await db
+		.select({
+			id: invoices.id,
+			number: invoices.number,
+			customerName: invoices.customerName,
+			dueDate: invoices.dueDate,
+			vatRate: invoices.vatRate,
+			reverseCharge: invoices.reverseCharge,
+			net: netSum
+		})
+		.from(invoices)
+		.where(and(eq(invoices.status, 'offen'), lt(invoices.dueDate, day), isNull(invoices.overdueNotifiedAt)))
+		.all();
+	for (const i of due) {
+		await db.update(invoices).set({ overdueNotifiedAt: new Date() }).where(eq(invoices.id, i.id));
+		notify({
+			event: 'rechnung.ueberfaellig',
+			title: `Rechnung ${spacedNumber(i.number)} überfällig`,
+			body: [i.customerName, money(grossOf(i)), `zahlbar bis ${dateLabel(i.dueDate)}`].filter(Boolean).join(' · '),
+			url: `/rechnungen/${i.id}`
+		});
+	}
 }
 
 /** Nur offene Rechnungen lassen sich löschen */

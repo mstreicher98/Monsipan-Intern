@@ -24,6 +24,7 @@ import { activeParties, createOrderFromOffer, insertOrderDocument, mayDeleteOrde
 import { DocumentError, storeDocument } from '$lib/server/documents';
 import { isValidIsoDate } from '$lib/modules/stunden/week';
 import { parseAmount } from '$lib/modules/auftraege/offer';
+import { notifyOffer, notifyOrderAssigned } from '$lib/modules/auftraege/server/notify';
 import type { Actions, PageServerLoad } from './$types';
 
 async function open(id: number, locals: App.Locals) {
@@ -148,6 +149,7 @@ export const actions: Actions = {
 		const problem = saved && releaseProblem(saved);
 		if (problem) return fail(400, { message: problem });
 		await releaseOffer(offer.id, user.id);
+		notifyOffer('angebot.freigegeben', offer.id, { actorId: user.id });
 		return { released: true };
 	},
 
@@ -229,6 +231,7 @@ export const actions: Actions = {
 		const id = await createOrderFromOffer(offer.id, partyId, String(form.get('hinweis') ?? '').trim(), user.id);
 		if (!id) return fail(400, { orderMessage: 'Aus diesem Angebot lässt sich (noch) kein Auftrag erstellen.' });
 		for (const s of stored) await insertOrderDocument(id, s.name, s, user.id);
+		notifyOrderAssigned(id, user.id);
 		redirect(303, `/auftraege/${id}`);
 	}
 };

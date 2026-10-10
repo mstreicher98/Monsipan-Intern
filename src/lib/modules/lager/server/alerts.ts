@@ -5,6 +5,7 @@ import { broadcast } from '$lib/server/events';
 import { lowStockMail, sendMail, type LowStockItem } from '$lib/server/mail';
 import { summaryQuery, totalSql } from './products';
 import { getSettings } from '$lib/server/settings';
+import { notify } from '$lib/server/notifications';
 
 /** Artikel mit Mindestbestand, deren Gesamtbestand ihn erreicht oder unterschritten hat */
 export async function lowStockProducts() {
@@ -54,6 +55,13 @@ async function checkLowStock(productIds: number[], origin: string) {
 		}
 	}
 	if (!newlyLow.length) return;
+
+	notify({
+		event: 'lager.mindestbestand',
+		title: newlyLow.length === 1 ? `Mindestbestand: ${newlyLow[0].name}` : `${newlyLow.length} Artikel am Mindestbestand`,
+		body: newlyLow.map((p) => `${p.name} (${p.total} / ${p.minStock})`).join(', '),
+		url: '/lager/bestellliste'
+	});
 
 	const s = await getSettings();
 	if (!s.alertEmailsEnabled || !s.alertRoles.length) return;

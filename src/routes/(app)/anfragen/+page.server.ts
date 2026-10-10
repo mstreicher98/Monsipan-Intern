@@ -3,6 +3,7 @@ import { can } from '$lib/permissions';
 import { requirePermission } from '$lib/server/guard';
 import { countInquiries, createInquiry, inquiryProblem, listInquiries, matchCustomer, readInquiry } from '$lib/modules/auftraege/server/inquiries';
 import { isValidIsoDate, today } from '$lib/modules/stunden/week';
+import { notifyInquiry } from '$lib/modules/auftraege/server/notify';
 import type { Actions, PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async ({ locals, url }) => {
@@ -22,6 +23,7 @@ export const actions: Actions = {
 		if (problem) return fail(400, { message: problem });
 		data.customerId ??= await matchCustomer(data.senderEmail);
 		const id = await createInquiry(user, data);
+		notifyInquiry({ id, ...data }, user.id);
 		redirect(303, `/anfragen/${id}`);
 	}
 };
