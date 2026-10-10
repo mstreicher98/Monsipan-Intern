@@ -52,7 +52,7 @@
 	import { addDays, isValidIsoDate } from '$lib/modules/stunden/week';
 	import { reportDateLabel } from '$lib/modules/tagesberichte/sheet';
 	import { amountInput, INVOICE_KIND_LABELS, invoiceTotals, lineTotal, money, OFFER_UNITS, parseAmount, quantityLabel, REVERSE_CHARGE_NOTE } from '../offer';
-	import { invoiceLines, selectedColumns, selectedPeriod, suggestKind, type Mapping, type PricedLine, type SummaryColumn, type SummaryReport } from '../summary';
+	import { columnLabel, invoiceLines, selectedColumns, selectedPeriod, suggestKind, type Mapping, type PricedLine, type SummaryColumn, type SummaryReport } from '../summary';
 
 	interface Props {
 		head: EditorHead;
@@ -218,12 +218,12 @@
 				{#each columns as c (c.key)}
 					<li class="grid items-center gap-2 px-3 py-2.5 sm:grid-cols-[minmax(0,1fr)_auto_minmax(0,1.4fr)]">
 						<span class="min-w-0">
-							<span class="num font-semibold">{c.lbPos || 'ohne LB-Pos.'}</span>
+							<span class="num font-semibold">{columnLabel(c)}</span>
 							<span class="text-ink-3"> · {c.unit || 'ohne Einheit'}</span>
 							<span class="num block text-sm text-ink-2">Summe {quantityLabel(c.total)} {c.unit}</span>
 						</span>
 						<ArrowRight size={16} class="hidden text-ink-3 sm:block" aria-hidden="true" />
-						<select class="select {assigned[c.key] ? '' : 'border-warn'}" name="m.{c.key}" bind:value={assigned[c.key]} onchange={() => remap()} aria-label="Position für {c.lbPos} {c.unit}">
+						<select class="select {assigned[c.key] ? '' : 'border-warn'}" name="m.{c.key}" bind:value={assigned[c.key]} onchange={() => remap()} aria-label="Position für {columnLabel(c)} {c.unit}">
 							<option value="">Bitte wählen …</option>
 							{#each mapping.priced.filter((p) => p.kind === 'position') as p (p.id)}
 								<option value={String(p.id)}>{positionLabel(p, pricedNumbers.get(p.id) ?? '')}</option>

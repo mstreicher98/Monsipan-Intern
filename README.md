@@ -438,9 +438,14 @@ darunter die Reiter **Offen**, **Bezahlt** und **Alle**; überfällige sind rot 
   ist, der Auftrag abgeschlossen ist und alle Berichte drin sind, sonst „Teilrechnung“ – lässt
   sich umstellen und steht so als Überschrift auf dem PDF.
 - Darunter die Mengen der gewählten Berichte – je Spalte (LB-Position und Einheit) wählt man die **Angebotsposition**, deren
-  Einheitspreis gilt, oder „Nicht abrechnen“. Vorgeschlagen wird die Position, in deren Text
-  die LB-Position steht, sonst die einzige mit passender Einheit (m, lfm, lfd. m gelten als
-  gleich). Die Zuordnung merkt sich der Auftrag.
+  Einheitspreis gilt, oder „Nicht abrechnen“. Vorgeschlagen wird die Position mit genau der
+  Nummer aus der LB-Pos. (wer im Tagesbericht z. B. „1.2“ einträgt, landet auf 1.2), sonst die
+  Position, in deren Text die LB-Position steht, sonst die einzige mit passender Einheit (m,
+  lfm, lfd. m gelten als gleich). Die Zuordnung merkt sich der Auftrag.
+- **Spalten ohne LB-Pos.** werden nicht zusammengeworfen: Sie bleiben nach ihrer Stelle im
+  Bericht getrennt („Spalte 1“, „Spalte 2“ …) – drei Spalten „lfm“ für RRL, LRL und LL sind
+  also drei Zeilen zum Zuordnen. Das setzt voraus, dass die Berichte eines Auftrags die
+  Spalten in derselben Reihenfolge führen; sicherer ist eine LB-Pos. in jeder Spalte.
 - Darunter die Positionen des Angebots mit den übernommenen Mengen; **Pauschalen** kommen mit
   der Menge aus dem Angebot – aber nur auf die erste Rechnung, auf der sie stehen. Mengen, Preise und Texte lassen sich ändern, eigene Positionen
   dazunehmen. Positionen ohne Menge kommen nicht auf die Rechnung; die **Nummern bleiben wie

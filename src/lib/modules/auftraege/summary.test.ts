@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { billedLines, columnKey, invoiceLines, nextInvoiceNumber, selectedColumns, selectedPeriod, suggestKind, suggestMapping, summarize, unitFamily, type PricedLine, type SummaryReportInput } from './summary';
+import { billedLines, columnKey, columnLabel, invoiceLines, nextInvoiceNumber, selectedColumns, selectedPeriod, suggestKind, suggestMapping, summarize, unitFamily, type PricedLine, type SummaryReportInput } from './summary';
 
 const report = (over: Partial<SummaryReportInput>): SummaryReportInput => ({
 	id: 1,
@@ -42,8 +42,8 @@ describe('summarize', () => {
 	it('zählt je LB-Position und Einheit zusammen', () => {
 		// Geschrieben wird die Spalte wie im ersten Bericht – „M" statt „m"
 		expect(sum.columns).toEqual([
-			{ key: '01.02.01|m', lbPos: '01.02.01', unit: 'M', total: 170.5 },
-			{ key: '01.05|m²', lbPos: '01.05', unit: 'm²', total: 4 }
+			{ key: '01.02.01|m', lbPos: '01.02.01', unit: 'M', slot: null, total: 170.5 },
+			{ key: '01.05|m²', lbPos: '01.05', unit: 'm²', slot: null, total: 4 }
 		]);
 	});
 
@@ -67,6 +67,20 @@ describe('summarize', () => {
 		expect(s.columns.map((c) => c.lbPos)).toEqual(['01.9', '01.10']);
 	});
 
+	it('hält Spalten ohne LB-Position nach ihrer Stelle auseinander', () => {
+		const lfm = [{ lbPos: '', unit: 'lfm' }, { lbPos: '', unit: 'lfm' }, { lbPos: '', unit: 'lfm' }];
+		const s = summarize([
+			report({ id: 1, positions: lfm, rows: [{ quantities: [100, 50, 20] }] }),
+			report({ id: 2, positions: lfm, rows: [{ quantities: [10, null, 5] }] })
+		]);
+		expect(s.columns.map((c) => [c.key, c.slot, c.total])).toEqual([
+			['|lfm#1', 1, 110],
+			['|lfm#2', 2, 50],
+			['|lfm#3', 3, 25]
+		]);
+		expect(s.columns.map(columnLabel)).toEqual(['Spalte 1', 'Spalte 2', 'Spalte 3']);
+	});
+
 	it('ohne Berichte bleibt alles leer', () => {
 		expect(summarize([])).toEqual({ columns: [], reports: [], from: null, to: null, materials: [], counted: 0 });
 	});
@@ -83,8 +97,8 @@ describe('Zuordnung und Rechnungszeilen', () => {
 		{ id: 16, kind: 'position', text: 'Regie', quantity: 4, unit: 'h', unitPrice: 55 }
 	];
 	const columns = [
-		{ key: columnKey('01.02.01', 'm'), lbPos: '01.02.01', unit: 'm', total: 170.5 },
-		{ key: columnKey('01.05', 'm²'), lbPos: '01.05', unit: 'm²', total: 4 }
+		{ key: columnKey('01.02.01', 'm'), lbPos: '01.02.01', unit: 'm', slot: null, total: 170.5 },
+		{ key: columnKey('01.05', 'm²'), lbPos: '01.05', unit: 'm²', slot: null, total: 4 }
 	];
 
 	it('schlägt über LB-Position im Text und eindeutige Einheit vor', () => {
@@ -108,6 +122,16 @@ describe('Zuordnung und Rechnungszeilen', () => {
 	it('lässt leere Positionen und Überschriften ohne Inhalt weg', () => {
 		const out = billedLines(invoiceLines(lines, columns, { '01.02.01|m': 11 }));
 		expect(out.map((l) => l.text)).toEqual(['Markierung', 'Leitlinie 15 cm weiß, LB 01.02.01', 'Sonstiges', 'Baustelleneinrichtung']);
+	});
+
+	it('ordnet nach der Angebotsnummer in der LB-Pos. zu', () => {
+		const cols = [
+			{ key: columnKey('1.3', 'm²'), lbPos: '1.3', unit: 'm²', slot: null, total: 2 },
+			{ key: columnKey('', 'lfm', 2), lbPos: '', unit: 'lfm', slot: 2, total: 5 }
+		];
+		// 1.3 = Pfeile; die Spalte ohne LB-Pos. passt per Einheit eindeutig auf die Leitlinie
+		expect(suggestMapping(cols, lines, null)).toEqual({ '1.3|m²': 13, '|lfm#2': 11 });
+		expect(invoiceLines(lines, cols, { '|lfm#2': 11 })[1].source).toBe('Spalte 2 (lfm)');
 	});
 
 	it('kennt gleichbedeutende Einheiten', () => {

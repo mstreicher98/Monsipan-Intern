@@ -12,6 +12,7 @@
 	import Sigma from '@lucide/svelte/icons/sigma';
 	import PdfButton from '$lib/components/PdfButton.svelte';
 	import { quantityLabel, spacedNumber } from '$lib/modules/auftraege/offer';
+	import { columnLabel } from '$lib/modules/auftraege/summary';
 	import { reportDateLabel } from '$lib/modules/tagesberichte/sheet';
 
 	let { data } = $props();
@@ -64,7 +65,7 @@
 						{#if data.seesInvoices}<th scope="col" class="px-3 py-2.5 text-left font-semibold">Rechnung</th>{/if}
 						{#each summary.columns as c (c.key)}
 							<th scope="col" class="px-3 py-2.5 text-right whitespace-nowrap">
-								<span class="num block font-semibold">{c.lbPos || 'ohne LB-Pos.'}</span>
+								<span class="num block font-semibold">{columnLabel(c)}</span>
 								<span class="block text-[0.75rem] font-normal text-ink-3">{c.unit || '–'}</span>
 							</th>
 						{/each}

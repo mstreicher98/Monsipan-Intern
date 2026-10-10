@@ -2,7 +2,9 @@
  * Summenblatt und Rechnung – was Browser und Server teilen.
  *
  * Summenblatt: Die Mengen aller Tagesberichte eines Auftrags, je Mengenspalte
- * (LB-Position und Einheit) zusammengezählt. Es zählen nur geprüfte und vom
+ * (LB-Position und Einheit) zusammengezählt. Spalten ohne LB-Position bleiben
+ * nach ihrer Stelle im Bericht getrennt (Spalte 1, 2, 3 …) – sonst fielen etwa
+ * drei Spalten „lfm" zu einer zusammen. Es zählen nur geprüfte und vom
  * Kunden unterschriebene Berichte; die anderen stehen als Hinweis dabei.
  *
  * Rechnung: Jede Mengenspalte wird einer Angebotsposition zugeordnet – deren
@@ -36,6 +38,8 @@ export interface SummaryColumn {
 	key: string;
 	lbPos: string;
 	unit: string;
+	/** Ohne LB-Position: die wievielte Spalte im Bericht */
+	slot: number | null;
 	/** Summe der zählenden Berichte */
 	total: number;
 }
@@ -68,9 +72,15 @@ export interface OrderSummary {
 const tidy = (s: string) => s.replace(/\s+/g, ' ').trim();
 const round3 = (v: number) => Math.round((v + Number.EPSILON) * 1000) / 1000;
 
-/** Schlüssel einer Mengenspalte: LB-Position und Einheit, Groß/Klein egal */
-export function columnKey(lbPos: string, unit: string): string {
-	return `${tidy(lbPos).toLowerCase()}|${tidy(unit).toLowerCase()}`;
+/** Schlüssel einer Mengenspalte: LB-Position und Einheit, Groß/Klein egal – ohne LB-Position zählt die Stelle */
+export function columnKey(lbPos: string, unit: string, slot?: number | null): string {
+	const key = `${tidy(lbPos).toLowerCase()}|${tidy(unit).toLowerCase()}`;
+	return !tidy(lbPos) && slot ? `${key}#${slot}` : key;
+}
+
+/** So heißt die Spalte in Listen und Mengenherkunft: LB-Position, sonst „Spalte 2" */
+export function columnLabel(c: { lbPos: string; slot?: number | null }): string {
+	return c.lbPos || (c.slot ? `Spalte ${c.slot}` : 'ohne LB-Pos.');
 }
 
 const filled = (v: number | null | undefined): v is number => typeof v === 'number' && Number.isFinite(v);
@@ -90,9 +100,10 @@ export function summarize(input: SummaryReportInput[]): OrderSummary {
 			const sum = r.rows.reduce((s, row) => s + (filled(row.quantities[i]) ? row.quantities[i]! : 0), 0);
 			// Spalten ganz ohne Angabe und ohne Menge zählen nicht
 			if (!tidy(p.lbPos) && !tidy(p.unit) && !sum) return;
-			const key = columnKey(p.lbPos, p.unit);
+			const slot = tidy(p.lbPos) ? null : i + 1;
+			const key = columnKey(p.lbPos, p.unit, slot);
 			values[key] = round3((values[key] ?? 0) + sum);
-			if (!columns.has(key)) columns.set(key, { key, lbPos: tidy(p.lbPos), unit: tidy(p.unit), total: 0 });
+			if (!columns.has(key)) columns.set(key, { key, lbPos: tidy(p.lbPos), unit: tidy(p.unit), slot, total: 0 });
 		});
 		if (counted) {
 			for (const [key, v] of Object.entries(values)) {
@@ -123,8 +134,13 @@ export function summarize(input: SummaryReportInput[]): OrderSummary {
 		});
 	}
 
+	// Erst die mit LB-Position (nach Nummer), dann die übrigen in der Reihenfolge des Berichts
 	const cols = [...columns.values()].sort(
-		(a, b) => a.lbPos.localeCompare(b.lbPos, 'de', { numeric: true }) || a.unit.localeCompare(b.unit, 'de')
+		(a, b) =>
+			Number(!a.lbPos) - Number(!b.lbPos) ||
+			a.lbPos.localeCompare(b.lbPos, 'de', { numeric: true }) ||
+			(a.slot ?? 0) - (b.slot ?? 0) ||
+			a.unit.localeCompare(b.unit, 'de')
 	);
 	return { columns: cols, reports, from, to, materials: [...materials.values()], counted: reports.filter((r) => r.counted).length };
 }
@@ -190,16 +206,25 @@ export interface PricedLine {
 export type Mapping = Record<string, number | null | undefined>;
 
 /**
- * Vorschlag: was der Auftrag sich gemerkt hat; sonst die Position, in deren
- * Text die LB-Position steht; sonst die einzige Position mit passender Einheit.
+ * Vorschlag: was der Auftrag sich gemerkt hat; sonst die Position mit genau
+ * dieser Nummer (steht in der LB-Pos. die Angebotsposition, z. B. „1.2"); sonst
+ * die Position, in deren Text die LB-Position steht; sonst die einzige
+ * Position mit passender Einheit.
  */
 export function suggestMapping(columns: SummaryColumn[], lines: PricedLine[], saved: Record<string, number | null> | null | undefined): Mapping {
+	const numbers = lineNumbers(lines);
 	const positions = lines.filter((l) => l.kind === 'position');
+	const byNumber = new Map(lines.map((l, i) => [numbers[i], l]).filter(([, l]) => (l as PricedLine).kind === 'position') as [string, PricedLine][]);
 	const out: Mapping = {};
 	for (const c of columns) {
 		const remembered = saved?.[c.key];
 		if (remembered === null || (remembered != null && positions.some((p) => p.id === remembered))) {
 			out[c.key] = remembered;
+			continue;
+		}
+		const numbered = c.lbPos ? byNumber.get(c.lbPos.replace(/\.$/, '')) : undefined;
+		if (numbered) {
+			out[c.key] = numbered.id;
 			continue;
 		}
 		const byText = c.lbPos ? positions.filter((p) => p.text.includes(c.lbPos)) : [];
@@ -245,7 +270,7 @@ export function invoiceLines(lines: PricedLine[], columns: SummaryColumn[], mapp
 		let source = '';
 		if (mapped.length) {
 			quantity = round3(mapped.reduce((s, c) => s + c.total, 0));
-			source = mapped.map((c) => `${c.lbPos || 'ohne LB-Pos.'} (${c.unit || 'ohne Einheit'})`).join(', ');
+			source = mapped.map((c) => `${columnLabel(c)} (${c.unit || 'ohne Einheit'})`).join(', ');
 		} else if (unitFamily(l.unit) === 'pauschal' && !flatBilled.includes(l.id)) {
 			// Pauschale: die Menge laut Angebot – dazu steht in der Zeile ohnehin „lt. Angebot“
 			quantity = l.quantity;
