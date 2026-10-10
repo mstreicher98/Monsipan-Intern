@@ -5,7 +5,7 @@
  *
  * Wer nicht alle Aufträge sehen darf, sieht die seiner Partie.
  */
-import { and, asc, desc, eq, like, or, sql, type SQL } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, like, or, sql, type SQL } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/sqlite-core';
 import { can } from '$lib/permissions';
 import { db } from '$lib/server/db';
@@ -13,6 +13,7 @@ import { customers, offerPositions, offers, orderDocuments, orderPositions, orde
 import type { SessionUser } from '$lib/server/auth';
 import { storeDocument } from '$lib/server/documents';
 import { titleFromFileName } from '$lib/documents';
+import { lineNumbers } from '../offer';
 
 const creator = alias(users, 'creator');
 const statusUser = alias(users, 'status_user');
@@ -200,6 +201,41 @@ export async function linkableOrders(user: SessionUser, current: number | null =
 		.orderBy(desc(orders.createdAt))
 		.limit(200)
 		.all();
+}
+
+/** Eine Position des Auftrags zur Auswahl im Tagesbericht */
+export interface OrderLineChoice {
+	/** Nummer wie im Angebot, z. B. „1.2" */
+	number: string;
+	/** Erste Zeile des Texts – so steht sie dann als Bezeichnung im Bericht */
+	text: string;
+	unit: string;
+}
+
+/**
+ * Die Positionen der Aufträge zur Auswahl als Bezeichnung einer Zeile im
+ * Tagesbericht. Steht dort genau der Text der Position, findet die Rechnung
+ * später von selbst die richtige Angebotsposition.
+ */
+export async function orderLineChoices(orderIds: number[]): Promise<Record<number, OrderLineChoice[]>> {
+	if (!orderIds.length) return {};
+	const rows = await db
+		.select({ orderId: orderPositions.orderId, kind: orderPositions.kind, text: orderPositions.text, unit: orderPositions.unit })
+		.from(orderPositions)
+		.where(inArray(orderPositions.orderId, orderIds))
+		.orderBy(asc(orderPositions.orderId), asc(orderPositions.sortOrder), asc(orderPositions.id))
+		.all();
+	const byOrder = new Map<number, typeof rows>();
+	for (const r of rows) byOrder.set(r.orderId, [...(byOrder.get(r.orderId) ?? []), r]);
+	const out: Record<number, OrderLineChoice[]> = {};
+	for (const [orderId, lines] of byOrder) {
+		const numbers = lineNumbers(lines);
+		out[orderId] = lines
+			.map((l, i) => ({ kind: l.kind, number: numbers[i], text: l.text.split('\n')[0].replace(/\s+/g, ' ').trim().slice(0, 200), unit: l.unit }))
+			.filter((l) => l.kind === 'position' && l.text)
+			.map(({ number, text, unit }) => ({ number, text, unit }));
+	}
+	return out;
 }
 
 /* ---------------------------------------------------------- Unterlagen */

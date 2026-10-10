@@ -264,6 +264,14 @@ zum Papierblock.
 **Auftrag:** Ein Bericht kann zu einem Auftrag gehören (siehe [Auftragsmanagement](#auftragsmanagement)).
 Zur Auswahl stehen die offenen Aufträge, die man sieht – der Partie also die eigenen.
 
+**Bezeichnung aus dem Auftrag:** Gehört der Bericht zu einem Auftrag mit Positionen, wählt man
+die Bezeichnung jeder Zeile aus dessen Positionen („1.1 RRL 0,15 MSK C ref“ …) statt sie zu
+tippen. Gespeichert wird die erste Zeile des Positionstexts – genau so findet die Rechnung
+später die richtige Angebotsposition, und gleiche Positionen aus allen Berichten zählen
+zusammen. Für den Notfall gibt es **Sonstiges (frei eingeben)**: Die Zeile wird zum Textfeld,
+mit dem Listen-Knopf daneben geht es zurück zur Auswahl. Ältere Bezeichnungen, die keiner
+Position entsprechen, bleiben als freier Text stehen.
+
 **Mehrere Tage:** Neben dem Datum gibt es ein freiwilliges **bis**. Ist es ausgefüllt, steht im
 Bericht „vom 07.10. bis 09.10.2026" (höchstens 62 Tage). Der Zeitfilter der Liste findet so
 einen Bericht an jedem seiner Tage.

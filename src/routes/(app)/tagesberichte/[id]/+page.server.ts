@@ -24,7 +24,7 @@ import {
 	type SaveReport
 } from '$lib/modules/tagesberichte/server/reports';
 import { isValidSignature } from '$lib/modules/stunden/signature';
-import { linkableOrders } from '$lib/modules/auftraege/server/orders';
+import { linkableOrders, orderLineChoices } from '$lib/modules/auftraege/server/orders';
 import { notifyReport } from '$lib/modules/tagesberichte/server/notify';
 import type { SessionUser } from '$lib/server/auth';
 import { listPhotos } from '$lib/modules/tagesberichte/server/photos';
@@ -47,11 +47,14 @@ export const load: PageServerLoad = async ({ params, locals, url }) => {
 	const editable = mayEdit(user, report);
 	const working = mayWork(user, report);
 	const canLink = linkReady(report.status) && can(user.role, 'tagesberichte.kundenlink');
+	// Aufträge zur Auswahl – nur wer ändern darf, braucht sie
+	const orders = editable ? await linkableOrders(user, report.orderId) : [];
 	return {
 		report,
 		places: await recentPlaces(),
-		// Aufträge zur Auswahl – nur wer ändern darf, braucht sie
-		orders: editable ? await linkableOrders(user, report.orderId) : [],
+		orders,
+		// Je Auftrag seine Positionen – daraus wird die Bezeichnung einer Zeile gewählt
+		orderLines: await orderLineChoices(orders.map((o) => o.id)),
 		photos: await listPhotos(report.id),
 		// Fotos ändern nichts, was der Kunde unterschreibt – sie gehen, solange am Bericht gearbeitet wird
 		canPhotos: working,

@@ -30,12 +30,14 @@
 	import { hasInk } from '$lib/ink';
 	import { spacedNumber } from '$lib/modules/auftraege/offer';
 	import HardHat from '@lucide/svelte/icons/hard-hat';
+	import ListIcon from '@lucide/svelte/icons/list';
 
 	let { data, form } = $props();
 	const report = $derived(data.report);
 
 	type Position = { key: number; lbPos: string; unit: string; total: string };
-	type Row = { key: number; id: number | null; label: string; q: string[] };
+	/** free: Bezeichnung frei eingetippt statt aus den Positionen des Auftrags gewählt */
+	type Row = { key: number; id: number | null; label: string; free: boolean; q: string[] };
 	type Material = { key: number; productId: string; material: string; code: string; thickness: string };
 
 	/**
@@ -63,15 +65,34 @@
 	let positions = $state<Position[]>(
 		data.report.positions.map((p) => ({ key: nextKey++, lbPos: p.lbPos, unit: p.unit, total: quantityLabel(p.totalQuantity) }))
 	);
+	/** Bezeichnung der Zeilen: die Positionen des gewählten Auftrags – im Notfall auch frei */
+	const choices = $derived(head.orderId ? (data.orderLines[Number(head.orderId)] ?? []) : []);
+	const FREE = '__frei__';
+	// svelte-ignore state_referenced_locally
+	const startChoices = data.report.orderId != null ? (data.orderLines[data.report.orderId] ?? []) : [];
 	// svelte-ignore state_referenced_locally
 	let rows = $state<Row[]>(
 		data.report.rows.map((r) => ({
 			key: nextKey++,
 			id: r.id,
 			label: r.label,
+			free: !!r.label.trim() && !startChoices.some((c) => c.text === r.label),
 			q: positions.map((_, i) => quantityLabel(r.quantities[i]))
 		}))
 	);
+	/** Frei, wenn so gewählt oder die Bezeichnung (etwa nach einem Auftragswechsel) in der Liste fehlt */
+	const isFree = (row: Row) => row.free || (!!row.label && !choices.some((c) => c.text === row.label));
+	async function pickLabel(row: Row) {
+		if (row.label !== FREE) return;
+		row.label = '';
+		row.free = true;
+		await tick();
+		document.querySelector<HTMLInputElement>(`[data-frei="${row.key}"]`)?.focus();
+	}
+	function backToList(row: Row) {
+		row.free = false;
+		row.label = '';
+	}
 	const emptyMaterial = (): Material => ({ key: nextKey++, productId: '', material: '', code: '', thickness: '' });
 	// svelte-ignore state_referenced_locally
 	let materials = $state<Material[]>(
@@ -111,7 +132,7 @@
 	let tableBox = $state<HTMLDivElement>();
 
 	function addRow() {
-		rows.push({ key: nextKey++, id: null, label: '', q: positions.map(() => '') });
+		rows.push({ key: nextKey++, id: null, label: '', free: false, q: positions.map(() => '') });
 	}
 	function removeRow(key: number) {
 		rows = rows.filter((r) => r.key !== key);
@@ -432,13 +453,43 @@
 						<tr class="border-b border-line">
 							<td class="sticky left-0 bg-surface px-3 py-1.5">
 								<input type="hidden" name="zeile.{i}.id" value={row.id ?? 'neu'} />
-								<input
-									class="input input-sm"
-									name="zeile.{i}.text"
-									maxlength="200"
-									bind:value={row.label}
-									aria-label="Ortsbezeichnung Zeile {i + 1}"
-								/>
+								{#if data.editable && choices.length && !isFree(row)}
+									<!-- Aus dem Auftrag wählen; die Auswahl selbst hat keinen Namen, gespeichert wird der Text -->
+									<input type="hidden" name="zeile.{i}.text" value={row.label} />
+									<select
+										class="select min-h-9 w-full py-1 text-[0.9375rem]"
+										bind:value={row.label}
+										onchange={() => pickLabel(row)}
+										aria-label="Position Zeile {i + 1}"
+									>
+										<option value="">Position wählen …</option>
+										{#each choices as c, n (n)}<option value={c.text}>{c.number} {c.text}</option>{/each}
+										<option value={FREE}>Sonstiges (frei eingeben) …</option>
+									</select>
+								{:else}
+									<div class="flex items-center gap-1">
+										<input
+											class="input input-sm min-w-0 flex-1"
+											name="zeile.{i}.text"
+											maxlength="200"
+											bind:value={row.label}
+											data-frei={row.key}
+											placeholder={choices.length ? 'Sonstiges' : ''}
+											aria-label="Ortsbezeichnung Zeile {i + 1}"
+										/>
+										{#if data.editable && choices.length}
+											<button
+												type="button"
+												class="grid size-8 shrink-0 place-items-center rounded-lg text-ink-3 hover:bg-surface-3 hover:text-ink"
+												title="Aus den Positionen des Auftrags wählen"
+												aria-label="Zeile {i + 1}: aus den Positionen des Auftrags wählen"
+												onclick={() => backToList(row)}
+											>
+												<ListIcon size={15} />
+											</button>
+										{/if}
+									</div>
+								{/if}
 							</td>
 							{#each positions as p, c (p.key)}
 								<td class="px-1.5 py-1.5">
