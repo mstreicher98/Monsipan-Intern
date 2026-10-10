@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { billedLines, columnKey, columnLabel, invoiceLines, nextInvoiceNumber, selectedColumns, selectedPeriod, suggestKind, suggestMapping, summarize, unitFamily, type PricedLine, type SummaryReportInput } from './summary';
+import { billedLines, columnKey, columnLabel, invoiceLines, OWN_LINE, OWN_LINES_TITLE, nextInvoiceNumber, selectedColumns, selectedPeriod, suggestKind, suggestMapping, summarize, unitFamily, type PricedLine, type SummaryReportInput } from './summary';
 
 const report = (over: Partial<SummaryReportInput>): SummaryReportInput => ({
 	id: 1,
@@ -211,5 +211,32 @@ describe('Teilrechnungen', () => {
 		const lines: PricedLine[] = [{ id: 15, kind: 'position', text: 'Baustelleneinrichtung', quantity: 1, unit: 'Pauschal', unitPrice: 350 }];
 		expect(invoiceLines(lines, [], {})[0].quantity).toBe(1);
 		expect(invoiceLines(lines, [], {}, [15])[0].quantity).toBeNull();
+	});
+});
+
+describe('Eigene Positionen aus den Tagesberichten', () => {
+	const lines: PricedLine[] = [
+		{ id: 1, kind: 'titel', text: 'Markierung', quantity: null, unit: '', unitPrice: null },
+		{ id: 2, kind: 'position', text: 'RRL 0,15 MSK C ref', quantity: 5680, unit: 'lfd. m', unitPrice: 3.5 }
+	];
+	const col = (label: string, unit: string, total: number) => ({ key: columnKey('', unit, { label }), lbPos: '', unit, label, slot: null, total });
+	const cols = [col('RRL 0,15 MSK C ref', 'lfm', 1150), col('Absperrung', 'Std', 4), col('Pfeil', 'Stk', 0)];
+
+	it('hängt sie mit Menge und ohne Preis unter einer eigenen Überschrift an', () => {
+		const out = invoiceLines(lines, cols, { [cols[0].key]: 2, [cols[1].key]: OWN_LINE, [cols[2].key]: OWN_LINE });
+		expect(out.map((l) => [l.number, l.kind, l.text, l.quantity, l.unit, l.unitPrice])).toEqual([
+			['1', 'titel', 'Markierung', null, '', null],
+			['1.1', 'position', 'RRL 0,15 MSK C ref', 1150, 'lfd. m', 3.5],
+			['2', 'titel', OWN_LINES_TITLE, null, '', null],
+			['2.1', 'position', 'Absperrung', 4, 'Std', null],
+			['2.2', 'position', 'Pfeil', null, 'Stk', null]
+		]);
+		expect(out[3].columnKey).toBe(cols[1].key);
+		// Ohne Menge bleibt auch die Überschrift draußen, wenn nichts darunter steht
+		expect(billedLines(out.slice(2).filter((l) => l.text !== 'Absperrung')).length).toBe(0);
+	});
+
+	it('merkt sich „eigene Position" wie eine Zuordnung', () => {
+		expect(suggestMapping(cols, lines, { [cols[1].key]: OWN_LINE })[cols[1].key]).toBe(OWN_LINE);
 	});
 });

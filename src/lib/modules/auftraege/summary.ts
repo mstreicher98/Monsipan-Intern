@@ -222,8 +222,14 @@ export interface PricedLine {
 	unitPrice: number | null;
 }
 
-/** Zuordnung je Spalte: Positions-ID, null = nicht abrechnen, undefined = noch offen */
-export type Mapping = Record<string, number | null | undefined>;
+/** Zuordnung „eigene Position": steht nicht im Auftrag, kommt mit Menge aus den Berichten und eigenem Preis */
+export const OWN_LINE = 'eigene';
+/** Was der Auftrag sich je Spalte merkt */
+export type MappingTarget = number | null | typeof OWN_LINE;
+/** Zuordnung je Spalte: Positions-ID, null = nicht abrechnen, „eigene" = eigene Position, undefined = noch offen */
+export type Mapping = Record<string, MappingTarget | undefined>;
+/** Überschrift über den eigenen Positionen */
+export const OWN_LINES_TITLE = 'Zusätzliche Leistungen lt. Tagesbericht';
 
 /** Wörter eines Textes – klein, ohne Satzzeichen am Rand */
 const words = (s: string) =>
@@ -243,14 +249,14 @@ const words = (s: string) =>
  * Position, in deren Text die LB-Position steht; sonst die einzige Position
  * mit passender Einheit.
  */
-export function suggestMapping(columns: SummaryColumn[], lines: PricedLine[], saved: Record<string, number | null> | null | undefined): Mapping {
+export function suggestMapping(columns: SummaryColumn[], lines: PricedLine[], saved: Record<string, MappingTarget> | null | undefined): Mapping {
 	const numbers = lineNumbers(lines);
 	const positions = lines.filter((l) => l.kind === 'position');
 	const byNumber = new Map(lines.map((l, i) => [numbers[i], l]).filter(([, l]) => (l as PricedLine).kind === 'position') as [string, PricedLine][]);
 	const out: Mapping = {};
 	for (const c of columns) {
 		const remembered = saved?.[c.key];
-		if (remembered === null || (remembered != null && positions.some((p) => p.id === remembered))) {
+		if (remembered === null || remembered === OWN_LINE || (remembered != null && positions.some((p) => p.id === remembered))) {
 			out[c.key] = remembered;
 			continue;
 		}
@@ -284,8 +290,12 @@ export function suggestMapping(columns: SummaryColumn[], lines: PricedLine[], sa
 export interface InvoiceLineDraft {
 	/** Positionsnummer wie im Angebot */
 	number: string;
-	/** Die Angebotsposition, aus der die Zeile stammt */
-	offerLineId: number;
+	/** Die Angebotsposition, aus der die Zeile stammt – null bei eigenen Positionen */
+	offerLineId: number | null;
+	/** Eigene Position: die Menge aus den Berichten, deren Schlüssel */
+	columnKey: string | null;
+	/** Die Überschrift über den eigenen Positionen */
+	ownTitle?: boolean;
 	kind: 'position' | 'titel';
 	text: string;
 	quantity: number | null;
@@ -302,12 +312,19 @@ export interface InvoiceLineDraft {
  * ihrer Spalten, Pauschalen die Menge aus dem Angebot – außer sie stehen schon
  * auf einer früheren Rechnung (flatBilled). Der Rest bleibt leer und wird also
  * nicht abgerechnet, solange niemand eine Menge einträgt.
+ *
+ * Mengen, die als „eigene Position" zugeordnet sind (im Auftrag nicht
+ * vorgesehen, aber gemacht und vom Kunden unterschrieben), kommen ans Ende
+ * unter eine eigene Überschrift – mit Bezeichnung und Menge aus den Berichten,
+ * den Einheitspreis trägt man selbst ein.
  */
 export function invoiceLines(lines: PricedLine[], columns: SummaryColumn[], mapping: Mapping, flatBilled: readonly number[] = []): InvoiceLineDraft[] {
-	const numbers = lineNumbers(lines);
-	return lines.map((l, i) => {
+	const own = columns.filter((c) => mapping[c.key] === OWN_LINE);
+	const numbers = lineNumbers([...lines, ...(own.length ? [{ kind: 'titel' as const }, ...own.map(() => ({ kind: 'position' as const }))] : [])]);
+	const out: InvoiceLineDraft[] = lines.map((l, i) => {
 		const number = numbers[i];
-		if (l.kind === 'titel') return { number, offerLineId: l.id, kind: 'titel', text: l.text, quantity: null, unit: '', unitPrice: null, offerQuantity: null, source: '' };
+		if (l.kind === 'titel')
+			return { number, offerLineId: l.id, columnKey: null, kind: 'titel', text: l.text, quantity: null, unit: '', unitPrice: null, offerQuantity: null, source: '' };
 		const mapped = columns.filter((c) => mapping[c.key] === l.id);
 		let quantity: number | null = null;
 		let source = '';
@@ -318,8 +335,27 @@ export function invoiceLines(lines: PricedLine[], columns: SummaryColumn[], mapp
 			// Pauschale: die Menge laut Angebot – dazu steht in der Zeile ohnehin „lt. Angebot“
 			quantity = l.quantity;
 		}
-		return { number, offerLineId: l.id, kind: 'position', text: l.text, quantity, unit: l.unit, unitPrice: l.unitPrice, offerQuantity: l.quantity, source };
+		return { number, offerLineId: l.id, columnKey: null, kind: 'position', text: l.text, quantity, unit: l.unit, unitPrice: l.unitPrice, offerQuantity: l.quantity, source };
 	});
+	if (own.length) {
+		const at = lines.length;
+		out.push({ number: numbers[at], offerLineId: null, columnKey: null, ownTitle: true, kind: 'titel', text: OWN_LINES_TITLE, quantity: null, unit: '', unitPrice: null, offerQuantity: null, source: '' });
+		own.forEach((c, j) =>
+			out.push({
+				number: numbers[at + 1 + j],
+				offerLineId: null,
+				columnKey: c.key,
+				kind: 'position',
+				text: columnLabel(c),
+				quantity: c.total ? c.total : null,
+				unit: c.unit,
+				unitPrice: null,
+				offerQuantity: null,
+				source: `${columnLabel(c)} (${c.unit || 'ohne Einheit'})`
+			})
+		);
+	}
+	return out;
 }
 
 /** Was in die Rechnung kommt: Positionen mit Menge, Überschriften nur, wenn darunter etwas steht */

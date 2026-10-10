@@ -87,7 +87,7 @@ export async function lvNumbers(orderId: number | null): Promise<Record<string, 
 	const byId = new Map(lines.map((l, i) => [l.id, numbers[i]]));
 	const out: Record<string, string> = {};
 	for (const [key, id] of Object.entries(order.mapping)) {
-		const nr = id != null ? byId.get(id) : undefined;
+		const nr = typeof id === 'number' ? byId.get(id) : undefined;
 		if (nr) out[key] = nr;
 	}
 	return out;

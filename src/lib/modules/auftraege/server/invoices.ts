@@ -41,7 +41,9 @@ import {
 	suggestKind,
 	suggestMapping,
 	unitFamily,
+	OWN_LINE,
 	type Mapping,
+	type MappingTarget,
 	type PricedLine
 } from '../summary';
 import { orderSummary } from './summary';
@@ -434,12 +436,13 @@ export function readReports(form: FormData): number[] {
 	return [...new Set(form.getAll('bericht').map(Number))].filter((n) => Number.isInteger(n) && n > 0);
 }
 
-/** Zuordnung aus dem Formular: m.<Schlüssel> = Positions-ID oder „nein" */
-export function readMapping(form: FormData, keys: string[]): Record<string, number | null> {
-	const out: Record<string, number | null> = {};
+/** Zuordnung aus dem Formular: m.<Schlüssel> = Positions-ID, „nein" oder „eigene" */
+export function readMapping(form: FormData, keys: string[]): Record<string, MappingTarget> {
+	const out: Record<string, MappingTarget> = {};
 	for (const key of keys) {
 		const v = String(form.get(`m.${key}`) ?? '');
 		if (v === 'nein') out[key] = null;
+		else if (v === OWN_LINE) out[key] = OWN_LINE;
 		else if (/^\d+$/.test(v)) out[key] = Number(v);
 	}
 	return out;
@@ -470,7 +473,7 @@ export async function createInvoice(
 	user: SessionUser,
 	orderId: number,
 	data: SaveInvoice,
-	mapping: Record<string, number | null>,
+	mapping: Record<string, MappingTarget>,
 	reportIds: number[]
 ): Promise<number | { message: string }> {
 	return db.transaction(async (tx) => {

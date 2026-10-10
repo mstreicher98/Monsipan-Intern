@@ -142,7 +142,8 @@ export const orders = sqliteTable(
 		 * Für die Rechnung gemerkt: welche Mengenspalte der Tagesberichte (Schlüssel
 		 * „LB-Pos|Einheit") zu welcher Angebotsposition gehört – null heißt „nicht abrechnen"
 		 */
-		invoiceMapping: text('invoice_mapping', { mode: 'json' }).$type<Record<string, number | null>>(),
+		/** Zuordnung der Mengen aus den Tagesberichten: Positions-ID, null = nicht abrechnen, „eigene" = eigene Position */
+		invoiceMapping: text('invoice_mapping', { mode: 'json' }).$type<Record<string, number | null | 'eigene'>>(),
 		statusBy: integer('status_by').references(() => users.id, { onDelete: 'set null' }),
 		statusAt: integer('status_at', { mode: 'timestamp_ms' }),
 		createdBy: integer('created_by').references(() => users.id, { onDelete: 'set null' }),

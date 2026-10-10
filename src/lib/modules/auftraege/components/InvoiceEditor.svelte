@@ -33,6 +33,9 @@
 		offerLineId?: number | null;
 		offerQuantity?: number | null;
 		source?: string;
+		/** Eigene Position aus den Berichten (nicht im Auftrag) */
+		columnKey?: string | null;
+		ownTitle?: boolean;
 	}
 </script>
 
@@ -52,7 +55,19 @@
 	import { addDays, isValidIsoDate } from '$lib/modules/stunden/week';
 	import { reportDateLabel } from '$lib/modules/tagesberichte/sheet';
 	import { amountInput, INVOICE_KIND_LABELS, invoiceTotals, lineTotal, money, OFFER_UNITS, parseAmount, quantityLabel, REVERSE_CHARGE_NOTE } from '../offer';
-	import { columnLabel, invoiceLines, selectedColumns, selectedPeriod, suggestKind, type Mapping, type PricedLine, type SummaryColumn, type SummaryReport } from '../summary';
+	import {
+		columnLabel,
+		invoiceLines,
+		OWN_LINE,
+		selectedColumns,
+		selectedPeriod,
+		suggestKind,
+		type InvoiceLineDraft,
+		type Mapping,
+		type PricedLine,
+		type SummaryColumn,
+		type SummaryReport
+	} from '../summary';
 
 	interface Props {
 		head: EditorHead;
@@ -68,7 +83,20 @@
 	}
 	let { head: initialHead, lines: initialLines, paymentDays, mapping = null, selection = null, busy = false, submitLabel, message = '' }: Props = $props();
 
-	type Line = { key: number; number: string; kind: 'position' | 'titel'; text: string; quantity: string; unit: string; price: string; offerLineId: number | null; offerQuantity: number | null; source: string };
+	type Line = {
+		key: number;
+		number: string;
+		kind: 'position' | 'titel';
+		text: string;
+		quantity: string;
+		unit: string;
+		price: string;
+		offerLineId: number | null;
+		offerQuantity: number | null;
+		source: string;
+		columnKey: string | null;
+		ownTitle: boolean;
+	};
 
 	let nextKey = 1;
 	const qtyInput = (v: number | null) => (v == null ? '' : String(v).replace('.', ','));
@@ -76,23 +104,30 @@
 	// svelte-ignore state_referenced_locally
 	let head = $state({ ...initialHead, vat: String(initialHead.vatRate).replace('.', ',') });
 	// svelte-ignore state_referenced_locally
-	let lines = $state<Line[]>(
-		initialLines.map((l) => ({
-			key: nextKey++,
-			number: l.number,
-			kind: l.kind,
-			text: l.text,
-			quantity: qtyInput(l.quantity),
-			unit: l.unit,
-			price: amountInput(l.unitPrice),
-			offerLineId: l.offerLineId ?? null,
-			offerQuantity: l.offerQuantity ?? null,
-			source: l.source ?? ''
-		}))
-	);
+	const toLine = (l: EditorLine | InvoiceLineDraft): Line => ({
+		key: nextKey++,
+		number: l.number,
+		kind: l.kind,
+		text: l.text,
+		quantity: qtyInput(l.quantity),
+		unit: l.unit,
+		price: amountInput(l.unitPrice),
+		offerLineId: l.offerLineId ?? null,
+		offerQuantity: l.offerQuantity ?? null,
+		source: l.source ?? '',
+		columnKey: l.columnKey ?? null,
+		ownTitle: !!l.ownTitle
+	});
+	// svelte-ignore state_referenced_locally
+	let lines = $state<Line[]>(initialLines.map(toLine));
 	// svelte-ignore state_referenced_locally
 	let assigned = $state<Record<string, string>>(
-		Object.fromEntries((mapping?.columns ?? []).map((c) => [c.key, mapping!.initial[c.key] === null ? 'nein' : mapping!.initial[c.key] == null ? '' : String(mapping!.initial[c.key])]))
+		Object.fromEntries(
+			(mapping?.columns ?? []).map((c) => {
+				const v = mapping!.initial[c.key];
+				return [c.key, v === null ? 'nein' : v == null ? '' : String(v)];
+			})
+		)
 	);
 	/** Zahlbar bis folgt dem Rechnungsdatum, bis es jemand selbst ändert */
 	let dueTouched = $state(false);
@@ -120,14 +155,36 @@
 	function remap(all = false) {
 		if (!mapping) return;
 		const current: Mapping = {};
-		for (const [k, v] of Object.entries(assigned)) current[k] = v === 'nein' ? null : v ? Number(v) : undefined;
-		const drafts = new Map(invoiceLines(mapping.priced, columns, current, selection?.flatBilled).map((d) => [d.offerLineId, d]));
+		for (const [k, v] of Object.entries(assigned)) current[k] = v === 'nein' ? null : v === OWN_LINE ? OWN_LINE : v ? Number(v) : undefined;
+		const all_ = invoiceLines(mapping.priced, columns, current, selection?.flatBilled);
+		const drafts = new Map(all_.filter((d) => d.offerLineId != null).map((d) => [d.offerLineId, d]));
 		for (const l of lines) {
 			if (l.offerLineId == null || l.kind !== 'position') continue;
 			const d = drafts.get(l.offerLineId);
 			if (!d || (d.source === l.source && !(all && d.source))) continue;
 			l.quantity = qtyInput(d.quantity);
 			l.source = d.source;
+		}
+
+		// Eigene Positionen: dazu, weg oder mit neuer Menge – der eingetragene Preis bleibt
+		const own = all_.filter((d) => d.columnKey);
+		const keys = new Set(own.map((d) => d.columnKey));
+		lines = lines.filter((l) => !l.columnKey || keys.has(l.columnKey));
+		for (const d of own) {
+			const l = lines.find((x) => x.columnKey === d.columnKey);
+			if (!l) lines.push(toLine(d));
+			else if (all || l.source !== d.source) {
+				l.quantity = qtyInput(d.quantity);
+				l.source = d.source;
+			}
+		}
+		const hasTitle = lines.some((l) => l.ownTitle);
+		if (own.length && !hasTitle) {
+			const title = all_.find((d) => d.ownTitle);
+			const at = lines.findIndex((l) => l.columnKey);
+			if (title) lines.splice(at < 0 ? lines.length : at, 0, toLine(title));
+		} else if (!own.length && hasTitle) {
+			lines = lines.filter((l) => !l.ownTitle);
 		}
 	}
 
@@ -150,7 +207,7 @@
 	}
 
 	function addLine() {
-		lines.push({ key: nextKey++, number: '', kind: 'position', text: '', quantity: '', unit: '', price: '', offerLineId: null, offerQuantity: null, source: '' });
+		lines.push({ key: nextKey++, number: '', kind: 'position', text: '', quantity: '', unit: '', price: '', offerLineId: null, offerQuantity: null, source: '', columnKey: null, ownTitle: false });
 	}
 	function removeLine(key: number) {
 		lines = lines.filter((l) => l.key !== key);
@@ -211,7 +268,8 @@
 		<h2 class="text-lg">Mengen aus den Tagesberichten</h2>
 		{#if columns.length}
 			<p class="mt-1 text-sm text-ink-2">
-				Je Spalte der Berichte die Position aus dem Angebot wählen – deren Preis gilt. Die Zuordnung merkt sich der Auftrag.
+				Je Menge aus den Berichten die Position aus dem Angebot wählen – deren Preis gilt. Steht etwas nicht im Auftrag, wurde aber
+				gemacht: „Eigene Position" – dann den Einheitspreis unten selbst eintragen. Die Zuordnung merkt sich der Auftrag.
 				{#if openColumns}<span class="font-medium text-warn">Noch {openColumns} ohne Zuordnung.</span>{/if}
 			</p>
 			<ul class="mt-3 divide-y divide-line rounded-xl border border-line">
@@ -228,6 +286,7 @@
 							{#each mapping.priced.filter((p) => p.kind === 'position') as p (p.id)}
 								<option value={String(p.id)}>{positionLabel(p, pricedNumbers.get(p.id) ?? '')}</option>
 							{/each}
+							<option value={OWN_LINE}>Eigene Position – nicht im Auftrag, Preis selbst eintragen</option>
 							<option value="nein">Nicht abrechnen</option>
 						</select>
 					</li>
@@ -366,6 +425,9 @@
 							{#if l.source || l.offerQuantity != null}
 								<p class="mt-1 text-[0.75rem] text-ink-3">
 									{[l.source && `Menge aus ${l.source}`, l.offerQuantity != null && `lt. Angebot ${quantityLabel(l.offerQuantity)} ${l.unit}`].filter(Boolean).join(' · ')}
+									{#if l.columnKey}
+										· <span class={parsed[i].unitPrice == null ? 'font-medium text-warn' : ''}>nicht im Auftrag{parsed[i].unitPrice == null ? ' – bitte Einheitspreis eintragen' : ''}</span>
+									{/if}
 								</p>
 							{/if}
 						</div>

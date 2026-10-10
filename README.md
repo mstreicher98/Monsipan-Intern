@@ -457,6 +457,11 @@ darunter die Reiter **Offen**, **Bezahlt** und **Alle**; überfällige sind rot 
   Leerzeichen spielen keine Rolle. Vorgeschlagen wird die Angebotsposition, in deren Text alle
   Wörter der Bezeichnung stehen („RRL 0,15“ → „RRL 0,15 MSK C ref“). Zeilen ohne Bezeichnung
   bleiben nach der Spalte getrennt („Spalte 1“ …).
+- **Nicht im Auftrag, aber gemacht:** Für eine Menge, zu der es keine Angebotsposition gibt,
+  wählt man **Eigene Position**. Sie kommt ans Ende unter „Zusätzliche Leistungen lt.
+  Tagesbericht“ – mit Bezeichnung, Menge und Einheit aus den Berichten (der Kunde hat sie ja
+  unterschrieben); den **Einheitspreis trägt man selbst ein**, ohne ihn lässt sich die Rechnung
+  nicht erstellen. Auch das merkt sich der Auftrag für die nächste Teilrechnung.
 - Darunter die Positionen des Angebots mit den übernommenen Mengen; **Pauschalen** kommen mit
   der Menge aus dem Angebot – aber nur auf die erste Rechnung, auf der sie stehen. Mengen, Preise und Texte lassen sich ändern, eigene Positionen
   dazunehmen. Positionen ohne Menge kommen nicht auf die Rechnung; die **Nummern bleiben wie
