@@ -25,7 +25,7 @@
 	const unsupportedText = $derived(
 		inNativeApp()
 			? appHasPush()
-				? 'Push in der App ist am Server noch nicht eingerichtet – bis dahin kommen Benachrichtigungen unter der Glocke an.'
+				? 'Push in der App ist noch nicht fertig eingerichtet (Firebase in der App bzw. am Server) – bis dahin kommen Benachrichtigungen unter der Glocke an.'
 				: 'Diese App-Version kann noch keine Push-Benachrichtigungen. Bitte die neue App installieren (Seite „App fürs Handy“).'
 			: 'Dieser Browser kann keine Push-Benachrichtigungen. Am iPhone geht es, wenn die Seite über Teilen → „Zum Home-Bildschirm“ als App angelegt ist.'
 	);

@@ -7,9 +7,11 @@
  * Sicherungen steckt). Wer eigene Schlüssel will, setzt VAPID_PUBLIC_KEY und
  * VAPID_PRIVATE_KEY.
  *
- * Firebase braucht ein Dienstkonto: FIREBASE_SERVICE_ACCOUNT enthält die
- * JSON-Datei aus der Firebase-Konsole – als Text, Base64 oder Dateipfad. Ohne
- * sie bleibt Push in der App aus; alles andere läuft weiter.
+ * Firebase braucht ein Dienstkonto: die JSON-Datei aus der Firebase-Konsole.
+ * Am einfachsten lädt der Admin sie unter Verwaltung → Benachrichtigungen hoch
+ * (sie liegt dann in der Datenbank und geht nie zurück an den Browser); sonst
+ * FIREBASE_SERVICE_ACCOUNT als Text, Base64 oder Dateipfad. Ohne sie bleibt
+ * Push in der App aus; alles andere läuft weiter.
  */
 import fs from 'node:fs';
 import { createSign } from 'node:crypto';
@@ -92,22 +94,65 @@ interface ServiceAccount {
 	private_key: string;
 }
 
-let account: ServiceAccount | null | undefined;
+const FIREBASE_KEY = 'pushFirebaseAccount';
 
-function serviceAccount(): ServiceAccount | null {
-	if (account !== undefined) return account;
-	const raw = (env.FIREBASE_SERVICE_ACCOUNT ?? '').trim();
-	account = null;
-	if (!raw) return account;
+/** Dienstkonto aus der JSON-Datei – oder eine Meldung, was daran nicht stimmt */
+export function parseServiceAccount(text: string): ServiceAccount | { message: string } {
+	let parsed: Partial<ServiceAccount> & { type?: string };
 	try {
-		const text = raw.startsWith('{') ? raw : fs.existsSync(raw) ? fs.readFileSync(raw, 'utf8') : Buffer.from(raw, 'base64').toString('utf8');
-		const parsed = JSON.parse(text) as ServiceAccount;
-		if (parsed.project_id && parsed.client_email && parsed.private_key) account = parsed;
-		else console.warn('[push] FIREBASE_SERVICE_ACCOUNT ist unvollständig');
+		parsed = JSON.parse(text);
 	} catch {
-		console.warn('[push] FIREBASE_SERVICE_ACCOUNT lässt sich nicht lesen');
+		return { message: 'Die Datei ist keine JSON-Datei.' };
 	}
+	if (parsed.type !== 'service_account' || !parsed.project_id || !parsed.client_email || !parsed.private_key?.includes('PRIVATE KEY')) {
+		return { message: 'Das ist kein Dienstkonto-Schlüssel aus Firebase (Projekteinstellungen → Dienstkonten → Neuen privaten Schlüssel generieren).' };
+	}
+	return { project_id: parsed.project_id, client_email: parsed.client_email, private_key: parsed.private_key };
+}
+
+let account: { sa: ServiceAccount | null; source: 'env' | 'upload' | null } | undefined;
+
+async function serviceAccount(): Promise<ServiceAccount | null> {
+	return (await firebaseAccount()).sa;
+}
+
+/** Dienstkonto samt Herkunft: aus der Umgebung (Vorrang) oder hochgeladen */
+async function firebaseAccount() {
+	if (account) return account;
+	const raw = (env.FIREBASE_SERVICE_ACCOUNT ?? '').trim();
+	if (raw) {
+		let text = raw;
+		try {
+			if (!raw.startsWith('{')) text = fs.existsSync(raw) ? fs.readFileSync(raw, 'utf8') : Buffer.from(raw, 'base64').toString('utf8');
+		} catch {
+			/* unten als unlesbar gemeldet */
+		}
+		const parsed = parseServiceAccount(text);
+		if ('message' in parsed) console.warn('[push] FIREBASE_SERVICE_ACCOUNT:', parsed.message);
+		else return (account = { sa: parsed, source: 'env' });
+	}
+	const row = await db.select().from(settings).where(eq(settings.key, FIREBASE_KEY)).get();
+	const parsed = row ? parseServiceAccount(row.value) : null;
+	account = parsed && !('message' in parsed) ? { sa: parsed, source: 'upload' } : { sa: null, source: null };
 	return account;
+}
+
+/** Hochgeladenen Schlüssel speichern bzw. entfernen – gilt sofort */
+export async function saveFirebaseAccount(sa: ServiceAccount | null) {
+	if (sa) {
+		const value = JSON.stringify({ type: 'service_account', ...sa });
+		await db.insert(settings).values({ key: FIREBASE_KEY, value }).onConflictDoUpdate({ target: settings.key, set: { value } });
+	} else {
+		await db.delete(settings).where(eq(settings.key, FIREBASE_KEY));
+	}
+	account = undefined;
+	accessToken = null;
+}
+
+/** Für die Einstellungen: ob und woher – ohne den Schlüssel selbst */
+export async function firebaseInfo() {
+	const a = await firebaseAccount();
+	return a.sa ? { source: a.source, projectId: a.sa.project_id, clientEmail: a.sa.client_email } : null;
 }
 
 let accessToken: { value: string; expires: number } | null = null;
@@ -140,7 +185,7 @@ async function firebaseToken(sa: ServiceAccount): Promise<string> {
 export const ANDROID_CHANNEL = 'benachrichtigungen';
 
 async function sendFcm(deviceToken: string, payload: PushPayload): Promise<Result> {
-	const sa = serviceAccount();
+	const sa = await serviceAccount();
 	if (!sa) return 'error';
 	try {
 		const res = await fetch(`https://fcm.googleapis.com/v1/projects/${sa.project_id}/messages:send`, {
@@ -169,8 +214,8 @@ async function sendFcm(deviceToken: string, payload: PushPayload): Promise<Resul
 /* ------------------------------------------------------------ Versand */
 
 /** Was der Server kann – für die Einstellungen und die Seite der Person */
-export function pushStatus() {
-	return { web: true, app: !!serviceAccount() };
+export async function pushStatus() {
+	return { web: true, app: !!(await serviceAccount()) };
 }
 
 /**

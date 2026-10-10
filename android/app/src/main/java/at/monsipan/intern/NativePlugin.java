@@ -32,6 +32,20 @@ import java.io.OutputStream;
 @CapacitorPlugin(name = "MonsipanNative")
 public class NativePlugin extends Plugin {
 
+    /**
+     * Wurde die App mit Firebase gebaut (google-services.json)? Nur dann darf die
+     * Seite Push anmelden – ohne Firebase würde das Anmelden die App beenden.
+     * Das Gradle-Plugin legt dafür die Ressource google_app_id an.
+     */
+    @PluginMethod
+    public void pushAvailable(PluginCall call) {
+        Context context = getContext();
+        int id = context.getResources().getIdentifier("google_app_id", "string", context.getPackageName());
+        JSObject ret = new JSObject();
+        ret.put("available", id != 0);
+        call.resolve(ret);
+    }
+
     /** Die aktuelle Seite über den Android-Druckdienst drucken – dort geht auch „Als PDF speichern" */
     @PluginMethod
     public void print(PluginCall call) {

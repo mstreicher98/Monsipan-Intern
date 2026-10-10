@@ -18,7 +18,8 @@
 	import { eventSections, NOTIFICATION_EVENTS, type NotificationEvent, type NotificationEventDef } from '$lib/notifications';
 	import { toast } from '$lib/stores/toast.svelte';
 
-	let { data } = $props();
+	let { data, form } = $props();
+	let uploading = $state(false);
 
 	const fromSettings = () => {
 		const roles = new Set<string>();
@@ -83,12 +84,65 @@
 	</div>
 	<div class="text-sm">
 		<p class="font-medium">Push in der Android-App</p>
-		<p class={data.push.appReady ? 'text-ink-2' : 'text-warn'}>
-			{data.push.appReady
-				? `Bereit · ${data.push.appDevices} ${data.push.appDevices === 1 ? 'Gerät' : 'Geräte'} angemeldet`
-				: 'Noch nicht eingerichtet – dafür braucht es ein Firebase-Projekt (siehe README). Bis dahin kommt alles unter der Glocke an.'}
-		</p>
+		{#if data.push.firebase}
+			<p class="text-ink-2">
+				Bereit · {data.push.appDevices} {data.push.appDevices === 1 ? 'Gerät' : 'Geräte'} angemeldet · Firebase-Projekt
+				<span class="num font-medium text-ink">{data.push.firebase.projectId}</span>{data.push.firebase.source === 'env' ? ' (aus dem Server-Stack)' : ''}
+			</p>
+			{#if data.canEdit && data.push.firebase.source === 'upload'}
+				<form method="POST" action="?/firebaseRemove" class="mt-1" use:enhance={() => async ({ update }) => (toast.success('Schlüssel entfernt'), await update())}>
+					<button class="text-[0.8125rem] font-medium text-ink-3 underline-offset-2 hover:text-danger hover:underline">Schlüssel entfernen</button>
+				</form>
+			{/if}
+		{:else}
+			<p class="text-warn">Noch nicht eingerichtet – bis dahin kommt in der App alles unter der Glocke an.</p>
+		{/if}
 	</div>
+	{#if data.canEdit && !data.push.firebase}
+		<details class="rounded-xl bg-surface-2 p-3 text-sm sm:col-span-2">
+			<summary class="cursor-pointer font-medium">Push in der Android-App einrichten</summary>
+			<ol class="mt-2 list-decimal space-y-1.5 pl-5 text-ink-2">
+				<li>
+					In der <a href="https://console.firebase.google.com" target="_blank" rel="noopener" class="font-medium text-ink underline">Firebase-Konsole</a>
+					ein Projekt anlegen (Google Analytics braucht es nicht).
+				</li>
+				<li>
+					<b>Android-App hinzufügen</b> mit dem Paketnamen <code class="num rounded bg-surface-3 px-1">at.monsipan.intern</code> und die Datei
+					<b>google-services.json</b> herunterladen. Ihr Inhalt kommt auf GitHub als Secret <code class="num rounded bg-surface-3 px-1">GOOGLE_SERVICES_JSON</code>;
+					danach unter Actions den Workflow „Android-App (APK)“ starten und die neue App installieren.
+				</li>
+				<li>
+					In Firebase unter Projekteinstellungen → <b>Dienstkonten</b> → „Neuen privaten Schlüssel generieren“ – die heruntergeladene JSON-Datei hier
+					hochladen:
+				</li>
+			</ol>
+			<form
+				method="POST"
+				action="?/firebase"
+				enctype="multipart/form-data"
+				class="mt-3 flex flex-wrap items-center gap-2"
+				use:enhance={() => {
+					uploading = true;
+					return async ({ result, update }) => {
+						uploading = false;
+						if (result.type === 'success') toast.success('Firebase eingerichtet', 'Push in der App ist jetzt bereit.');
+						await update();
+					};
+				}}
+			>
+				<input
+					type="file"
+					name="schluessel"
+					accept="application/json,.json"
+					required
+					class="block w-full max-w-xs text-sm file:mr-3 file:rounded-lg file:border-0 file:bg-surface-3 file:px-3 file:py-2 file:font-medium"
+				/>
+				<button class="btn btn-secondary btn-sm" disabled={uploading}>{uploading ? 'Wird geprüft …' : 'Schlüssel hochladen'}</button>
+			</form>
+			{#if form && 'firebaseMessage' in form && form.firebaseMessage}<p class="field-error mt-2" role="alert">{form.firebaseMessage}</p>{/if}
+			<p class="mt-2 text-[0.8125rem] text-ink-3">Der Schlüssel bleibt am Server und wird nie wieder angezeigt.</p>
+		</details>
+	{/if}
 	<div class="sm:col-span-2"><PushToggle /></div>
 </section>
 

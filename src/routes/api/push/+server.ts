@@ -10,7 +10,7 @@ import type { RequestHandler } from './$types';
 export const GET: RequestHandler = async ({ locals }) => {
 	requireUser(locals);
 	const { publicKey } = await vapidKeys();
-	return json({ vapidPublicKey: publicKey, ...pushStatus() });
+	return json({ vapidPublicKey: publicKey, ...(await pushStatus()) });
 };
 
 const text = (v: unknown, max: number) => (typeof v === 'string' && v.length > 0 && v.length <= max ? v : null);

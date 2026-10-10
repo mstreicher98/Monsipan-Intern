@@ -500,13 +500,17 @@ schickt eine Probe an die eigenen Geräte.
      **GOOGLE_SERVICES_JSON** anlegen und den ganzen Inhalt der Datei einfügen. Danach den
      Workflow „Android-App (APK)“ einmal laufen lassen und die neue App installieren.
   4. In Firebase unter Projekteinstellungen → **Dienstkonten** → „Neuen privaten Schlüssel
-     generieren“. Die heruntergeladene JSON-Datei als Base64 in Portainer als Variable
-     **FIREBASE_SERVICE_ACCOUNT** eintragen (Base64: `base64 -w0 datei.json` bzw. in
-     PowerShell `[Convert]::ToBase64String([IO.File]::ReadAllBytes("datei.json"))`), dann
-     **Pull and redeploy**.
+     generieren“. Die heruntergeladene JSON-Datei unter **Verwaltung → Benachrichtigungen →
+     Push in der Android-App einrichten** hochladen – fertig, ohne Neustart. Der Schlüssel
+     bleibt am Server (in der Datenbank, also auch in den Sicherungen) und wird nie wieder
+     angezeigt. Wer ihn lieber im Stack hat: Variable **FIREBASE_SERVICE_ACCOUNT** (Inhalt,
+     Base64 oder Pfad) – sie hat Vorrang.
+  5. In der neuen App unter der Glocke bzw. Mein Konto **Einschalten** tippen, Android fragt
+     nach der Erlaubnis; **Test** schickt eine Probe.
 
   Ohne diese Schritte läuft alles andere weiter; in der App kommt dann nur die Glocke, und
-  die Seite Benachrichtigungen zeigt „noch nicht eingerichtet“.
+  die Seite Benachrichtigungen zeigt „noch nicht eingerichtet“. Eine App ohne Firebase meldet
+  sich gar nicht erst für Push an (das Anmelden würde sie sonst beenden).
 
 ## Handschrift am Tablet
 

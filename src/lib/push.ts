@@ -3,7 +3,7 @@
  * der Android-App über deren Push-Dienst (Firebase). Das Gerät meldet sich
  * beim Server unter der Person an, die gerade angemeldet ist.
  */
-import { inNativeApp } from './native';
+import { inNativeApp, nativePlugin } from './native';
 
 export type PushState =
 	/** Geht hier nicht (alter Browser, alte App, am Server nicht eingerichtet) */
@@ -95,7 +95,21 @@ function listenForTaps(plugin: PushPlugin) {
 }
 
 /** Hat diese App-Version den Push-Baustein? Ältere APKs nicht */
-export const appHasPush = () => !!appPlugin();
+export const appHasPush = () => !!appPlugin() && !!nativePlugin()?.pushAvailable;
+
+/**
+ * Wurde die App mit Firebase gebaut? Ohne würde das Anmelden die App beenden –
+ * ältere APKs ohne diese Abfrage gelten deshalb als „neue App installieren".
+ */
+async function appFirebaseReady(): Promise<boolean> {
+	const check = nativePlugin()?.pushAvailable;
+	if (!check) return false;
+	try {
+		return (await check()).available;
+	} catch {
+		return false;
+	}
+}
 
 /* ------------------------------------------------------- Browser */
 
@@ -126,7 +140,7 @@ async function info(): Promise<PushInfo> {
 export async function pushState(): Promise<PushState> {
 	if (inNativeApp()) {
 		const plugin = appPlugin();
-		if (!plugin) return 'unsupported';
+		if (!plugin || !(await appFirebaseReady())) return 'unsupported';
 		const { app } = await info();
 		if (!app) return 'unsupported';
 		const p = await plugin.checkPermissions();
@@ -144,7 +158,7 @@ export async function pushState(): Promise<PushState> {
 export async function enablePush(): Promise<PushState> {
 	if (inNativeApp()) {
 		const plugin = appPlugin();
-		if (!plugin) return 'unsupported';
+		if (!plugin || !(await appFirebaseReady())) return 'unsupported';
 		// Ohne Firebase am Server gibt es niemanden, der an das Gerät schickt
 		if (!(await info()).app) return 'unsupported';
 		let p = await plugin.checkPermissions();
@@ -198,7 +212,7 @@ export async function resyncPush(): Promise<void> {
 	try {
 		if (inNativeApp()) {
 			const plugin = appPlugin();
-			if (!plugin || !remembered()) return;
+			if (!plugin || !remembered() || !(await appFirebaseReady())) return;
 			listenForTaps(plugin);
 			const p = await plugin.checkPermissions();
 			if (p.receive !== 'granted') return;

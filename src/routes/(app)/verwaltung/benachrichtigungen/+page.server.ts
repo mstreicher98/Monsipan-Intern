@@ -5,12 +5,13 @@ import { db } from '$lib/server/db';
 import { pushSubscriptions, users } from '$lib/server/db/schema';
 import { requirePermission } from '$lib/server/guard';
 import { notificationSettings, resetNotificationSettings, saveNotificationSettings } from '$lib/server/notifications';
-import { pushStatus } from '$lib/server/push';
+import { firebaseInfo, parseServiceAccount, saveFirebaseAccount } from '$lib/server/push';
+import { fail } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async ({ locals }) => {
 	const user = requirePermission(locals, 'benachrichtigungen.sehen');
-	const [settings, people, devices] = await Promise.all([
+	const [settings, people, devices, firebase] = await Promise.all([
 		notificationSettings(),
 		db
 			.select({ id: users.id, firstName: users.firstName, lastName: users.lastName, username: users.username, role: users.role })
@@ -22,13 +23,15 @@ export const load: PageServerLoad = async ({ locals }) => {
 			.select({ kind: pushSubscriptions.kind, n: sql<number>`count(*)`.mapWith(Number) })
 			.from(pushSubscriptions)
 			.groupBy(pushSubscriptions.kind)
-			.all()
+			.all(),
+		firebaseInfo()
 	]);
 	return {
 		settings,
 		people,
 		push: {
-			appReady: pushStatus().app,
+			appReady: !!firebase,
+			firebase,
 			webDevices: devices.find((d) => d.kind === 'web')?.n ?? 0,
 			appDevices: devices.find((d) => d.kind === 'fcm')?.n ?? 0
 		},
@@ -54,6 +57,24 @@ export const actions: Actions = {
 		}
 		await saveNotificationSettings(roles, people);
 		return { saved: true };
+	},
+
+	/** Dienstkonto-Schlüssel aus Firebase hochladen – damit kommt Push in der Android-App an */
+	firebase: async ({ request, locals }) => {
+		requirePermission(locals, 'benachrichtigungen.bearbeiten');
+		const file = (await request.formData()).get('schluessel');
+		if (!(file instanceof File) || file.size === 0) return fail(400, { firebaseMessage: 'Bitte die JSON-Datei auswählen.' });
+		if (file.size > 20_000) return fail(400, { firebaseMessage: 'Die Datei ist zu groß für einen Dienstkonto-Schlüssel.' });
+		const parsed = parseServiceAccount(await file.text());
+		if ('message' in parsed) return fail(400, { firebaseMessage: parsed.message });
+		await saveFirebaseAccount(parsed);
+		return { firebaseSaved: true };
+	},
+
+	firebaseRemove: async ({ locals }) => {
+		requirePermission(locals, 'benachrichtigungen.bearbeiten');
+		await saveFirebaseAccount(null);
+		return { firebaseRemoved: true };
 	},
 
 	reset: async ({ locals }) => {

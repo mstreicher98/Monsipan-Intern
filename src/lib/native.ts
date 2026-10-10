@@ -22,6 +22,8 @@ export const inNativeApp = () => typeof window !== 'undefined' && 'Capacitor' in
 interface MonsipanNativePlugin {
 	print(options: { title: string }): Promise<void>;
 	savePdf(options: { name: string; data: string }): Promise<{ opened: boolean }>;
+	/** Ab der App mit Push: wurde sie mit Firebase gebaut? */
+	pushAvailable?(): Promise<{ available: boolean }>;
 }
 
 export function nativePlugin(): MonsipanNativePlugin | null {
