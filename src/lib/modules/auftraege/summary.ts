@@ -6,8 +6,9 @@
  * Kunden unterschriebene Berichte; die anderen stehen als Hinweis dabei.
  *
  * Rechnung: Jede Mengenspalte wird einer Angebotsposition zugeordnet – deren
- * Preis gilt, die Menge kommt aus dem Summenblatt. Die Zuordnung merkt sich
- * der Auftrag für die nächste Rechnung.
+ * Preis gilt, die Menge kommt aus den gewählten Berichten. Die Zuordnung merkt
+ * sich der Auftrag für die nächste Rechnung. Jeder Bericht wird nur einmal
+ * abgerechnet: entweder alle in einer Rechnung oder nach und nach in Teilrechnungen.
  */
 import { lineNumbers } from './offer';
 
@@ -26,6 +27,9 @@ export interface SummaryReportInput {
 	positions: { lbPos: string; unit: string }[];
 	rows: { quantities: (number | null)[] }[];
 	materials?: { material: string; code: string; filmThickness: string }[];
+	/** Schon abgerechnet mit dieser Rechnung */
+	invoiceId?: number | null;
+	invoiceNumber?: string | null;
 }
 
 export interface SummaryColumn {
@@ -47,6 +51,8 @@ export interface SummaryReport {
 	counted: boolean;
 	/** Menge je Spalten-Schlüssel */
 	values: Record<string, number>;
+	invoiceId: number | null;
+	invoiceNumber: string | null;
 }
 
 export interface OrderSummary {
@@ -102,7 +108,19 @@ export function summarize(input: SummaryReportInput[]): OrderSummary {
 				if (!materials.has(k)) materials.set(k, { material: tidy(m.material), code: tidy(m.code), filmThickness: tidy(m.filmThickness) });
 			}
 		}
-		reports.push({ id: r.id, number: r.number, date: r.date, dateTo: r.dateTo, site: r.site, partyName: r.partyName, status: r.status, counted, values });
+		reports.push({
+			id: r.id,
+			number: r.number,
+			date: r.date,
+			dateTo: r.dateTo,
+			site: r.site,
+			partyName: r.partyName,
+			status: r.status,
+			counted,
+			values,
+			invoiceId: r.invoiceId ?? null,
+			invoiceNumber: r.invoiceNumber ?? null
+		});
 	}
 
 	const cols = [...columns.values()].sort(
@@ -112,6 +130,42 @@ export function summarize(input: SummaryReportInput[]): OrderSummary {
 }
 
 /* ------------------------------------------------------------ Rechnung */
+
+/** Die Spalten mit den Summen nur der gewählten Berichte – zählende, versteht sich */
+export function selectedColumns(columns: SummaryColumn[], reports: SummaryReport[], selected: ReadonlySet<number>): SummaryColumn[] {
+	const chosen = reports.filter((r) => r.counted && selected.has(r.id));
+	return columns.map((c) => ({ ...c, total: round3(chosen.reduce((s, r) => s + (r.values[c.key] ?? 0), 0)) }));
+}
+
+/** Leistungszeitraum der gewählten Berichte – null ohne Auswahl */
+export function selectedPeriod(reports: SummaryReport[], selected: ReadonlySet<number>): { from: string; to: string } | null {
+	let from: string | null = null;
+	let to: string | null = null;
+	for (const r of reports) {
+		if (!selected.has(r.id)) continue;
+		const last = r.dateTo && r.dateTo > r.date ? r.dateTo : r.date;
+		if (!from || r.date < from) from = r.date;
+		if (!to || last > to) to = last;
+	}
+	return from && to ? { from, to } : null;
+}
+
+/**
+ * Rechnung oder Teilrechnung? Eine Rechnung ist es nur, wenn sie die erste ist,
+ * der Auftrag abgeschlossen ist und sie alle Berichte enthält – sonst Teilrechnung.
+ */
+export function suggestKind(s: { closed: boolean; previous: number; available: number; selected: number; pending: number }): 'rechnung' | 'teilrechnung' {
+	return s.previous === 0 && s.closed && s.pending === 0 && s.selected === s.available ? 'rechnung' : 'teilrechnung';
+}
+
+/** Erste Rechnung mit der Nummer des Auftrags, weitere mit „-2", „-3" … */
+export function nextInvoiceNumber(base: string, taken: ReadonlySet<string>): string {
+	if (!taken.has(base)) return base;
+	for (let n = 2; ; n++) {
+		const candidate = `${base}-${n}`;
+		if (!taken.has(candidate)) return candidate;
+	}
+}
 
 /** Einheiten, die dasselbe meinen – für den Vorschlag der Zuordnung */
 export function unitFamily(unit: string): string {
@@ -177,10 +231,11 @@ export interface InvoiceLineDraft {
 
 /**
  * Rechnungszeilen aus dem Angebot: zugeordnete Positionen bekommen die Summe
- * ihrer Spalten, Pauschalen die Menge aus dem Angebot, der Rest bleibt leer
- * (wird also nicht abgerechnet, solange niemand eine Menge einträgt).
+ * ihrer Spalten, Pauschalen die Menge aus dem Angebot – außer sie stehen schon
+ * auf einer früheren Rechnung (flatBilled). Der Rest bleibt leer und wird also
+ * nicht abgerechnet, solange niemand eine Menge einträgt.
  */
-export function invoiceLines(lines: PricedLine[], columns: SummaryColumn[], mapping: Mapping): InvoiceLineDraft[] {
+export function invoiceLines(lines: PricedLine[], columns: SummaryColumn[], mapping: Mapping, flatBilled: readonly number[] = []): InvoiceLineDraft[] {
 	const numbers = lineNumbers(lines);
 	return lines.map((l, i) => {
 		const number = numbers[i];
@@ -191,7 +246,7 @@ export function invoiceLines(lines: PricedLine[], columns: SummaryColumn[], mapp
 		if (mapped.length) {
 			quantity = round3(mapped.reduce((s, c) => s + c.total, 0));
 			source = mapped.map((c) => `${c.lbPos || 'ohne LB-Pos.'} (${c.unit || 'ohne Einheit'})`).join(', ');
-		} else if (unitFamily(l.unit) === 'pauschal') {
+		} else if (unitFamily(l.unit) === 'pauschal' && !flatBilled.includes(l.id)) {
 			// Pauschale: die Menge laut Angebot – dazu steht in der Zeile ohnehin „lt. Angebot“
 			quantity = l.quantity;
 		}

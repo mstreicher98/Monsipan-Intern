@@ -15,6 +15,7 @@ import { SIGNATURE_HEIGHT, SIGNATURE_WIDTH } from '$lib/modules/stunden/signatur
 import { LETTERHEAD, reportDateLabel } from '$lib/modules/tagesberichte/sheet';
 import {
 	addressLines,
+	invoiceLabel,
 	invoiceTotals,
 	lineNumbers,
 	lineTotal,
@@ -25,7 +26,7 @@ import {
 	REVERSE_CHARGE_NOTE,
 	spacedNumber
 } from '../offer';
-import type { OrderSummary } from '../summary';
+import type { SummaryColumn, SummaryReport } from '../summary';
 import type { InvoiceDetail } from './invoices';
 import type { OfferDetail } from './offers';
 import type { OrderDetail } from './orders';
@@ -405,7 +406,7 @@ const PRICED_COLUMNS: Column[] = [
 
 export async function invoicePdf(invoice: InvoiceDetail): Promise<Response> {
 	const settings = await getSettings();
-	const title = `Rechnung Nr. ${spacedNumber(invoice.number)}`;
+	const title = `${invoiceLabel(invoice.kind)} Nr. ${spacedNumber(invoice.number)}`;
 	const { doc, finish } = startPdf({ title, margin: 8, bufferPages: true });
 
 	letterhead(doc, letterheadPath(settings.letterheadFile));
@@ -428,6 +429,7 @@ export async function invoicePdf(invoice: InvoiceDetail): Promise<Response> {
 	y += doc.heightOfString(heading, { width: WIDTH, lineGap: 2 }) + 5 * MM;
 	y = labeled(doc, 'Ausführungsort', invoice.location, y);
 	if (invoice.serviceFrom) y = labeled(doc, 'Leistungszeitraum', reportDateLabel(invoice.serviceFrom, invoice.serviceTo), y);
+	if (invoice.reports.length) y = labeled(doc, 'Tagesberichte', `Nr. ${invoice.reports.map((r) => r.number || '–').join(', ')}`, y);
 	y += 1 * MM;
 
 	y = paragraph(doc, invoice.intro, y, 10) + 5 * MM;
@@ -481,166 +483,218 @@ export async function invoicePdf(invoice: InvoiceDetail): Promise<Response> {
 		['Kontakt', settings.offerFooterContact]
 	]);
 	const buffer = await finish();
-	return bufferResponse(`rechnung-${invoice.number}.pdf`.replace(/[^\w.-]/g, '_'), buffer);
+	return bufferResponse(`${invoice.kind}-${invoice.number}.pdf`.replace(/[^\w.-]/g, '_'), buffer);
 }
 
 /* ---------------------------------------------------------- Summenblatt */
 
-const REPORT_STATUS_LABEL: Record<string, string> = {
-	entwurf: 'in Arbeit',
-	freigegeben: 'freigegeben, noch nicht geprüft',
-	geprueft: 'geprüft',
-	abgeschlossen: 'vom Kunden unterschrieben'
-};
+export interface SummarySheet {
+	/** Für Dateiname und PDF-Titel, z. B. „Auftrag 26 015" */
+	name: string;
+	year: number;
+	/** „zu Rechnung Nr." (eine oder mehrere, schon formatiert) – leer bleibt die Linie zum Ausfüllen */
+	invoiceNumber: string;
+	state: string;
+	section: string;
+	/** Die zählenden Berichte, in der Reihenfolge des Blatts */
+	reports: SummaryReport[];
+	columns: SummaryColumn[];
+	/** LV-Position je Spalte (Nummer der zugeordneten Angebotsposition) */
+	lv: Record<string, string>;
+	/** Berichte, die (noch) nicht zählen – nur als Hinweis in der Fußzeile */
+	notCounted: number;
+}
+
+/** Datum kurz für die schmale Spalte „vom": 05.10.26, 05.–07.10., 30.09.–02.10. */
+function shortRange(from: string, to: string | null): string {
+	const [y, m, d] = from.split('-');
+	if (!to || to <= from) return `${d}.${m}.${y.slice(2)}`;
+	const [y2, m2, d2] = to.split('-');
+	return y === y2 && m === m2 ? `${d}.–${d2}.${m}.` : `${d}.${m}.–${d2}.${m2}.`;
+}
 
 /**
- * Summenblatt im Querformat: je zählendem Tagesbericht eine Zeile, je
- * Mengenspalte (LB-Position und Einheit) eine Spalte, unten die Summe. Bei
- * vielen Spalten geht es in einem weiteren Block mit den übrigen weiter.
+ * Tagesbericht-Summenblatt wie der Vordruck (Vorlage 2019), A4 quer: Briefkopf
+ * links, Titel mit Jahr und „zu Rechnung Nr.", rechts Bundesland und Abschnitt.
+ * Darunter das Raster: T.B.Nr., vom und elf Mengenspalten mit LV., LB., MSK und
+ * Einheit im Kopf, je Bericht eine Zeile, in der letzten die Summe. Mehr
+ * Berichte gehen auf der nächsten Seite weiter (mit Übertrag), mehr Spalten in
+ * einem weiteren Blatt mit denselben Berichten.
  */
-export async function summaryPdf(
-	order: { number: string; title: string; location: string; customerName: string; customerCity: string; partyName: string | null },
-	summary: OrderSummary
-): Promise<Response> {
-	const title = `Summenblatt Auftrag Nr. ${spacedNumber(order.number)}`;
-	const { doc, finish } = startPdf({ title, landscape: true, margin: 8, bufferPages: true });
-	const L = 12 * MM;
-	const R = 285 * MM;
-	const W = R - L;
-	const BOTTOM = 192 * MM;
+export async function summaryPdf(sheet: SummarySheet): Promise<Response> {
+	const settings = await getSettings();
+	const title = `Tagesbericht-Summenblatt ${sheet.year}`;
+	const { doc, finish } = startPdf({ title: `${title} · ${sheet.name}`, landscape: true, margin: 8, bufferPages: true });
 
-	// Kopf: Titel links, Logo rechts
-	doc.font('Helvetica-Bold').fontSize(16).fillColor(INK).text(title, L, 12 * MM, { width: W - 60 * MM, lineBreak: false, ellipsis: true });
-	drawLogo(doc, R - 50 * MM, 9 * MM, 50 * MM);
+	// Maße vom Vordruck abgenommen (Punkt, A4 quer)
+	const L = 14.4;
+	const R = 826.3;
+	const TOP = 121.8;
+	const HEAD_BOTTOM = 179.3;
+	const BOTTOM = 562;
+	const ROWS = 22;
+	const ROW_H = (BOTTOM - HEAD_BOTTOM) / ROWS;
+	const NR = { x: L, w: 42.4 };
+	const VOM = { x: L + 42.4, w: 35.6 };
+	const QX = VOM.x + VOM.w;
+	const PER_PAGE = 11;
+	const QW = (R - QX) / PER_PAGE;
+	const DOTS = '………………..';
+	const image = letterheadPath(settings.letterheadFile);
 
-	let y = 23 * MM;
-	const fact = (label: string, value: string) => {
-		if (!value.trim()) return;
-		doc.font('Helvetica-Bold').fontSize(9.5).fillColor(INK).text(`${label}: `, L, y, { width: W, continued: true });
-		doc.font('Helvetica').text(value, { width: W });
-		y = doc.y + 1.5;
+	const fit = (text: string, width: number, size: number, min: number, bold = false) => {
+		doc.font(bold ? 'Helvetica-Bold' : 'Helvetica').fontSize(size);
+		const w = doc.widthOfString(text);
+		return w > width ? Math.max(min, (size * width) / w) : size;
 	};
-	fact('BV', order.title);
-	fact('Ausführungsort', order.location);
-	fact('Kunde', [order.customerName, order.customerCity].filter(Boolean).join(', '));
-	fact('Partie', order.partyName ?? '');
-	fact('Zeitraum', summary.from ? reportDateLabel(summary.from, summary.to) : '');
-	y += 3 * MM;
 
-	const counted = summary.reports.filter((r) => r.counted);
-	const fixed: Column[] = [
-		{ label: 'Bericht', x: L, w: 16 * MM },
-		{ label: 'Datum', x: L + 16 * MM, w: 32 * MM },
-		{ label: 'Baustelle', x: L + 48 * MM, w: 48 * MM }
-	];
-	const qtyStart = L + 96 * MM;
-	const perBlock = Math.max(1, Math.floor((R - qtyStart) / (20 * MM)));
-	const blocks: (typeof summary.columns)[] = [];
-	for (let i = 0; i < summary.columns.length; i += perBlock) blocks.push(summary.columns.slice(i, i + perBlock));
+	const blocks: SummaryColumn[][] = [];
+	for (let i = 0; i < sheet.columns.length; i += PER_PAGE) blocks.push(sheet.columns.slice(i, i + PER_PAGE));
 	if (!blocks.length) blocks.push([]);
+	const chunks: SummaryReport[][] = [];
+	for (let i = 0; i < sheet.reports.length; i += ROWS - 1) chunks.push(sheet.reports.slice(i, i + ROWS - 1));
+	if (!chunks.length) chunks.push([]);
 
-	const rowH = 15;
+	let first = true;
 	for (const [b, cols] of blocks.entries()) {
-		const colW = cols.length ? Math.min(32 * MM, (R - qtyStart) / cols.length) : 0;
-		const head = () => {
-			if (blocks.length > 1) {
-				doc
-					.font('Helvetica')
-					.fontSize(8)
-					.fillColor(MUTED)
-					.text(`Spalten ${b * perBlock + 1}–${b * perBlock + cols.length} von ${summary.columns.length}`, L, y, { width: W, lineBreak: false });
-				y += 11;
-			}
-			doc.font('Helvetica').fontSize(8).fillColor(MUTED);
-			for (const c of fixed) doc.text(c.label, c.x, y + 9, { width: c.w, lineBreak: false });
-			cols.forEach((c, i) => {
-				const x = qtyStart + i * colW;
-				doc
-					.font('Helvetica-Bold')
-					.fontSize(8.5)
-					.fillColor(INK)
-					.text(c.lbPos || 'ohne LB-Pos.', x, y, { width: colW - 2, align: 'right', lineBreak: false, ellipsis: true });
-				doc
-					.font('Helvetica')
-					.fontSize(8)
-					.fillColor(MUTED)
-					.text(c.unit || '–', x, y + 10, { width: colW - 2, align: 'right', lineBreak: false, ellipsis: true });
-			});
-			y += 22;
-			doc.moveTo(L, y).lineTo(R, y).lineWidth(0.8).strokeColor(INK).stroke();
-			y += 4;
-		};
-		if (y + 60 > BOTTOM) {
-			doc.addPage();
-			y = 14 * MM;
-		}
-		head();
-		for (const r of counted) {
-			if (y + rowH > BOTTOM - 20) {
-				doc.addPage();
-				y = 14 * MM;
-				doc.font('Helvetica').fontSize(8.5).fillColor(MUTED).text(`${title} – Fortsetzung`, L, y, { width: W, lineBreak: false });
-				y += 14;
-				head();
-			}
-			doc.font('Helvetica').fontSize(9).fillColor(INK);
-			doc.text(r.number || '–', fixed[0].x, y + 2, { width: fixed[0].w, lineBreak: false });
-			doc.text(reportDateLabel(r.date, r.dateTo), fixed[1].x, y + 2, { width: fixed[1].w, lineBreak: false, ellipsis: true });
-			doc.text([r.site, r.partyName].filter(Boolean).join(' · '), fixed[2].x, y + 2, { width: fixed[2].w - 3, lineBreak: false, ellipsis: true });
-			cols.forEach((c, i) => {
-				const v = r.values[c.key];
-				doc.text(v ? quantityLabel(v) : '', qtyStart + i * colW, y + 2, { width: colW - 2, align: 'right', lineBreak: false });
-			});
-			y += rowH;
-			doc.moveTo(L, y).lineTo(R, y).lineWidth(0.4).strokeColor(LINE).stroke();
-		}
-		// Summe
-		y += 3;
-		doc
-			.font('Helvetica-Bold')
-			.fontSize(9.5)
-			.fillColor(INK)
-			.text(`Summe aus ${counted.length} ${counted.length === 1 ? 'Bericht' : 'Berichten'}`, L, y + 2, { width: 96 * MM, lineBreak: false });
-		cols.forEach((c, i) => {
-			doc.text(quantityLabel(c.total), qtyStart + i * colW, y + 2, { width: colW - 2, align: 'right', lineBreak: false });
-		});
-		y += rowH + 2;
-		doc.moveTo(L, y).lineTo(R, y).lineWidth(1).strokeColor(INK).stroke();
-		y += 8 * MM;
-	}
+		const running: Record<string, number> = {};
+		for (const [c, rows] of chunks.entries()) {
+			if (!first) doc.addPage();
+			first = false;
 
-	const note = (label: string, value: string) => {
-		if (!value) return;
-		doc.font('Helvetica-Bold').fontSize(9);
-		const h = doc.heightOfString(`${label}: ${value}`, { width: W });
-		if (y + h > BOTTOM) {
-			doc.addPage();
-			y = 14 * MM;
+			/* ------------------------------------------------ Kopf */
+			if (image) {
+				doc.image(image, L, 24, { fit: [278, 88], align: 'center', valign: 'center' });
+			} else {
+				const boxW = 278;
+				const logoW = 200;
+				const y = 30 + drawLogo(doc, L + (boxW - logoW) / 2, 30, logoW) + 4;
+				const center = (t: string, yy: number, size: number, bold = false) =>
+					doc
+						.font(bold ? 'Helvetica-Bold' : 'Helvetica')
+						.fontSize(size)
+						.fillColor(INK)
+						.text(t, L, yy, { width: boxW, align: 'center', lineBreak: false });
+				center('BAUTENSCHUTZ GESELLSCHAFT M. B. H.', y, 5.5, true);
+				center('Bodenmarkierungen', y + 8, 8, true);
+				center(`${LETTERHEAD.lines[1]}, ${LETTERHEAD.lines[2]}`, y + 19, 5.5);
+				center(LETTERHEAD.lines[3], y + 26, 5.5);
+			}
+			doc.font('Helvetica-Bold').fontSize(12).fillColor(INK).text(title, 296, 52, { underline: true, lineBreak: false });
+			const invoice = sheet.invoiceNumber || DOTS;
+			doc.font('Helvetica-Bold').fontSize(10).text(`zu Rechnung Nr. ${invoice}`, 296, 79.5, { width: 260, lineBreak: false, ellipsis: true });
+			doc.text('Bundesland', 564.3, 54, { lineBreak: false });
+			doc.text('Abschnitt', 564.3, 79.5, { lineBreak: false });
+			for (const [value, y] of [
+				[sheet.state, 54],
+				[sheet.section, 79.5]
+			] as const) {
+				const text = value.trim() || DOTS;
+				doc
+					.font(value.trim() ? 'Helvetica-Bold' : 'Helvetica')
+					.fontSize(fit(text, R - 631.4, 10, 7, !!value.trim()))
+					.text(text, 631.4, y + (value.trim() ? 0 : 0), { width: R - 631.4, lineBreak: false, ellipsis: true });
+			}
+
+			/* ------------------------------------------------ Tabellenkopf */
+			doc.font('Helvetica').fontSize(10).fillColor(INK);
+			doc.text('T.B.Nr.', NR.x, 168.6, { width: NR.w, align: 'center', lineBreak: false });
+			doc.text('vom', VOM.x, 168.6, { width: VOM.w, align: 'center', lineBreak: false });
+			for (let i = 0; i < PER_PAGE; i++) {
+				const col = cols[i];
+				const x = QX + i * QW + 1.5;
+				const w = QW - 3;
+				const label = (text: string, value: string, y: number) => {
+					doc.font('Helvetica').fontSize(8).fillColor(INK).text(text, x, y, { lineBreak: false });
+					if (!value) return;
+					const lx = x + doc.widthOfString(text) + 3;
+					doc
+						.font('Helvetica-Bold')
+						.fontSize(fit(value, x + w - lx, 8, 6, true))
+						.text(value, lx, y, { width: x + w - lx, lineBreak: false, ellipsis: true });
+				};
+				label('LV.', col ? (sheet.lv[col.key] ?? '') : '', 127.6);
+				label('LB.', col?.lbPos ?? '', 137.8);
+				label('MSK………..', '', 148);
+				label('Einheit', col?.unit ?? '', 168.4);
+			}
+
+			/* ------------------------------------------------ Zeilen */
+			const rowTop = (r: number) => HEAD_BOTTOM + r * ROW_H;
+			const textY = (r: number, size: number) => rowTop(r) + (ROW_H - size) / 2 + 0.5;
+			rows.forEach((rep, r) => {
+				const nr = rep.number || '–';
+				doc
+					.font('Helvetica')
+					.fontSize(fit(nr, NR.w - 4, 9, 6))
+					.text(nr, NR.x + 2, textY(r, 9), { width: NR.w - 4, align: 'center', lineBreak: false });
+				const vom = shortRange(rep.date, rep.dateTo);
+				const vs = fit(vom, VOM.w - 3, 8.5, 5.5);
+				doc.fontSize(vs).text(vom, VOM.x + 1.5, textY(r, vs), { width: VOM.w - 3, align: 'center', lineBreak: false });
+				cols.forEach((col, i) => {
+					const v = rep.values[col.key];
+					if (v) running[col.key] = (running[col.key] ?? 0) + v;
+					if (!v) return;
+					doc
+						.font('Helvetica')
+						.fontSize(9)
+						.text(quantityLabel(v), QX + i * QW + 2, textY(r, 9), { width: QW - 6, align: 'right', lineBreak: false });
+				});
+			});
+
+			// Letzte Zeile: Summe – auf früheren Seiten der Übertrag bis hierher
+			const last = c === chunks.length - 1;
+			const sumRow = ROWS - 1;
+			doc
+				.font('Helvetica-Bold')
+				.fontSize(9)
+				.text(last ? 'Summe' : 'Übertrag', NR.x + 3, textY(sumRow, 9), { width: NR.w + VOM.w - 6, lineBreak: false });
+			cols.forEach((col, i) => {
+				const v = running[col.key];
+				if (!v) return;
+				doc.text(quantityLabel(Math.round(v * 1000) / 1000), QX + i * QW + 2, textY(sumRow, 9), { width: QW - 6, align: 'right', lineBreak: false });
+			});
+
+			/* ------------------------------------------------ Linien */
+			doc.lineCap('butt').strokeColor(INK);
+			const hline = (y: number, w: number) => doc.moveTo(L, y).lineTo(R, y).lineWidth(w).stroke();
+			const vline = (x: number, y1: number, y2: number, w: number) => doc.moveTo(x, y1).lineTo(x, y2).lineWidth(w).stroke();
+			for (let r = 1; r < ROWS; r++) hline(rowTop(r), r === sumRow ? 1.2 : 0.6);
+			// „Summe" steht über T.B.Nr. und vom – dort endet die Linie dazwischen vorher
+			vline(NR.x + NR.w, TOP, rowTop(sumRow), 0.6);
+			for (const x of [VOM.x + VOM.w, ...Array.from({ length: PER_PAGE - 1 }, (_, i) => QX + (i + 1) * QW)]) vline(x, TOP, BOTTOM, 0.6);
+			// Kopf und Rahmen kräftig wie auf dem Vordruck
+			doc.rect(L, TOP, R - L, HEAD_BOTTOM - TOP).lineWidth(1.6).stroke();
+			doc.rect(L, TOP, R - L, BOTTOM - TOP).lineWidth(1.2).stroke();
+
+			/* ------------------------------------------------ Hinweis unten */
+			const notes = [
+				`Erstellt am ${new Intl.DateTimeFormat('de-AT', { day: '2-digit', month: '2-digit', year: 'numeric' }).format(new Date())}`,
+				'es zählen geprüfte und vom Kunden unterschriebene Tagesberichte',
+				sheet.notCounted
+					? `${sheet.notCounted} ${sheet.notCounted === 1 ? 'Bericht ist noch nicht geprüft und fehlt' : 'Berichte sind noch nicht geprüft und fehlen'}`
+					: '',
+				blocks.length > 1 ? `Spalten ${b * PER_PAGE + 1}–${b * PER_PAGE + cols.length} von ${sheet.columns.length}` : ''
+			];
+			doc
+				.font('Helvetica')
+				.fontSize(7)
+				.fillColor(MUTED)
+				.text(notes.filter(Boolean).join(' · '), L, 568, { width: (R - L) * 0.8, lineBreak: false, ellipsis: true });
 		}
-		doc.fillColor(INK).text(`${label}: `, L, y, { width: W, continued: true });
-		doc.font('Helvetica').text(value, { width: W });
-		y = doc.y + 2 * MM;
-	};
-	note('Material', summary.materials.map((m) => [m.material, m.code, m.filmThickness && `Filmdicke ${m.filmThickness}`].filter(Boolean).join(' · ')).join('; '));
-	note(
-		'Nicht enthalten',
-		summary.reports
-			.filter((r) => !r.counted)
-			.map((r) => `Nr. ${r.number || '–'} vom ${reportDateLabel(r.date, r.dateTo)} (${REPORT_STATUS_LABEL[r.status] ?? r.status})`)
-			.join('; ')
-	);
+	}
 
 	const range = doc.bufferedPageRange();
-	const stamp = new Intl.DateTimeFormat('de-AT', { day: '2-digit', month: '2-digit', year: 'numeric' }).format(new Date());
-	for (let i = range.start; i < range.start + range.count; i++) {
-		doc.switchToPage(i);
-		doc
-			.font('Helvetica')
-			.fontSize(7.5)
-			.fillColor(MUTED)
-			.text(`Erstellt am ${stamp} · es zählen geprüfte und vom Kunden unterschriebene Tagesberichte`, L, 198 * MM, { width: W / 2 + 40 * MM, lineBreak: false });
-		if (range.count > 1) doc.text(`Seite ${i - range.start + 1} von ${range.count}`, L + W / 2, 198 * MM, { width: W / 2, align: 'right', lineBreak: false });
+	if (range.count > 1) {
+		for (let i = range.start; i < range.start + range.count; i++) {
+			doc.switchToPage(i);
+			doc
+				.font('Helvetica')
+				.fontSize(7)
+				.fillColor(MUTED)
+				.text(`Seite ${i - range.start + 1} von ${range.count}`, R - 120, 568, { width: 120, align: 'right', lineBreak: false });
+		}
 	}
 	const buffer = await finish();
-	return bufferResponse(`summenblatt-${order.number}.pdf`.replace(/[^\w.-]/g, '_'), buffer);
+	return bufferResponse(`summenblatt-${sheet.name}.pdf`.replace(/\s+/g, '-').replace(/[^\w.-]/g, '_'), buffer);
 }

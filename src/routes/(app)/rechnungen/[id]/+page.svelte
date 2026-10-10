@@ -1,5 +1,5 @@
 <script lang="ts">
-	/** Eine Rechnung: Positionen und Summen, PDF und Druck, offen oder bezahlt */
+	/** Eine Rechnung oder Teilrechnung: Positionen und Summen, Tagesberichte, PDF, Druck und Summenblatt, offen oder bezahlt */
 	import { pageTitle } from '$lib/app';
 	import { enhance } from '$app/forms';
 	import ArrowLeft from '@lucide/svelte/icons/arrow-left';
@@ -10,12 +10,14 @@
 	import HardHat from '@lucide/svelte/icons/hard-hat';
 	import CircleCheck from '@lucide/svelte/icons/circle-check';
 	import Undo from '@lucide/svelte/icons/undo-2';
+	import Sigma from '@lucide/svelte/icons/sigma';
 	import Dialog from '$lib/components/Dialog.svelte';
 	import PdfButton from '$lib/components/PdfButton.svelte';
 	import { date as dateLabel, dateTime } from '$lib/format';
 	import {
 		addressLines,
 		INVOICE_STATUS_LABELS,
+		invoiceLabel,
 		invoiceTotals,
 		lineNumbers,
 		lineTotal,
@@ -35,6 +37,7 @@
 	const numbers = $derived(lineNumbers(invoice.lines));
 	const totals = $derived(invoiceTotals(invoice.lines, invoice.vatRate, invoice.reverseCharge));
 	const name = (first: string | null, last: string | null) => [first, last].filter(Boolean).join(' ');
+	const label = $derived(`${invoiceLabel(invoice.kind)} ${spacedNumber(invoice.number)}`);
 
 	let deleteOpen = $state(false);
 	let paidOn = $state('');
@@ -44,7 +47,7 @@
 	});
 </script>
 
-<svelte:head><title>{pageTitle(`Rechnung ${spacedNumber(invoice.number)}`)}</title></svelte:head>
+<svelte:head><title>{pageTitle(label)}</title></svelte:head>
 
 <a href="/rechnungen" class="mt-1 inline-flex items-center gap-1.5 text-sm font-medium text-ink-2 hover:text-ink">
 	<ArrowLeft size={16} aria-hidden="true" />Rechnungen
@@ -52,13 +55,16 @@
 
 <div class="mt-3 mb-5 flex flex-wrap items-end justify-between gap-3">
 	<div class="min-w-0">
-		<h1 class="text-[2rem] leading-tight">Rechnung {spacedNumber(invoice.number)}</h1>
+		<h1 class="text-[2rem] leading-tight">{label}</h1>
 		<p class="text-ink-2">{invoice.title || 'Ohne BV'}</p>
 	</div>
 	<div class="flex flex-wrap items-center gap-2">
 		{#if overdue}<span class="badge badge-danger">Überfällig</span>{:else}<span class="badge {st.tone}">{st.label}</span>{/if}
 		<PdfButton href="/rechnungen/{invoice.id}/pdf"><FileText size={18} aria-hidden="true" />PDF</PdfButton>
 		<a href="/rechnungen/{invoice.id}/druck" class="btn btn-secondary"><Printer size={18} aria-hidden="true" />Drucken</a>
+		{#if invoice.reports.length}
+			<a href="/rechnungen/{invoice.id}/summenblatt" class="btn btn-secondary"><Sigma size={18} aria-hidden="true" />Summenblatt</a>
+		{/if}
 		{#if data.canEdit}<a href="/rechnungen/{invoice.id}/bearbeiten" class="btn btn-secondary"><Pencil size={18} aria-hidden="true" />Bearbeiten</a>{/if}
 	</div>
 </div>
@@ -136,6 +142,14 @@
 				<dt class="text-ink-3">Projektnummer</dt>
 				<dd class="num">{invoice.projectNumber}</dd>
 			{/if}
+			{#if invoice.state}
+				<dt class="text-ink-3">Bundesland</dt>
+				<dd>{invoice.state}</dd>
+			{/if}
+			{#if invoice.section}
+				<dt class="text-ink-3">Abschnitt</dt>
+				<dd>{invoice.section}</dd>
+			{/if}
 			<dt class="text-ink-3">Erstellt</dt>
 			<dd>{dateTime(invoice.createdAt)}{name(invoice.creatorFirst, invoice.creatorLast) ? ` · ${name(invoice.creatorFirst, invoice.creatorLast)}` : ''}</dd>
 		</dl>
@@ -144,6 +158,24 @@
 		{/if}
 	</section>
 </div>
+
+{#if invoice.reports.length}
+	<section class="card mt-4 p-4 lg:p-5">
+		<h2 class="text-lg">Abgerechnete Tagesberichte</h2>
+		<ul class="mt-2 flex flex-wrap gap-2">
+			{#each invoice.reports as r (r.id)}
+				{@const text = `Nr. ${r.number || '–'} · ${reportDateLabel(r.date, r.dateTo)}`}
+				<li>
+					{#if data.canSeeReports}
+						<a href="/tagesberichte/{r.id}" class="num inline-block rounded-lg border border-line px-2.5 py-1 text-sm hover:bg-surface-2" title={r.site}>{text}</a>
+					{:else}
+						<span class="num inline-block rounded-lg border border-line px-2.5 py-1 text-sm" title={r.site}>{text}</span>
+					{/if}
+				</li>
+			{/each}
+		</ul>
+	</section>
+{/if}
 
 <section class="card mt-4 overflow-hidden">
 	<h2 class="px-4 pt-4 text-lg lg:px-5">Positionen</h2>
@@ -179,11 +211,13 @@
 {#if data.canDelete}
 	<div class="mt-4 flex">
 		<button type="button" class="btn btn-ghost ml-auto text-danger hover:bg-danger-soft" onclick={() => (deleteOpen = true)}>
-			<Trash size={18} aria-hidden="true" />Rechnung löschen
+			<Trash size={18} aria-hidden="true" />{invoiceLabel(invoice.kind)} löschen
 		</button>
 	</div>
-	<Dialog bind:open={deleteOpen} title="Rechnung löschen?">
-		<p class="text-ink-2">Die Rechnung {spacedNumber(invoice.number)} wird gelöscht. Zum Auftrag lässt sich danach eine neue erstellen – mit derselben Nummer.</p>
+	<Dialog bind:open={deleteOpen} title="{invoiceLabel(invoice.kind)} löschen?">
+		<p class="text-ink-2">
+			Die {label} wird gelöscht.{invoice.reports.length ? ' Ihre Tagesberichte sind danach wieder abzurechnen.' : ''} Eine neue Rechnung zum Auftrag bekommt wieder die nächste freie Nummer.
+		</p>
 		<form method="POST" action="?/delete" class="mt-5 flex justify-end gap-2" use:enhance>
 			<button type="button" class="btn btn-ghost" onclick={() => (deleteOpen = false)}>Abbrechen</button>
 			<button class="btn btn-primary"><Trash size={18} aria-hidden="true" />Löschen</button>

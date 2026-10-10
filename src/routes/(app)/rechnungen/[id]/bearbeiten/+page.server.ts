@@ -17,8 +17,11 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 	const invoice = await open(Number(params.id), locals);
 	const settings = await getSettings();
 	return {
-		invoice: { id: invoice.id, number: invoice.number, title: invoice.title },
+		invoice: { id: invoice.id, number: invoice.number, title: invoice.title, kind: invoice.kind },
 		head: {
+			kind: invoice.kind,
+			state: invoice.state,
+			section: invoice.section,
 			date: invoice.date,
 			dueDate: invoice.dueDate,
 			serviceFrom: invoice.serviceFrom ?? '',

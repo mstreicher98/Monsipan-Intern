@@ -49,6 +49,7 @@ describe('Nummern', () => {
 	it('schreibt die Angebotsnummer mit Abstand', () => {
 		expect(spacedNumber('26659')).toBe('26 659');
 		expect(spacedNumber('A-12')).toBe('A-12');
+		expect(spacedNumber('26659-2')).toBe('26 659-2');
 	});
 
 	it('schlägt die nächste Angebots- und Projektnummer vor', () => {

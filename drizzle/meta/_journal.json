@@ -225,6 +225,13 @@
       "when": 1791626232777,
       "tag": "0031_benachrichtigungen",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "6",
+      "when": 1791641854013,
+      "tag": "0032_teilrechnungen",
+      "breakpoints": true
     }
   ]
 }

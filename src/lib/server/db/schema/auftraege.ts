@@ -226,6 +226,10 @@ export const inquiries = sqliteTable(
 export const INVOICE_STATUS = ['offen', 'bezahlt'] as const;
 export type InvoiceStatus = (typeof INVOICE_STATUS)[number];
 
+/** Rechnung über alles oder Teilrechnung über einen Teil der Tagesberichte */
+export const INVOICE_KINDS = ['rechnung', 'teilrechnung'] as const;
+export type InvoiceKind = (typeof INVOICE_KINDS)[number];
+
 /**
  * Rechnung zum abgeschlossenen Auftrag – mit derselben Nummer. Preise aus dem
  * Angebot, Mengen aus den Tagesberichten. Anschrift und Positionen stehen in
@@ -235,8 +239,9 @@ export const invoices = sqliteTable(
 	'invoices',
 	{
 		id: integer('id').primaryKey({ autoIncrement: true }),
-		/** Dieselbe Nummer wie Auftrag und Angebot */
+		/** Dieselbe Nummer wie Auftrag und Angebot; weitere Rechnungen zum Auftrag mit „-2", „-3" … */
 		number: text('number').notNull(),
+		kind: text('kind', { enum: INVOICE_KINDS }).notNull().default('rechnung'),
 		orderId: integer('order_id').references(() => orders.id, { onDelete: 'set null' }),
 		offerId: integer('offer_id').references(() => offers.id, { onDelete: 'set null' }),
 		/** Rechnungsdatum „JJJJ-MM-TT" */
@@ -258,6 +263,9 @@ export const invoices = sqliteTable(
 		customerUid: text('customer_uid').notNull().default(''),
 		intro: text('intro').notNull().default(''),
 		closing: text('closing').notNull().default(''),
+		/** Für das Summenblatt: Bundesland und Abschnitt */
+		state: text('state').notNull().default(''),
+		section: text('section').notNull().default(''),
 		/** Umsatzsteuer in Prozent */
 		vatRate: real('vat_rate').notNull().default(20),
 		/** Bauleistung an ein Bauunternehmen: Übergang der Steuerschuld, ohne Umsatzsteuer */
@@ -274,7 +282,7 @@ export const invoices = sqliteTable(
 	},
 	(t) => [
 		uniqueIndex('invoices_number_idx').on(t.number),
-		uniqueIndex('invoices_order_idx').on(t.orderId),
+		index('invoices_order_idx').on(t.orderId),
 		index('invoices_status_idx').on(t.status),
 		index('invoices_date_idx').on(t.date)
 	]

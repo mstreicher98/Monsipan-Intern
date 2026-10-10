@@ -2,7 +2,8 @@
 	/**
 	 * Summenblatt: alle Tagesberichte des Auftrags in einer Tabelle – je Bericht
 	 * eine Zeile, je LB-Position und Einheit eine Spalte, unten die Summe. Es
-	 * zählen nur geprüfte und vom Kunden unterschriebene Berichte.
+	 * zählen nur geprüfte und vom Kunden unterschriebene Berichte. PDF und Druck
+	 * sehen aus wie der Vordruck „Tagesbericht-Summenblatt".
 	 */
 	import { pageTitle } from '$lib/app';
 	import ArrowLeft from '@lucide/svelte/icons/arrow-left';
@@ -60,6 +61,7 @@
 						<th scope="col" class="sticky left-0 z-10 bg-surface-2 px-4 py-2.5 text-left font-semibold">Bericht</th>
 						<th scope="col" class="px-3 py-2.5 text-left font-semibold">Datum</th>
 						<th scope="col" class="px-3 py-2.5 text-left font-semibold">Baustelle</th>
+						{#if data.seesInvoices}<th scope="col" class="px-3 py-2.5 text-left font-semibold">Rechnung</th>{/if}
 						{#each summary.columns as c (c.key)}
 							<th scope="col" class="px-3 py-2.5 text-right whitespace-nowrap">
 								<span class="num block font-semibold">{c.lbPos || 'ohne LB-Pos.'}</span>
@@ -76,6 +78,11 @@
 							</th>
 							<td class="px-3 py-2 whitespace-nowrap">{reportDateLabel(r.date, r.dateTo)}</td>
 							<td class="max-w-[16rem] truncate px-3 py-2 text-ink-2">{[r.site, r.partyName].filter(Boolean).join(' · ')}</td>
+							{#if data.seesInvoices}
+								<td class="num px-3 py-2 whitespace-nowrap">
+									{#if r.invoiceId}<a href="/rechnungen/{r.invoiceId}" class="underline-offset-2 hover:underline">{spacedNumber(r.invoiceNumber ?? '')}</a>{:else}<span class="text-ink-3">offen</span>{/if}
+								</td>
+							{/if}
 							{#each summary.columns as c (c.key)}
 								<td class="num px-3 py-2 text-right">{r.values[c.key] ? quantityLabel(r.values[c.key]) : ''}</td>
 							{/each}
@@ -84,7 +91,7 @@
 				</tbody>
 				<tfoot>
 					<tr class="border-t-2 border-ink bg-surface-2 font-semibold">
-						<th scope="row" colspan="3" class="sticky left-0 z-10 bg-surface-2 px-4 py-2.5 text-left">
+						<th scope="row" colspan={data.seesInvoices ? 4 : 3} class="sticky left-0 z-10 bg-surface-2 px-4 py-2.5 text-left">
 							Summe aus {counted.length} {counted.length === 1 ? 'Bericht' : 'Berichten'}
 						</th>
 						{#each summary.columns as c (c.key)}

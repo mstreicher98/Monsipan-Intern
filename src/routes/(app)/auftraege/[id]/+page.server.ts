@@ -16,7 +16,7 @@ import {
 	updateOrder
 } from '$lib/modules/auftraege/server/orders';
 import { listReports } from '$lib/modules/tagesberichte/server/reports';
-import { invoiceForOrder } from '$lib/modules/auftraege/server/invoices';
+import { invoiceBlocker, invoicesForOrder, unbilledReports } from '$lib/modules/auftraege/server/invoices';
 import { reportCount } from '$lib/modules/auftraege/server/summary';
 import { notifyOrderAssigned, notifyOrderDocuments, notifyOrderStatus } from '$lib/modules/auftraege/server/notify';
 import { titleFromFileName } from '$lib/documents';
@@ -34,7 +34,7 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 	const { user, order } = await open(Number(params.id), locals);
 	const canManage = can(user.role, 'auftraege.bearbeiten');
 	const seesInvoices = can(user.role, 'rechnungen.sehen');
-	const invoice = (await invoiceForOrder(order.id)) ?? null;
+	const [invoices, unbilled] = await Promise.all([invoicesForOrder(order.id), unbilledReports(order.id)]);
 	return {
 		order,
 		canStatus: maySetOrderStatus(user, order),
@@ -46,12 +46,14 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 		reports: await listReports(user, { orderId: order.id }),
 		canCreateReport: can(user.role, 'tagesberichte.erstellen') && order.status !== 'abgeschlossen',
 		// Mit Rechnung bleibt der Auftrag – sonst fehlt der Rechnung ihr Bezug
-		canDelete: mayDeleteOrder(user, order) && !invoice,
-		hasInvoice: !!invoice,
+		canDelete: mayDeleteOrder(user, order) && !invoices.length,
+		hasInvoice: invoices.length > 0,
 		/** Summenblatt: ab zwei Tagesberichten, für alle, die Auftrag und Berichte sehen */
 		reportCount: can(user.role, 'tagesberichte.sehen') ? await reportCount(order.id) : 0,
-		invoice: seesInvoices ? invoice : null,
-		canCreateInvoice: order.status === 'abgeschlossen' && !invoice && can(user.role, 'rechnungen.erstellen')
+		// Rechnung über alles oder Teilrechnungen – jeder geprüfte Bericht einmal
+		invoices: seesInvoices ? invoices : [],
+		unbilled: seesInvoices ? unbilled : 0,
+		canCreateInvoice: can(user.role, 'rechnungen.erstellen') && !invoiceBlocker({ status: order.status, previous: invoices.length, available: unbilled })
 	};
 };
 
@@ -121,7 +123,7 @@ export const actions: Actions = {
 	delete: async ({ params, locals }) => {
 		const { user, order } = await open(Number(params.id), locals);
 		if (!mayDeleteOrder(user, order)) return fail(403, { message: 'Diesen Auftrag darfst du nicht löschen.' });
-		if (await invoiceForOrder(order.id)) return fail(400, { message: 'Zu diesem Auftrag gibt es eine Rechnung – er bleibt deshalb bestehen.' });
+		if ((await invoicesForOrder(order.id)).length) return fail(400, { message: 'Zu diesem Auftrag gibt es eine Rechnung – er bleibt deshalb bestehen.' });
 		await deleteOrder(order.id);
 		// Zurück zum Angebot, wenn man es sieht – sonst zur Liste
 		redirect(303, order.offerId && can(user.role, 'angebote.sehen') ? `/angebote/${order.offerId}` : '/auftraege');

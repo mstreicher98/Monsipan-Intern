@@ -1,22 +1,49 @@
 /**
- * Rechnungen: zum abgeschlossenen Auftrag, mit derselben Nummer. Preise aus
- * dem Angebot, Mengen aus dem Summenblatt der Tagesberichte; welche Spalte zu
- * welcher Angebotsposition gehört, merkt sich der Auftrag. Eine Rechnung ist
- * offen, bis sie als bezahlt markiert wird; solange sie offen ist, lässt sie
- * sich noch ändern oder löschen.
+ * Rechnungen zum Auftrag: Preise aus dem Angebot, Mengen aus den gewählten
+ * Tagesberichten; welche Spalte zu welcher Angebotsposition gehört, merkt sich
+ * der Auftrag. Entweder eine Rechnung über alles oder nach und nach
+ * Teilrechnungen – jeder geprüfte Bericht wird genau einmal abgerechnet. Die
+ * erste Rechnung trägt die Nummer des Auftrags, weitere „-2", „-3" …
+ *
+ * Eine Rechnung ist offen, bis sie als bezahlt markiert wird; solange sie
+ * offen ist, lässt sie sich noch ändern oder löschen.
  */
-import { and, asc, desc, eq, inArray, isNull, like, lt, or, sql, type SQL } from 'drizzle-orm';
+import { and, asc, desc, eq, gt, inArray, isNull, like, lt, or, sql, type SQL } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/sqlite-core';
 import { db, type Tx } from '$lib/server/db';
-import { invoicePositions, invoices, offerPositions, offers, orderPositions, orders, users, type InvoiceStatus } from '$lib/server/db/schema';
+import {
+	dailyReports,
+	INVOICE_KINDS,
+	invoicePositions,
+	invoices,
+	offerPositions,
+	offers,
+	orderPositions,
+	orders,
+	users,
+	type InvoiceKind,
+	type InvoiceStatus
+} from '$lib/server/db/schema';
 import { col } from '$lib/server/db/sql';
 import { getSettings } from '$lib/server/settings';
 import type { SessionUser } from '$lib/server/auth';
 import { addDays, isValidIsoDate, today } from '$lib/modules/stunden/week';
 import { notify } from '$lib/server/notifications';
 import { date as dateLabel } from '$lib/format';
-import { MAX_OFFER_LINES, money, parseAmount, round2, spacedNumber } from '../offer';
-import { billedLines, invoiceLines, suggestMapping, type Mapping, type PricedLine } from '../summary';
+import { lineNumbers, MAX_OFFER_LINES, money, parseAmount, round2, spacedNumber } from '../offer';
+import {
+	billedLines,
+	COUNTED_STATUS,
+	invoiceLines,
+	nextInvoiceNumber,
+	selectedColumns,
+	selectedPeriod,
+	suggestKind,
+	suggestMapping,
+	unitFamily,
+	type Mapping,
+	type PricedLine
+} from '../summary';
 import { orderSummary } from './summary';
 
 const creator = alias(users, 'creator');
@@ -44,6 +71,7 @@ export async function listInvoices(filter: InvoiceFilter = {}, limit = 300) {
 		.select({
 			id: invoices.id,
 			number: invoices.number,
+			kind: invoices.kind,
 			date: invoices.date,
 			dueDate: invoices.dueDate,
 			title: invoices.title,
@@ -76,23 +104,77 @@ export async function countInvoices(day = today()) {
 	return { open: row?.open ?? 0, paid: row?.paid ?? 0, overdue: row?.overdue ?? 0, all: row?.all ?? 0 };
 }
 
-/** Abgeschlossene Aufträge ohne Rechnung – die nächsten zum Abrechnen */
+/** Geprüft, aber auf keiner Rechnung – als SQL für Unterabfragen je Auftrag */
+const unbilledReport = sql`exists (select 1 from ${dailyReports} where ${col(dailyReports.orderId)} = ${col(orders.id)} and ${col(dailyReports.status)} in (${sql.join(
+	COUNTED_STATUS.map((s) => sql`${s}`),
+	sql`, `
+)}) and ${col(dailyReports.invoiceId)} is null)`;
+
+/**
+ * Abgeschlossene Aufträge, bei denen noch etwas abzurechnen ist: ohne
+ * Rechnung oder mit geprüften Tagesberichten, die auf keiner Rechnung stehen.
+ */
 export function ordersToInvoice() {
 	return db
 		.select({ id: orders.id, number: orders.number, title: orders.title, customerName: orders.customerName, location: orders.location, statusAt: orders.statusAt })
 		.from(orders)
-		.leftJoin(invoices, eq(invoices.orderId, orders.id))
-		.where(and(eq(orders.status, 'abgeschlossen'), isNull(invoices.id)))
+		.where(
+			and(
+				eq(orders.status, 'abgeschlossen'),
+				or(sql`not exists (select 1 from ${invoices} where ${col(invoices.orderId)} = ${col(orders.id)})`, unbilledReport)
+			)
+		)
 		.orderBy(asc(orders.statusAt))
 		.limit(100)
 		.all();
 }
 
-export function invoiceForOrder(orderId: number) {
-	return db.select({ id: invoices.id, number: invoices.number, status: invoices.status }).from(invoices).where(eq(invoices.orderId, orderId)).get();
+/** Alle Rechnungen zum Auftrag, in der Reihenfolge, in der sie geschrieben wurden */
+export async function invoicesForOrder(orderId: number) {
+	const rows = await db
+		.select({
+			id: invoices.id,
+			number: invoices.number,
+			kind: invoices.kind,
+			date: invoices.date,
+			status: invoices.status,
+			vatRate: invoices.vatRate,
+			reverseCharge: invoices.reverseCharge,
+			net: netSum,
+			reports: sql<number>`(select count(*) from ${dailyReports} where ${col(dailyReports.invoiceId)} = ${col(invoices.id)})`.mapWith(Number)
+		})
+		.from(invoices)
+		.where(eq(invoices.orderId, orderId))
+		.orderBy(asc(invoices.id))
+		.all();
+	return rows.map((r) => ({ ...r, gross: grossOf(r) }));
 }
 
-/** Rechnungsstand je Auftrag – für die Liste der Aufträge */
+/**
+ * Kann zum Auftrag (noch) eine Rechnung geschrieben werden? Die erste geht ab
+ * „in Arbeit" (als Teilrechnung) bzw. nach dem Abschluss auch ohne Berichte;
+ * jede weitere braucht geprüfte Berichte, die noch auf keiner Rechnung stehen.
+ * Gibt null zurück, wenn es geht – sonst den Grund.
+ */
+export function invoiceBlocker(s: { status: string; previous: number; available: number }): string | null {
+	if (s.status === 'erstellt') return 'Rechnungen gibt es, sobald der Auftrag in Arbeit ist.';
+	if (s.available) return null;
+	if (s.previous) return 'Alle geprüften Tagesberichte sind schon abgerechnet.';
+	if (s.status !== 'abgeschlossen') return 'Für eine Teilrechnung braucht es mindestens einen geprüften Tagesbericht.';
+	return null;
+}
+
+/** Geprüfte Berichte des Auftrags, die noch auf keiner Rechnung stehen */
+export async function unbilledReports(orderId: number): Promise<number> {
+	const row = await db
+		.select({ n: sql<number>`count(*)`.mapWith(Number) })
+		.from(dailyReports)
+		.where(and(eq(dailyReports.orderId, orderId), inArray(dailyReports.status, [...COUNTED_STATUS] as never[]), isNull(dailyReports.invoiceId)))
+		.get();
+	return row?.n ?? 0;
+}
+
+/** Rechnungsstand je Auftrag – für die Liste der Aufträge: offen, solange eine offen ist */
 export async function invoiceStates(orderIds: number[]): Promise<Record<number, InvoiceStatus>> {
 	if (!orderIds.length) return {};
 	const rows = await db
@@ -100,15 +182,37 @@ export async function invoiceStates(orderIds: number[]): Promise<Record<number, 
 		.from(invoices)
 		.where(inArray(invoices.orderId, orderIds))
 		.all();
-	return Object.fromEntries(rows.filter((r) => r.orderId != null).map((r) => [r.orderId!, r.status]));
+	const out: Record<number, InvoiceStatus> = {};
+	for (const r of rows) {
+		if (r.orderId == null) continue;
+		if (out[r.orderId] !== 'offen') out[r.orderId] = r.status;
+	}
+	return out;
 }
 
 /* ------------------------------------------------------------ Entwurf */
 
 /**
+ * Pauschalen, die schon auf einer früheren Rechnung zum Auftrag stehen – die
+ * kommen nicht von selbst noch einmal. Erkannt an der Positionsnummer.
+ */
+async function flatBilledLines(invoiceIds: number[], lines: PricedLine[]): Promise<number[]> {
+	if (!invoiceIds.length) return [];
+	const billed = await db
+		.select({ number: invoicePositions.number })
+		.from(invoicePositions)
+		.where(and(inArray(invoicePositions.invoiceId, invoiceIds), eq(invoicePositions.kind, 'position'), gt(invoicePositions.quantity, 0)))
+		.all();
+	const numbers = lineNumbers(lines);
+	const done = new Set(billed.map((b) => b.number));
+	return lines.filter((l, i) => l.kind === 'position' && unitFamily(l.unit) === 'pauschal' && done.has(numbers[i])).map((l) => l.id);
+}
+
+/**
  * Alles für eine neue Rechnung zum Auftrag: Positionen mit Preisen aus dem
- * Angebot (ohne Angebot die des Auftrags, ohne Preise), das Summenblatt, die
- * vorgeschlagene Zuordnung und die Vorgaben für Kopf und Texte.
+ * Angebot (ohne Angebot die des Auftrags, ohne Preise), die Tagesberichte, die
+ * noch abzurechnen sind (alle vorgewählt), die vorgeschlagene Zuordnung und die
+ * Vorgaben für Kopf und Texte. `blocked` sagt, warum es gerade keine gibt.
  */
 export async function invoiceDraft(orderId: number) {
 	const order = await db.select().from(orders).where(eq(orders.id, orderId)).get();
@@ -136,7 +240,27 @@ export async function invoiceDraft(orderId: number) {
 					.orderBy(asc(orderPositions.sortOrder), asc(orderPositions.id))
 					.all()
 			).map((l) => ({ ...l, unitPrice: null }));
-	const [summary, settings] = await Promise.all([orderSummary(orderId), getSettings()]);
+	const [summary, settings, previous] = await Promise.all([
+		orderSummary(orderId),
+		getSettings(),
+		db
+			.select({ id: invoices.id, number: invoices.number, kind: invoices.kind, date: invoices.date, status: invoices.status, state: invoices.state, section: invoices.section })
+			.from(invoices)
+			.where(eq(invoices.orderId, orderId))
+			.orderBy(asc(invoices.id))
+			.all()
+	]);
+	// Zur Wahl stehen die geprüften Berichte, die noch auf keiner Rechnung stehen – vorgewählt sind alle
+	const reports = summary.reports.filter((r) => r.counted && r.invoiceId == null);
+	const all = new Set(reports.map((r) => r.id));
+	const columns = selectedColumns(
+		summary.columns.filter((c) => reports.some((r) => r.values[c.key] != null)),
+		reports,
+		all
+	);
+	const pending = summary.reports.filter((r) => !r.counted).length;
+	const period = selectedPeriod(reports, all);
+	const last = previous.at(-1);
 	const date = today();
 	return {
 		order: {
@@ -149,13 +273,25 @@ export async function invoiceDraft(orderId: number) {
 			offerNumber: offer?.number ?? null
 		},
 		lines,
-		summary,
-		mapping: suggestMapping(summary.columns, lines, order.invoiceMapping),
+		columns,
+		reports,
+		pending,
+		previous,
+		flatBilled: await flatBilledLines(
+			previous.map((p) => p.id),
+			lines
+		),
+		blocked: invoiceBlocker({ status: order.status, previous: previous.length, available: reports.length }),
+		mapping: suggestMapping(columns, lines, order.invoiceMapping),
 		head: {
+			kind: suggestKind({ closed: order.status === 'abgeschlossen', previous: previous.length, available: reports.length, selected: reports.length, pending }) as InvoiceKind,
+			// Bundesland und Abschnitt wie auf der letzten Rechnung zum Auftrag
+			state: last?.state ?? '',
+			section: last?.section ?? '',
 			date,
 			dueDate: addDays(date, settings.invoicePaymentDays),
-			serviceFrom: summary.from ?? '',
-			serviceTo: summary.to ?? '',
+			serviceFrom: period?.from ?? '',
+			serviceTo: period?.to ?? '',
 			projectNumber: order.projectNumber,
 			title: order.title,
 			location: order.location,
@@ -176,15 +312,18 @@ export async function invoiceDraft(orderId: number) {
 
 export type InvoiceDraft = NonNullable<Awaited<ReturnType<typeof invoiceDraft>>>;
 
-/** Die vorgeschlagenen Zeilen zum Entwurf – Mengen aus der Zuordnung */
+/** Die vorgeschlagenen Zeilen zum Entwurf – Mengen aller noch offenen Berichte nach der Zuordnung */
 export function draftLines(draft: InvoiceDraft, mapping: Mapping = draft.mapping) {
-	return invoiceLines(draft.lines, draft.summary.columns, mapping);
+	return invoiceLines(draft.lines, draft.columns, mapping, draft.flatBilled);
 }
 
 /* ------------------------------------------------------------ Speichern */
 
 export interface SaveInvoice {
 	head: {
+		kind: InvoiceKind;
+		state: string;
+		section: string;
 		date: string;
 		dueDate: string;
 		serviceFrom: string | null;
@@ -262,8 +401,12 @@ export function readInvoice(form: FormData): SaveInvoice | { message: string } {
 	const name = s('k_name').trim();
 	if (!name) return { message: 'Bitte den Kunden eintragen.' };
 
+	const kind = s('rechnungsart');
 	return {
 		head: {
+			kind: (INVOICE_KINDS as readonly string[]).includes(kind) ? (kind as InvoiceKind) : 'rechnung',
+			state: s('bundesland').trim().slice(0, 60),
+			section: s('abschnitt').trim().slice(0, 120),
 			date,
 			dueDate,
 			serviceFrom: from || null,
@@ -284,6 +427,11 @@ export function readInvoice(form: FormData): SaveInvoice | { message: string } {
 		},
 		lines: billed
 	};
+}
+
+/** Die angekreuzten Tagesberichte: bericht = ID, mehrfach */
+export function readReports(form: FormData): number[] {
+	return [...new Set(form.getAll('bericht').map(Number))].filter((n) => Number.isInteger(n) && n > 0);
 }
 
 /** Zuordnung aus dem Formular: m.<Schlüssel> = Positions-ID oder „nein" */
@@ -314,25 +462,46 @@ async function writeLines(tx: Tx, invoiceId: number, lines: SaveInvoice['lines']
 }
 
 /**
- * Rechnung anlegen – mit der Nummer des Auftrags. Die Zuordnung der Spalten
- * merkt sich der Auftrag. Gibt die ID zurück oder eine Meldung.
+ * Rechnung anlegen – die erste mit der Nummer des Auftrags, weitere mit „-2",
+ * „-3" … Die gewählten Berichte gelten danach als abgerechnet; die Zuordnung
+ * der Spalten merkt sich der Auftrag. Gibt die ID zurück oder eine Meldung.
  */
-export async function createInvoice(user: SessionUser, orderId: number, data: SaveInvoice, mapping: Record<string, number | null>): Promise<number | { message: string }> {
+export async function createInvoice(
+	user: SessionUser,
+	orderId: number,
+	data: SaveInvoice,
+	mapping: Record<string, number | null>,
+	reportIds: number[]
+): Promise<number | { message: string }> {
 	return db.transaction(async (tx) => {
 		const order = await tx.select().from(orders).where(eq(orders.id, orderId)).get();
 		if (!order) return { message: 'Den Auftrag gibt es nicht mehr.' };
-		if (order.status !== 'abgeschlossen') return { message: 'Eine Rechnung gibt es erst, wenn der Auftrag abgeschlossen ist.' };
+		const previous = await tx.select({ id: invoices.id }).from(invoices).where(eq(invoices.orderId, orderId)).all();
+		const chosen = reportIds.length
+			? await tx
+					.select({ id: dailyReports.id, status: dailyReports.status, invoiceId: dailyReports.invoiceId })
+					.from(dailyReports)
+					.where(and(eq(dailyReports.orderId, orderId), inArray(dailyReports.id, reportIds)))
+					.all()
+			: [];
+		if (chosen.length !== reportIds.length) return { message: 'Ein gewählter Tagesbericht gehört nicht mehr zu diesem Auftrag – bitte neu laden.' };
+		if (chosen.some((r) => !COUNTED_STATUS.includes(r.status))) return { message: 'Abgerechnet werden nur geprüfte Tagesberichte.' };
+		if (chosen.some((r) => r.invoiceId != null)) return { message: 'Ein gewählter Tagesbericht ist inzwischen abgerechnet – bitte neu laden.' };
+		const blocked = invoiceBlocker({ status: order.status, previous: previous.length, available: chosen.length });
+		if (blocked) return { message: chosen.length || order.status === 'erstellt' ? blocked : 'Bitte mindestens einen Tagesbericht wählen.' };
 		const taken = await tx
-			.select({ id: invoices.id })
+			.select({ number: invoices.number })
 			.from(invoices)
-			.where(or(eq(invoices.orderId, orderId), eq(invoices.number, order.number)))
-			.get();
-		if (taken) return { message: `Die Rechnung ${order.number} gibt es schon.` };
+			.where(or(eq(invoices.number, order.number), like(invoices.number, `${order.number}-%`)))
+			.all();
 		const offer = order.offerId ? await tx.select({ customerId: offers.customerId }).from(offers).where(eq(offers.id, order.offerId)).get() : undefined;
 		const row = await tx
 			.insert(invoices)
 			.values({
-				number: order.number,
+				number: nextInvoiceNumber(
+					order.number,
+					new Set(taken.map((t) => t.number))
+				),
 				orderId,
 				offerId: order.offerId,
 				customerId: offer?.customerId ?? null,
@@ -344,6 +513,7 @@ export async function createInvoice(user: SessionUser, orderId: number, data: Sa
 			.returning({ id: invoices.id })
 			.get();
 		await writeLines(tx, row.id, data.lines);
+		if (reportIds.length) await tx.update(dailyReports).set({ invoiceId: row.id }).where(inArray(dailyReports.id, reportIds));
 		await tx
 			.update(orders)
 			.set({ invoiceMapping: { ...(order.invoiceMapping ?? {}), ...mapping }, updatedAt: new Date() })
@@ -373,7 +543,11 @@ export async function invoiceDetail(id: number) {
 		.select({
 			id: invoices.id,
 			number: invoices.number,
+			kind: invoices.kind,
+			state: invoices.state,
+			section: invoices.section,
 			orderId: invoices.orderId,
+			orderNumber: orders.number,
 			orderStatus: orders.status,
 			offerId: invoices.offerId,
 			date: invoices.date,
@@ -422,7 +596,14 @@ export async function invoiceDetail(id: number) {
 		.where(eq(invoicePositions.invoiceId, id))
 		.orderBy(asc(invoicePositions.sortOrder), asc(invoicePositions.id))
 		.all();
-	return { ...invoice, lines };
+	// Die Tagesberichte, die mit dieser Rechnung abgerechnet sind
+	const reports = await db
+		.select({ id: dailyReports.id, number: dailyReports.number, date: dailyReports.date, dateTo: dailyReports.dateTo, site: dailyReports.site })
+		.from(dailyReports)
+		.where(eq(dailyReports.invoiceId, id))
+		.orderBy(asc(dailyReports.date), asc(dailyReports.id))
+		.all();
+	return { ...invoice, lines, reports };
 }
 
 export type InvoiceDetail = NonNullable<Awaited<ReturnType<typeof invoiceDetail>>>;
@@ -470,11 +651,14 @@ export async function notifyOverdueInvoices(day = today()) {
 	}
 }
 
-/** Nur offene Rechnungen lassen sich löschen */
+/** Nur offene Rechnungen lassen sich löschen – ihre Tagesberichte sind dann wieder abzurechnen */
 export async function deleteInvoice(id: number): Promise<boolean> {
-	const done = await db
-		.delete(invoices)
-		.where(and(eq(invoices.id, id), eq(invoices.status, 'offen')))
-		.returning({ id: invoices.id });
-	return done.length > 0;
+	return db.transaction(async (tx) => {
+		const invoice = await tx.select({ status: invoices.status }).from(invoices).where(eq(invoices.id, id)).get();
+		if (invoice?.status !== 'offen') return false;
+		// Erst die Berichte lösen – sie verweisen auf die Rechnung
+		await tx.update(dailyReports).set({ invoiceId: null }).where(eq(dailyReports.invoiceId, id));
+		await tx.delete(invoices).where(eq(invoices.id, id));
+		return true;
+	});
 }

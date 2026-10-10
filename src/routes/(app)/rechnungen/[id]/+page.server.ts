@@ -22,7 +22,8 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 		canEdit: isOpen && can(user.role, 'rechnungen.bearbeiten'),
 		canPay: can(user.role, 'rechnungen.bezahlt'),
 		canDelete: isOpen && can(user.role, 'rechnungen.loeschen'),
-		canSeeOrder: !!invoice.orderId && can(user.role, 'auftraege.sehen')
+		canSeeOrder: !!invoice.orderId && can(user.role, 'auftraege.sehen'),
+		canSeeReports: can(user.role, 'tagesberichte.sehen')
 	};
 };
 

@@ -1,5 +1,9 @@
 <script lang="ts" module>
 	export interface EditorHead {
+		kind: 'rechnung' | 'teilrechnung';
+		/** Fürs Summenblatt */
+		state: string;
+		section: string;
 		date: string;
 		dueDate: string;
 		serviceFrom: string;
@@ -37,16 +41,18 @@
 	 * Rechnung schreiben bzw. ändern: Kopf (Datum, Zahlungsziel, Leistungszeitraum,
 	 * Kunde), Positionen mit Menge und Einheitspreis, Texte und Summen.
 	 *
-	 * Bei einer neuen Rechnung steht oben die Zuordnung: je Mengenspalte aus den
-	 * Tagesberichten die Angebotsposition, deren Preis gilt. Ändert sich eine
-	 * Zuordnung, bekommen die betroffenen Positionen ihre Menge neu.
+	 * Bei einer neuen Rechnung stehen oben die Tagesberichte, die noch nicht
+	 * abgerechnet sind – alle oder nur ein Teil davon kommen in diese Rechnung –
+	 * und die Zuordnung: je Mengenspalte die Angebotsposition, deren Preis gilt.
+	 * Ändert sich Auswahl oder Zuordnung, bekommen die Positionen ihre Menge neu.
 	 */
 	import X from '@lucide/svelte/icons/x';
 	import Plus from '@lucide/svelte/icons/plus';
 	import ArrowRight from '@lucide/svelte/icons/arrow-right';
 	import { addDays, isValidIsoDate } from '$lib/modules/stunden/week';
-	import { amountInput, invoiceTotals, lineTotal, money, OFFER_UNITS, parseAmount, quantityLabel, REVERSE_CHARGE_NOTE } from '../offer';
-	import { invoiceLines, type Mapping, type PricedLine, type SummaryColumn } from '../summary';
+	import { reportDateLabel } from '$lib/modules/tagesberichte/sheet';
+	import { amountInput, INVOICE_KIND_LABELS, invoiceTotals, lineTotal, money, OFFER_UNITS, parseAmount, quantityLabel, REVERSE_CHARGE_NOTE } from '../offer';
+	import { invoiceLines, selectedColumns, selectedPeriod, suggestKind, type Mapping, type PricedLine, type SummaryColumn, type SummaryReport } from '../summary';
 
 	interface Props {
 		head: EditorHead;
@@ -54,11 +60,13 @@
 		paymentDays: number;
 		/** Nur bei einer neuen Rechnung: Spalten aus den Tagesberichten und die Angebotspositionen */
 		mapping?: { columns: SummaryColumn[]; priced: PricedLine[]; initial: Mapping } | null;
+		/** Nur bei einer neuen Rechnung: die Berichte zur Wahl und was es zum Auftrag schon gibt */
+		selection?: { reports: SummaryReport[]; pending: number; previous: number; closed: boolean; flatBilled: number[] } | null;
 		busy?: boolean;
 		submitLabel: string;
 		message?: string;
 	}
-	let { head: initialHead, lines: initialLines, paymentDays, mapping = null, busy = false, submitLabel, message = '' }: Props = $props();
+	let { head: initialHead, lines: initialLines, paymentDays, mapping = null, selection = null, busy = false, submitLabel, message = '' }: Props = $props();
 
 	type Line = { key: number; number: string; kind: 'position' | 'titel'; text: string; quantity: string; unit: string; price: string; offerLineId: number | null; offerQuantity: number | null; source: string };
 
@@ -88,28 +96,57 @@
 	);
 	/** Zahlbar bis folgt dem Rechnungsdatum, bis es jemand selbst ändert */
 	let dueTouched = $state(false);
+	/** Art und Leistungszeitraum folgen der Auswahl der Berichte, bis jemand sie selbst ändert */
+	let kindTouched = $state(false);
+	let periodTouched = $state(false);
+	// svelte-ignore state_referenced_locally
+	let picked = $state<Record<number, boolean>>(Object.fromEntries((selection?.reports ?? []).map((r) => [r.id, true])));
+	const chosen = $derived(new Set((selection?.reports ?? []).filter((r) => picked[r.id]).map((r) => r.id)));
+	/** Spalten mit den Summen der gewählten Berichte */
+	const columns = $derived(mapping ? (selection ? selectedColumns(mapping.columns, selection.reports, chosen) : mapping.columns) : []);
 
 	const parsed = $derived(lines.map((l) => ({ kind: l.kind, quantity: parseAmount(l.quantity), unitPrice: parseAmount(l.price) })));
 	const totals = $derived(invoiceTotals(parsed, parseAmount(head.vat) ?? 0, head.reverseCharge));
-	const openColumns = $derived((mapping?.columns ?? []).filter((c) => !assigned[c.key]).length);
+	const openColumns = $derived(columns.filter((c) => !assigned[c.key]).length);
 
 	function onDate() {
 		if (!dueTouched && isValidIsoDate(head.date)) head.dueDate = addDays(head.date, paymentDays);
 	}
 
-	/** Zuordnung geändert: betroffene Positionen bekommen Menge und Herkunft neu */
-	function remap() {
+	/**
+	 * Mengen neu: bei geänderter Zuordnung nur die betroffenen Positionen, bei
+	 * geänderter Auswahl der Berichte alle, deren Menge aus den Berichten kommt.
+	 */
+	function remap(all = false) {
 		if (!mapping) return;
 		const current: Mapping = {};
 		for (const [k, v] of Object.entries(assigned)) current[k] = v === 'nein' ? null : v ? Number(v) : undefined;
-		const drafts = new Map(invoiceLines(mapping.priced, mapping.columns, current).map((d) => [d.offerLineId, d]));
+		const drafts = new Map(invoiceLines(mapping.priced, columns, current, selection?.flatBilled).map((d) => [d.offerLineId, d]));
 		for (const l of lines) {
 			if (l.offerLineId == null || l.kind !== 'position') continue;
 			const d = drafts.get(l.offerLineId);
-			if (!d || d.source === l.source) continue;
+			if (!d || (d.source === l.source && !(all && d.source))) continue;
 			l.quantity = qtyInput(d.quantity);
 			l.source = d.source;
 		}
+	}
+
+	/** Auswahl der Berichte geändert: Mengen, Zeitraum und Art folgen */
+	function reselect() {
+		if (!selection) return;
+		remap(true);
+		const period = selectedPeriod(selection.reports, chosen);
+		if (!periodTouched && period) {
+			head.serviceFrom = period.from;
+			head.serviceTo = period.to;
+		}
+		if (!kindTouched) {
+			head.kind = suggestKind({ closed: selection.closed, previous: selection.previous, available: selection.reports.length, selected: chosen.size, pending: selection.pending });
+		}
+	}
+	function pickAll(on: boolean) {
+		for (const r of selection?.reports ?? []) picked[r.id] = on;
+		reselect();
 	}
 
 	function addLine() {
@@ -127,16 +164,58 @@
 	});
 </script>
 
+{#if selection}
+	<section class="card mb-4 p-4 lg:p-5">
+		<div class="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+			<h2 class="text-lg">Tagesberichte</h2>
+			{#if selection.reports.length > 1}
+				<span class="flex gap-1">
+					<button type="button" class="btn btn-ghost btn-sm" onclick={() => pickAll(true)}>Alle</button>
+					<button type="button" class="btn btn-ghost btn-sm" onclick={() => pickAll(false)}>Keine</button>
+				</span>
+			{/if}
+		</div>
+		{#if selection.reports.length}
+			<p class="mt-1 text-sm text-ink-2">
+				Alle angekreuzten kommen in diese Rechnung – die übrigen bleiben für eine spätere Teilrechnung. Jeder Bericht wird nur einmal abgerechnet.
+				<span class="num font-medium text-ink">{chosen.size} von {selection.reports.length} gewählt.</span>
+			</p>
+			<ul class="mt-3 divide-y divide-line rounded-xl border border-line">
+				{#each selection.reports as r (r.id)}
+					<li>
+						<label class="flex cursor-pointer items-start gap-3 px-3 py-2.5 hover:bg-surface-2">
+							<input type="checkbox" class="mt-0.5 size-5 shrink-0 accent-[var(--c-ink)]" name="bericht" value={r.id} bind:checked={picked[r.id]} onchange={reselect} />
+							<span class="min-w-0">
+								<span class="block font-medium"><span class="num">Nr. {r.number || '–'}</span> · <span class="num">{reportDateLabel(r.date, r.dateTo)}</span></span>
+								<span class="block truncate text-sm text-ink-3">{[r.site, r.partyName].filter(Boolean).join(' · ') || 'ohne Baustelle'}</span>
+							</span>
+						</label>
+					</li>
+				{/each}
+			</ul>
+			{#if !chosen.size}<p class="mt-2 text-sm font-medium text-warn">Ohne Bericht kommt nur, was unten von Hand eingetragen ist.</p>{/if}
+		{:else}
+			<p class="mt-1 text-sm text-ink-2">Keine geprüften Tagesberichte – die Mengen unten selbst eintragen.</p>
+		{/if}
+		{#if selection.pending}
+			<p class="mt-2 text-sm text-ink-3">
+				{selection.pending}
+				{selection.pending === 1 ? 'weiterer Bericht ist' : 'weitere Berichte sind'} noch nicht geprüft und {selection.pending === 1 ? 'kommt' : 'kommen'} erst danach zur Wahl.
+			</p>
+		{/if}
+	</section>
+{/if}
+
 {#if mapping}
 	<section class="card mb-4 p-4 lg:p-5">
 		<h2 class="text-lg">Mengen aus den Tagesberichten</h2>
-		{#if mapping.columns.length}
+		{#if columns.length}
 			<p class="mt-1 text-sm text-ink-2">
 				Je Spalte der Berichte die Position aus dem Angebot wählen – deren Preis gilt. Die Zuordnung merkt sich der Auftrag.
 				{#if openColumns}<span class="font-medium text-warn">Noch {openColumns} ohne Zuordnung.</span>{/if}
 			</p>
 			<ul class="mt-3 divide-y divide-line rounded-xl border border-line">
-				{#each mapping.columns as c (c.key)}
+				{#each columns as c (c.key)}
 					<li class="grid items-center gap-2 px-3 py-2.5 sm:grid-cols-[minmax(0,1fr)_auto_minmax(0,1.4fr)]">
 						<span class="min-w-0">
 							<span class="num font-semibold">{c.lbPos || 'ohne LB-Pos.'}</span>
@@ -144,7 +223,7 @@
 							<span class="num block text-sm text-ink-2">Summe {quantityLabel(c.total)} {c.unit}</span>
 						</span>
 						<ArrowRight size={16} class="hidden text-ink-3 sm:block" aria-hidden="true" />
-						<select class="select {assigned[c.key] ? '' : 'border-warn'}" name="m.{c.key}" bind:value={assigned[c.key]} onchange={remap} aria-label="Position für {c.lbPos} {c.unit}">
+						<select class="select {assigned[c.key] ? '' : 'border-warn'}" name="m.{c.key}" bind:value={assigned[c.key]} onchange={() => remap()} aria-label="Position für {c.lbPos} {c.unit}">
 							<option value="">Bitte wählen …</option>
 							{#each mapping.priced.filter((p) => p.kind === 'position') as p (p.id)}
 								<option value={String(p.id)}>{positionLabel(p, pricedNumbers.get(p.id) ?? '')}</option>
@@ -194,6 +273,12 @@
 	<section class="card p-4 lg:p-5">
 		<h2 class="text-lg">Rechnung</h2>
 		<div class="mt-3 grid grid-cols-2 gap-3">
+			<label class="col-span-2 block">
+				<span class="field-label">Art</span>
+				<select class="select" name="rechnungsart" bind:value={head.kind} onchange={() => (kindTouched = true)}>
+					{#each Object.entries(INVOICE_KIND_LABELS) as [value, label] (value)}<option {value}>{label}</option>{/each}
+				</select>
+			</label>
 			<label class="block">
 				<span class="field-label">Rechnungsdatum *</span>
 				<input class="input num" type="date" name="datum" required bind:value={head.date} oninput={onDate} />
@@ -204,11 +289,11 @@
 			</label>
 			<label class="block">
 				<span class="field-label">Leistung von</span>
-				<input class="input num" type="date" name="von" bind:value={head.serviceFrom} />
+				<input class="input num" type="date" name="von" bind:value={head.serviceFrom} oninput={() => (periodTouched = true)} />
 			</label>
 			<label class="block">
 				<span class="field-label">Leistung bis</span>
-				<input class="input num" type="date" name="bis" bind:value={head.serviceTo} />
+				<input class="input num" type="date" name="bis" bind:value={head.serviceTo} oninput={() => (periodTouched = true)} />
 			</label>
 			<label class="col-span-2 block">
 				<span class="field-label">Bauvorhaben (BV)</span>
@@ -218,6 +303,17 @@
 				<span class="field-label">Ausführungsort</span>
 				<input class="input" name="ort" maxlength="300" bind:value={head.location} />
 			</label>
+			<label class="block">
+				<span class="field-label">Bundesland <span class="text-ink-3">· Summenblatt</span></span>
+				<input class="input" name="bundesland" maxlength="60" list="bundeslaender" bind:value={head.state} />
+			</label>
+			<label class="block">
+				<span class="field-label">Abschnitt <span class="text-ink-3">· Summenblatt</span></span>
+				<input class="input" name="abschnitt" maxlength="120" bind:value={head.section} />
+			</label>
+			<datalist id="bundeslaender">
+				{#each ['Burgenland', 'Kärnten', 'Niederösterreich', 'Oberösterreich', 'Salzburg', 'Steiermark', 'Tirol', 'Vorarlberg', 'Wien'] as b (b)}<option value={b}></option>{/each}
+			</datalist>
 			<label class="block">
 				<span class="field-label">Projektnummer</span>
 				<input class="input num" name="projekt" maxlength="30" bind:value={head.projectNumber} />

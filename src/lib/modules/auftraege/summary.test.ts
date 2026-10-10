@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { billedLines, columnKey, invoiceLines, suggestMapping, summarize, unitFamily, type PricedLine, type SummaryReportInput } from './summary';
+import { billedLines, columnKey, invoiceLines, nextInvoiceNumber, selectedColumns, selectedPeriod, suggestKind, suggestMapping, summarize, unitFamily, type PricedLine, type SummaryReportInput } from './summary';
 
 const report = (over: Partial<SummaryReportInput>): SummaryReportInput => ({
 	id: 1,
@@ -115,5 +115,52 @@ describe('Zuordnung und Rechnungszeilen', () => {
 		expect(unitFamily('M2')).toBe('m²');
 		expect(unitFamily('Pauschal')).toBe('pauschal');
 		expect(unitFamily('h')).toBe('h');
+	});
+});
+
+describe('Teilrechnungen', () => {
+	const pos = [{ lbPos: '01.02', unit: 'm' }];
+	const sum = summarize([
+		report({ id: 1, number: '1', date: '2026-10-01', positions: pos, rows: [{ quantities: [100] }] }),
+		report({ id: 2, number: '2', date: '2026-10-03', dateTo: '2026-10-04', positions: pos, rows: [{ quantities: [50] }], invoiceId: 7, invoiceNumber: '2026-015' }),
+		report({ id: 3, number: '3', date: '2026-10-08', positions: pos, rows: [{ quantities: [25] }] }),
+		report({ id: 4, number: '4', date: '2026-10-09', status: 'freigegeben', positions: pos, rows: [{ quantities: [9] }] })
+	]);
+
+	it('merkt sich, mit welcher Rechnung ein Bericht abgerechnet ist', () => {
+		expect(sum.reports.map((r) => r.invoiceNumber)).toEqual([null, '2026-015', null, null]);
+	});
+
+	it('zählt nur die gewählten, geprüften Berichte', () => {
+		expect(selectedColumns(sum.columns, sum.reports, new Set([1, 3]))[0].total).toBe(125);
+		// Nicht geprüft zählt auch gewählt nicht
+		expect(selectedColumns(sum.columns, sum.reports, new Set([3, 4]))[0].total).toBe(25);
+		expect(selectedColumns(sum.columns, sum.reports, new Set())[0].total).toBe(0);
+	});
+
+	it('nimmt den Zeitraum der gewählten Berichte', () => {
+		expect(selectedPeriod(sum.reports, new Set([2, 3]))).toEqual({ from: '2026-10-03', to: '2026-10-08' });
+		expect(selectedPeriod(sum.reports, new Set())).toBeNull();
+	});
+
+	it('schlägt Rechnung nur für alles auf einmal vor', () => {
+		const all = { closed: true, previous: 0, available: 3, selected: 3, pending: 0 };
+		expect(suggestKind(all)).toBe('rechnung');
+		expect(suggestKind({ ...all, selected: 2 })).toBe('teilrechnung');
+		expect(suggestKind({ ...all, closed: false })).toBe('teilrechnung');
+		expect(suggestKind({ ...all, previous: 1 })).toBe('teilrechnung');
+		expect(suggestKind({ ...all, pending: 1 })).toBe('teilrechnung');
+	});
+
+	it('nummeriert weitere Rechnungen zum Auftrag durch', () => {
+		expect(nextInvoiceNumber('2026-015', new Set())).toBe('2026-015');
+		expect(nextInvoiceNumber('2026-015', new Set(['2026-015']))).toBe('2026-015-2');
+		expect(nextInvoiceNumber('2026-015', new Set(['2026-015', '2026-015-2']))).toBe('2026-015-3');
+	});
+
+	it('rechnet eine Pauschale nur einmal ab', () => {
+		const lines: PricedLine[] = [{ id: 15, kind: 'position', text: 'Baustelleneinrichtung', quantity: 1, unit: 'Pauschal', unitPrice: 350 }];
+		expect(invoiceLines(lines, [], {})[0].quantity).toBe(1);
+		expect(invoiceLines(lines, [], {}, [15])[0].quantity).toBeNull();
 	});
 });

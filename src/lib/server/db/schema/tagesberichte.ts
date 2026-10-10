@@ -6,7 +6,7 @@
 import { index, integer, real, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core';
 import type { InkPages } from '../../../ink';
 import { createdAt } from './common';
-import { orders } from './auftraege';
+import { invoices, orders } from './auftraege';
 import { parties, users } from './core';
 import { products } from './lager';
 
@@ -41,6 +41,8 @@ export const dailyReports = sqliteTable(
 		partyId: integer('party_id').references(() => parties.id, { onDelete: 'set null' }),
 		/** Auftrag, zu dem der Bericht gehört – freiwillig */
 		orderId: integer('order_id').references(() => orders.id, { onDelete: 'set null' }),
+		/** Mit dieser Rechnung abgerechnet – jeder Bericht nur einmal */
+		invoiceId: integer('invoice_id').references(() => invoices.id, { onDelete: 'set null' }),
 		createdBy: integer('created_by').references(() => users.id, { onDelete: 'set null' }),
 		/** Freigabe mit Unterschrift (SVG-Pfad) – steht im Ausdruck bei „Für den Auftragnehmer" */
 		releasedBy: integer('released_by').references(() => users.id, { onDelete: 'set null' }),
@@ -71,6 +73,7 @@ export const dailyReports = sqliteTable(
 		index('daily_reports_date_idx').on(t.date),
 		index('daily_reports_party_idx').on(t.partyId),
 		index('daily_reports_order_idx').on(t.orderId),
+		index('daily_reports_invoice_idx').on(t.invoiceId),
 		uniqueIndex('daily_reports_customer_token_idx').on(t.customerToken)
 	]
 );

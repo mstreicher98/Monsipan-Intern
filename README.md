@@ -16,7 +16,7 @@ Oberfläche, auf dem Handy wie am PC. Die übrigen Bereiche kommen nach und nach
 | Bestellungen, Dokumente, Auswertungen | geplant |
 
 **Übersicht** (`/`): Oben **Zu erledigen** – was gerade ansteht, das Dringendste zuerst:
-überfällige Rechnungen, abgeschlossene Aufträge ohne Rechnung, Änderungswünsche und
+überfällige Rechnungen, abgeschlossene Aufträge mit noch nicht Abgerechnetem, Änderungswünsche und
 angenommene Angebote ohne Auftrag, Anfragen ohne Angebot, Tagesberichte zum Prüfen oder
 Freigeben, Stundenzettel zum Prüfen bzw. aus der Vorwoche noch offen, neue Aufträge der
 Partie, Artikel zum Nachbestellen. Darunter je Bereich die Kennzahlen – Auftragsmanagement
@@ -84,7 +84,7 @@ Administration unter `/verwaltung/…`:
 | Tagesberichte | `/tagesberichte` |
 | Tagesbericht für den Kunden (ohne Anmeldung) | `/bericht/<link>` |
 | Anfragen, Angebote, Aufträge, Rechnungen, Kunden | `/anfragen`, `/angebote`, `/auftraege`, `/rechnungen`, `/kunden` |
-| Summenblatt eines Auftrags | `/auftraege/<id>/summenblatt` |
+| Summenblatt eines Auftrags bzw. einer Rechnung | `/auftraege/<id>/summenblatt`, `/rechnungen/<id>/summenblatt` |
 | Angebot für den Kunden (ohne Anmeldung) | `/angebot/<link>` |
 | Handschrift auf dem Formular | `/tagesberichte/<id>/handschrift`, `/stundenzettel/<id>/handschrift` |
 | Bestand, Buchen, Bewegungen, Bestellliste, Berichte | `/lager/bestand` usw. |
@@ -401,7 +401,8 @@ Hinweis.
 
 Die Liste der Aufträge hat drei Reiter mit der Anzahl je Stand: **Erstellt**, **In Arbeit**
 und **Abgeschlossen** – Suche und Partie gelten für alle drei. Bei den abgeschlossenen steht,
-ob es schon eine Rechnung gibt und ob sie bezahlt ist. Die Partie sieht nur ihre eigenen
+ob es schon eine Rechnung gibt und ob sie bezahlt ist (bei Teilrechnungen: offen, solange eine
+offen ist). Die Partie sieht nur ihre eigenen
 Aufträge und setzt sie auf **In Arbeit** und **Abgeschlossen** (und bei Bedarf zurück auf in
 Arbeit). Das Büro sieht alle, wechselt die Partie, ändert den Hinweis, setzt zurück auf
 „Auftrag erstellt“ oder löscht einen noch nicht begonnenen Auftrag – das Angebot bleibt dann
@@ -410,35 +411,58 @@ und zum Drucken.
 
 **Summenblatt** (`/auftraege/<id>/summenblatt`, ab zwei Tagesberichten am Auftrag): alle
 Tagesberichte des Auftrags in einer Tabelle – je Bericht eine Zeile, je LB-Position und
-Einheit eine Spalte, unten die Summe; dazu Zeitraum und das verwendete Material. Es zählen
-nur **geprüfte** und vom Kunden unterschriebene Berichte; Berichte in Arbeit oder nur
-freigegeben stehen darunter als „Nicht in der Summe“. Als PDF im Querformat und zum Drucken.
+Einheit eine Spalte, unten die Summe; dazu Zeitraum, Material und mit welcher Rechnung ein
+Bericht abgerechnet ist. Es zählen nur **geprüfte** und vom Kunden unterschriebene Berichte;
+Berichte in Arbeit oder nur freigegeben stehen darunter als „Nicht in der Summe“.
 
-**Rechnungen** (`/rechnungen`) gibt es zum **abgeschlossenen** Auftrag, mit **derselben
-Nummer** wie Angebot und Auftrag – also eine Rechnung je Auftrag. Oben in der Liste stehen
-die abgeschlossenen Aufträge ohne Rechnung („Bereit zur Rechnung“), darunter die Reiter
-**Offen**, **Bezahlt** und **Alle**; überfällige sind rot markiert.
+PDF und Druck sehen aus wie der Vordruck **Tagesbericht-Summenblatt** (A4 quer): Briefkopf,
+Titel mit Jahr, **zu Rechnung Nr.**, rechts **Bundesland** und **Abschnitt**; im Raster
+T.B.Nr., vom und elf Mengenspalten mit **LV.** (Nummer der zugeordneten Angebotsposition),
+**LB.**, MSK (frei zum Ausfüllen) und **Einheit**, je Bericht eine Zeile, in der letzten die
+**Summe**. Mehr als 21 Berichte gehen auf der nächsten Seite mit **Übertrag** weiter, mehr als
+elf Spalten in einem weiteren Blatt. Das Summenblatt gibt es zum ganzen Auftrag und **zu jeder
+Rechnung** (nur deren Berichte, Rechnungsnummer, Bundesland und Abschnitt ausgefüllt).
 
-- **Rechnung erstellen** (im Auftrag oder in der Liste): Oben stehen die Mengen aus dem
-  Summenblatt – je Spalte (LB-Position und Einheit) wählt man die **Angebotsposition**, deren
+**Rechnungen** (`/rechnungen`): Entweder **eine Rechnung** über alles oder nach und nach
+**Teilrechnungen** – jeder geprüfte Tagesbericht wird genau **einmal** abgerechnet. Die erste
+Rechnung trägt die **Nummer** von Angebot und Auftrag, weitere zum selben Auftrag „-2“, „-3“ …
+Teilrechnungen gehen schon, während der Auftrag **in Arbeit** ist (sobald es geprüfte Berichte
+gibt); eine Rechnung ohne Berichte nur nach dem Abschluss. Oben in der Liste stehen die
+abgeschlossenen Aufträge, bei denen noch etwas abzurechnen ist („Bereit zur Rechnung“),
+darunter die Reiter **Offen**, **Bezahlt** und **Alle**; überfällige sind rot markiert.
+
+- **Rechnung erstellen** (im Auftrag oder in der Liste): Ganz oben die **Tagesberichte**, die
+  noch auf keiner Rechnung stehen – alle sind angekreuzt; wer nur einen Teil abrechnen will,
+  nimmt die übrigen heraus (sie bleiben für die nächste Teilrechnung). Mengen, Leistungszeitraum
+  und die **Art** (Rechnung oder Teilrechnung) folgen der Auswahl: „Rechnung“, wenn es die erste
+  ist, der Auftrag abgeschlossen ist und alle Berichte drin sind, sonst „Teilrechnung“ – lässt
+  sich umstellen und steht so als Überschrift auf dem PDF.
+- Darunter die Mengen der gewählten Berichte – je Spalte (LB-Position und Einheit) wählt man die **Angebotsposition**, deren
   Einheitspreis gilt, oder „Nicht abrechnen“. Vorgeschlagen wird die Position, in deren Text
   die LB-Position steht, sonst die einzige mit passender Einheit (m, lfm, lfd. m gelten als
   gleich). Die Zuordnung merkt sich der Auftrag.
 - Darunter die Positionen des Angebots mit den übernommenen Mengen; **Pauschalen** kommen mit
-  der Menge aus dem Angebot. Mengen, Preise und Texte lassen sich ändern, eigene Positionen
+  der Menge aus dem Angebot – aber nur auf die erste Rechnung, auf der sie stehen. Mengen, Preise und Texte lassen sich ändern, eigene Positionen
   dazunehmen. Positionen ohne Menge kommen nicht auf die Rechnung; die **Nummern bleiben wie
   im Angebot** (1.3 bleibt 1.3).
 - Kopf: Rechnungsdatum, **zahlbar bis** (Rechnungsdatum plus Zahlungsziel), **Leistungszeitraum**
-  (aus den Tagesberichten), BV, Ausführungsort, Anschrift und UID des Kunden aus dem Angebot.
+  (aus den gewählten Berichten), BV, Ausführungsort, Anschrift und UID des Kunden aus dem
+  Angebot, dazu **Bundesland** und **Abschnitt** fürs Summenblatt (von der letzten Rechnung zum
+  Auftrag übernommen).
 - **Übergang der Steuerschuld (Reverse Charge)** für Bauleistungen an Bauunternehmen: ohne
   Umsatzsteuer, mit Hinweis auf § 19 Abs. 1a UStG und der UID des Kunden (dann Pflicht).
 - Das PDF sieht aus wie das Angebot: Briefkopf, Rechnungsdatum, UID, Projekt- und
-  Rechnungsnummer, zahlbar bis, Positionen mit EP und GP, Summen, „Zahlbar bis … ohne
-  Abzug“, Schlusstext und Fußzeile mit Bankverbindung.
+  Rechnungsnummer, zahlbar bis, die abgerechneten Tagesberichte, Positionen mit EP und GP,
+  Summen, „Zahlbar bis … ohne Abzug“, Schlusstext und Fußzeile mit Bankverbindung. Die
+  Rechnung zeigt ihre Tagesberichte und hat ein eigenes **Summenblatt**.
 - **Offen → Bezahlt** mit dem Datum der Zahlung (von Haus aus Admin, Geschäftsführung,
   Buchhaltung), zurück auf offen ebenso. Offene Rechnungen lassen sich noch **bearbeiten**
-  und löschen (löschen: Admin, Geschäftsführung); bezahlte nicht mehr. Ein Auftrag mit
-  Rechnung lässt sich nicht löschen.
+  und löschen (löschen: Admin, Geschäftsführung); bezahlte nicht mehr. Wird eine Rechnung
+  gelöscht, sind ihre Tagesberichte wieder abzurechnen. Welche Berichte drin sind, lässt sich
+  nachträglich nicht ändern – dafür die offene Rechnung löschen und neu erstellen. Ein Auftrag
+  mit Rechnung lässt sich nicht löschen.
+- Rechnungen von vor den Teilrechnungen: Die Berichte, die beim Erstellen schon geprüft waren,
+  gelten als mit ihnen abgerechnet.
 - Einleitung, Schlusstext und **Zahlungsziel** (von Haus aus 30 Tage) stehen unter
   **Einstellungen → Angebote, Aufträge und Rechnungen**.
 

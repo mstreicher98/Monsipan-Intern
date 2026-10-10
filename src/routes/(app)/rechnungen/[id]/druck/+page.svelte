@@ -3,11 +3,11 @@
 	import { pageTitle } from '$lib/app';
 	import PrintSheet from '$lib/components/PrintSheet.svelte';
 	import PdfPages from '$lib/components/PdfPages.svelte';
-	import { spacedNumber } from '$lib/modules/auftraege/offer';
+	import { invoiceLabel, spacedNumber } from '$lib/modules/auftraege/offer';
 
 	let { data } = $props();
 	let ready = $state(false);
-	const title = $derived(`Rechnung ${spacedNumber(data.number)}`);
+	const title = $derived(`${invoiceLabel(data.kind)} ${spacedNumber(data.number)}`);
 </script>
 
 <svelte:head><title>{pageTitle(title)}</title></svelte:head>

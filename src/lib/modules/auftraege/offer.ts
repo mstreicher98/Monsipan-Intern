@@ -21,6 +21,10 @@ export const INVOICE_STATUS_LABELS: Record<string, { label: string; tone: string
 	bezahlt: { label: 'Bezahlt', tone: 'badge-ok' }
 };
 
+/** „Rechnung" über alles oder „Teilrechnung" über einen Teil der Tagesberichte */
+export const INVOICE_KIND_LABELS: Record<string, string> = { rechnung: 'Rechnung', teilrechnung: 'Teilrechnung' };
+export const invoiceLabel = (kind: string) => INVOICE_KIND_LABELS[kind] ?? 'Rechnung';
+
 /** Steht auf der Rechnung, wenn die Steuerschuld auf den Kunden übergeht */
 export const REVERSE_CHARGE_NOTE = 'Übergang der Steuerschuld auf den Leistungsempfänger gemäß § 19 Abs. 1a UStG (Bauleistungen).';
 
@@ -121,7 +125,9 @@ export function lineNumbers(lines: { kind: 'position' | 'titel' }[]): string[] {
 
 /** „26659" → „26 659" wie in der Überschrift des Angebots */
 export function spacedNumber(n: string): string {
-	return /^\d{5,}$/.test(n) ? `${n.slice(0, -3)} ${n.slice(-3)}` : n;
+	// Weitere Rechnungen zum Auftrag hängen „-2", „-3" … an
+	const m = /^(\d{5,})(-\d+)?$/.exec(n);
+	return m ? `${m[1].slice(0, -3)} ${m[1].slice(-3)}${m[2] ?? ''}` : n;
 }
 
 /** Nächste Angebotsnummer: höchste rein numerische plus eins, sonst „JJ001" */

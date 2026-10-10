@@ -1,20 +1,23 @@
 import { error, fail, redirect } from '@sveltejs/kit';
 import { requirePermission } from '$lib/server/guard';
 import { mayViewOrder } from '$lib/modules/auftraege/server/orders';
-import { createInvoice, draftLines, invoiceDraft, invoiceForOrder, readInvoice, readMapping } from '$lib/modules/auftraege/server/invoices';
+import { createInvoice, draftLines, invoiceDraft, readInvoice, readMapping, readReports } from '$lib/modules/auftraege/server/invoices';
 import { notifyInvoice } from '$lib/modules/auftraege/server/notify';
 import type { Actions, PageServerLoad } from './$types';
 
-/** Auftrag laden und prüfen: sichtbar, abgeschlossen, noch ohne Rechnung */
+/** Auftrag laden und prüfen: sichtbar und (noch) etwas abzurechnen */
 async function open(url: URL, locals: App.Locals) {
 	const user = requirePermission(locals, 'rechnungen.erstellen');
 	const orderId = Number(url.searchParams.get('auftrag'));
 	if (!Number.isInteger(orderId) || orderId <= 0) redirect(303, '/rechnungen');
-	const existing = await invoiceForOrder(orderId);
-	if (existing) redirect(303, `/rechnungen/${existing.id}`);
 	const draft = await invoiceDraft(orderId);
 	if (!draft || !mayViewOrder(user, draft.order)) error(404, 'Auftrag nicht gefunden');
-	if (draft.order.status !== 'abgeschlossen') error(400, 'Eine Rechnung gibt es erst, wenn der Auftrag abgeschlossen ist.');
+	if (draft.blocked) {
+		// Alles abgerechnet: zur letzten Rechnung statt einer Fehlerseite
+		const last = draft.previous.at(-1);
+		if (last && draft.order.status !== 'erstellt') redirect(303, `/rechnungen/${last.id}`);
+		error(400, draft.blocked);
+	}
 	return { user, draft };
 }
 
@@ -24,8 +27,15 @@ export const load: PageServerLoad = async ({ url, locals }) => {
 		order: draft.order,
 		head: draft.head,
 		paymentDays: draft.paymentDays,
-		summary: { from: draft.summary.from, to: draft.summary.to, counted: draft.summary.counted, pending: draft.summary.reports.length - draft.summary.counted },
-		mapping: { columns: draft.summary.columns, priced: draft.lines, initial: draft.mapping },
+		previous: draft.previous,
+		mapping: { columns: draft.columns, priced: draft.lines, initial: draft.mapping },
+		selection: {
+			reports: draft.reports,
+			pending: draft.pending,
+			previous: draft.previous.length,
+			closed: draft.order.status === 'abgeschlossen',
+			flatBilled: draft.flatBilled
+		},
 		lines: draftLines(draft),
 		hasPrices: draft.lines.some((l) => l.unitPrice != null)
 	};
@@ -39,9 +49,9 @@ export const actions: Actions = {
 		if ('message' in data) return fail(400, { message: data.message });
 		const mapping = readMapping(
 			form,
-			draft.summary.columns.map((c) => c.key)
+			draft.columns.map((c) => c.key)
 		);
-		const result = await createInvoice(user, draft.order.id, data, mapping);
+		const result = await createInvoice(user, draft.order.id, data, mapping, readReports(form));
 		if (typeof result !== 'number') return fail(400, { message: result.message });
 		notifyInvoice('rechnung.erstellt', result, user.id);
 		redirect(303, `/rechnungen/${result}`);

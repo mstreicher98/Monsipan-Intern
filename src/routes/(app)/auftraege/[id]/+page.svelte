@@ -22,8 +22,8 @@
 	import { reportDateLabel } from '$lib/modules/tagesberichte/sheet';
 	import Dialog from '$lib/components/Dialog.svelte';
 	import PdfButton from '$lib/components/PdfButton.svelte';
-	import { dateTime } from '$lib/format';
-	import { addressLines, INVOICE_STATUS_LABELS, lineNumbers, ORDER_STATUS_LABELS, quantityLabel, spacedNumber } from '$lib/modules/auftraege/offer';
+	import { date, dateTime } from '$lib/format';
+	import { addressLines, INVOICE_STATUS_LABELS, invoiceLabel, lineNumbers, money, ORDER_STATUS_LABELS, quantityLabel, spacedNumber } from '$lib/modules/auftraege/offer';
 	import { toast } from '$lib/stores/toast.svelte';
 
 	let { data, form } = $props();
@@ -247,7 +247,7 @@
 						<span class="num w-14 shrink-0 font-semibold">{r.number || '–'}</span>
 						<span class="min-w-0 flex-1">
 							<span class="block truncate">{reportDateLabel(r.date, r.dateTo)}</span>
-							<span class="block truncate text-[0.8125rem] text-ink-3">{[r.site, r.partyName, r.dailyOutput].filter(Boolean).join(' · ')}</span>
+							<span class="block truncate text-[0.8125rem] text-ink-3">{[r.site, r.partyName, r.dailyOutput, r.invoiceId && data.invoices.length ? 'abgerechnet' : ''].filter(Boolean).join(' · ')}</span>
 						</span>
 						<span class="badge {rs.tone}">{rs.label}</span>
 						<ChevronRight size={18} class="shrink-0 text-ink-3" aria-hidden="true" />
@@ -260,16 +260,47 @@
 	{/if}
 </section>
 
-{#if data.invoice || data.canCreateInvoice}
-	{@const inv = data.invoice ? INVOICE_STATUS_LABELS[data.invoice.status] : null}
-	<section class="card mt-4 flex flex-wrap items-center gap-3 p-4 lg:p-5">
-		<h2 class="flex flex-1 items-center gap-2 text-lg"><ReceiptText size={18} aria-hidden="true" />Rechnung</h2>
-		{#if data.invoice && inv}
-			<span class="badge {inv.tone}">{inv.label}</span>
-			<a href="/rechnungen/{data.invoice.id}" class="btn btn-secondary btn-sm">Rechnung {spacedNumber(data.invoice.number)}</a>
+{#if data.invoices.length || data.canCreateInvoice}
+	<section class="card mt-4 p-4 lg:p-5">
+		<div class="flex flex-wrap items-center justify-between gap-2">
+			<h2 class="flex items-center gap-2 text-lg"><ReceiptText size={18} aria-hidden="true" />{data.invoices.length > 1 ? 'Rechnungen' : 'Rechnung'}</h2>
+			{#if data.canCreateInvoice}
+				<a href="/rechnungen/neu?auftrag={order.id}" class="btn btn-primary btn-sm">
+					<Plus size={16} aria-hidden="true" />{data.invoices.length ? 'Weitere Rechnung' : order.status === 'abgeschlossen' ? 'Rechnung erstellen' : 'Teilrechnung erstellen'}
+				</a>
+			{/if}
+		</div>
+		{#if data.invoices.length}
+			<ul class="mt-3 divide-y divide-line rounded-xl border border-line">
+				{#each data.invoices as i (i.id)}
+					{@const st = INVOICE_STATUS_LABELS[i.status]}
+					<li>
+						<a href="/rechnungen/{i.id}" class="flex items-center gap-3 px-3 py-2.5 hover:bg-surface-2">
+							<span class="min-w-0 flex-1">
+								<span class="block font-medium">{invoiceLabel(i.kind)} <span class="num">{spacedNumber(i.number)}</span></span>
+								<span class="num block truncate text-[0.8125rem] text-ink-3">
+									{date(i.date)}{i.reports ? ` · ${i.reports} ${i.reports === 1 ? 'Tagesbericht' : 'Tagesberichte'}` : ''}
+								</span>
+							</span>
+							<span class="num hidden font-medium sm:block">{money(i.gross)}</span>
+							{#if st}<span class="badge {st.tone}">{st.label}</span>{/if}
+							<ChevronRight size={18} class="shrink-0 text-ink-3" aria-hidden="true" />
+						</a>
+					</li>
+				{/each}
+			</ul>
+			{#if data.unbilled}
+				<p class="mt-2 text-sm text-ink-2">
+					{data.unbilled}
+					{data.unbilled === 1 ? 'geprüfter Tagesbericht ist' : 'geprüfte Tagesberichte sind'} noch nicht abgerechnet.
+				</p>
+			{/if}
 		{:else}
-			<p class="w-full text-sm text-ink-2 sm:order-none sm:w-auto">Abgeschlossen – Preise aus dem Angebot, Mengen aus den Tagesberichten.</p>
-			<a href="/rechnungen/neu?auftrag={order.id}" class="btn btn-primary btn-sm"><ReceiptText size={16} aria-hidden="true" />Rechnung erstellen</a>
+			<p class="mt-2 text-sm text-ink-2">
+				{order.status === 'abgeschlossen'
+					? 'Abgeschlossen – Preise aus dem Angebot, Mengen aus den Tagesberichten. Alles in einer Rechnung oder in Teilrechnungen.'
+					: 'Noch in Arbeit – geprüfte Tagesberichte lassen sich schon als Teilrechnung abrechnen.'}
+			</p>
 		{/if}
 	</section>
 {/if}

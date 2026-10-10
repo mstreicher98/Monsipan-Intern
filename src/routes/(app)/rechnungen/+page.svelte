@@ -1,7 +1,7 @@
 <script lang="ts">
 	/**
-	 * Rechnungen: offen und bezahlt. Oben die abgeschlossenen Aufträge, zu denen
-	 * es noch keine Rechnung gibt – von dort geht es direkt zum Abrechnen.
+	 * Rechnungen: offen und bezahlt. Oben die abgeschlossenen Aufträge, bei denen
+	 * noch etwas abzurechnen ist – von dort geht es direkt zum Abrechnen.
 	 */
 	import { pageTitle } from '$lib/app';
 	import ReceiptText from '@lucide/svelte/icons/receipt-text';
@@ -35,7 +35,7 @@
 {#if data.ready.length}
 	<section class="card mb-4 border-warn/50 p-4 lg:p-5">
 		<h2 class="text-lg">Bereit zur Rechnung</h2>
-		<p class="mt-1 text-sm text-ink-2">Abgeschlossene Aufträge ohne Rechnung.</p>
+		<p class="mt-1 text-sm text-ink-2">Abgeschlossene Aufträge ohne Rechnung oder mit Tagesberichten, die noch nicht abgerechnet sind.</p>
 		<ul class="mt-3 divide-y divide-line rounded-xl border border-line">
 			{#each data.ready as o (o.id)}
 				<li class="flex flex-wrap items-center gap-3 px-3 py-2.5">
@@ -79,9 +79,9 @@
 			{@const st = INVOICE_STATUS_LABELS[i.status] ?? INVOICE_STATUS_LABELS.offen}
 			<li class="border-b border-line last:border-0">
 				<a href="/rechnungen/{i.id}" class="flex items-center gap-3 px-4 py-3 hover:bg-surface-2">
-					<span class="num w-20 shrink-0 font-display text-lg font-semibold">{spacedNumber(i.number)}</span>
+					<span class="num w-24 shrink-0 font-display text-lg font-semibold">{spacedNumber(i.number)}</span>
 					<span class="min-w-0 flex-1">
-						<span class="block truncate font-medium">{i.title || 'Ohne BV'}</span>
+						<span class="block truncate font-medium">{i.kind === 'teilrechnung' ? 'Teilrechnung · ' : ''}{i.title || 'Ohne BV'}</span>
 						<span class="block truncate text-[0.8125rem] text-ink-3">
 							{[i.customerName, `vom ${dateLabel(i.date)}`, i.status === 'bezahlt' && i.paidOn ? `bezahlt am ${dateLabel(i.paidOn)}` : `zahlbar bis ${dateLabel(i.dueDate)}`].filter(Boolean).join(' · ')}
 						</span>

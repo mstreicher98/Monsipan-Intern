@@ -85,6 +85,7 @@ export async function listReports(user: SessionUser, filter: ReportFilter = {}, 
 			dailyOutput: dailyReports.dailyOutput,
 			partyName: parties.name,
 			orderNumber: orders.number,
+			invoiceId: dailyReports.invoiceId,
 			authorFirst: users.firstName,
 			authorLast: users.lastName
 		})
